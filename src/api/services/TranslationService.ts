@@ -7,6 +7,8 @@ import { TranslationStrings, PluginRegistryError } from '@/lib/types/plugin.js';
 import { Translation, TranslationProgress, TranslationSubmission, TranslationValidationResult } from '@/lib/types/Translation.js';
 import { Project } from '@/lib/types/Project.js';
 import { GitHubRepositoryService } from './GitHubService.js';
+import { ErrorRecoveryStrategy } from '@/lib/utils/error-handler.js';
+import { logger } from './LoggingService.js';
 
 export class TranslationService {
   private translations = new Map<string, Translation>();
@@ -23,14 +25,35 @@ export class TranslationService {
    * @param sourceFilePath Path to source file
    * @returns Extracted translation strings
    */
-  async extractTranslationStrings(project: Project, sourceFilePath: string): Promise<TranslationStrings> {
+  async extractTranslationStrings(project: Project, sourceFilePath: string, requestId?: string): Promise<TranslationStrings> {
     try {
-      // Get file content from repository
-      const fileContent = await this.githubService.readFile(
-        project.repository.owner,
-        project.repository.name,
+      logger.info(`Extracting translation strings from ${sourceFilePath}`, {
+        projectId: project.id,
         sourceFilePath,
-        project.repository.branch
+        repository: `${project.repository.owner}/${project.repository.name}`
+      }, requestId);
+
+      // Get file content from repository with retry on network failures
+      const fileContent = await ErrorRecoveryStrategy.recoverFromNetworkFailure(
+        () => this.githubService.readFile(
+          project.repository.owner,
+          project.repository.name,
+          sourceFilePath,
+          project.repository.branch
+        ),
+        {
+          maxAttempts: 3,
+          onRetry: (attempt, error) => {
+            logger.logNetworkFailure(
+              `Extract translation strings from ${sourceFilePath}`,
+              error,
+              attempt,
+              3,
+              attempt < 3,
+              requestId
+            );
+          }
+        }
       );
 
       // Decode base64 content if needed
@@ -41,9 +64,35 @@ export class TranslationService {
       // Determine format from file extension or configuration
       const format = this.detectFormat(sourceFilePath, project);
       
+      logger.debug(`Parsing content with format: ${format}`, {
+        projectId: project.id,
+        sourceFilePath,
+        format,
+        contentLength: content.length
+      }, requestId);
+
       // Use plugin to parse content
-      return pluginRegistry.parse(content, format);
+      const strings = pluginRegistry.parse(content, format);
+
+      logger.info(`Successfully extracted translation strings`, {
+        projectId: project.id,
+        sourceFilePath,
+        stringCount: Object.keys(strings).length
+      }, requestId);
+
+      return strings;
     } catch (error) {
+      logger.error(
+        `Failed to extract translation strings from ${sourceFilePath}`,
+        error instanceof Error ? error : undefined,
+        {
+          projectId: project.id,
+          sourceFilePath,
+          repository: `${project.repository.owner}/${project.repository.name}`
+        },
+        requestId
+      );
+
       if (error instanceof PluginRegistryError) {
         throw new Error(`Failed to extract translation strings: ${error.message}`);
       }
@@ -55,17 +104,48 @@ export class TranslationService {
    * Validate translation content using format plugins
    * @param content Content to validate
    * @param format File format
+   * @param requestId Optional request ID for logging
    * @returns Validation result
    */
-  validateTranslation(content: string, format: string): TranslationValidationResult {
+  validateTranslation(content: string, format: string, requestId?: string): TranslationValidationResult {
     try {
+      logger.debug(`Validating translation content`, {
+        format,
+        contentLength: content.length
+      }, requestId);
+
       const result = pluginRegistry.validate(content, format);
+
+      if (!result.isValid) {
+        logger.logValidationFailure(
+          format,
+          result.errors.map(e => e.message),
+          {
+            warningCount: result.warnings.length,
+            errorCount: result.errors.length
+          },
+          requestId
+        );
+      } else {
+        logger.debug(`Validation successful`, {
+          format,
+          warningCount: result.warnings.length
+        }, requestId);
+      }
+
       return {
         isValid: result.isValid,
         errors: result.errors.map(e => e.message),
         warnings: result.warnings.map(w => w.message)
       };
     } catch (error) {
+      logger.error(
+        `Validation error for format ${format}`,
+        error instanceof Error ? error : undefined,
+        { format, contentLength: content.length },
+        requestId
+      );
+
       return {
         isValid: false,
         errors: [`Validation failed: ${error instanceof Error ? error.message : String(error)}`],
@@ -95,47 +175,91 @@ export class TranslationService {
    * Submit a translation with plugin-based validation
    * @param submission Translation submission
    * @param project Project configuration
+   * @param requestId Optional request ID for logging
    * @returns Created translation
    */
-  async submitTranslation(submission: TranslationSubmission, project: Project): Promise<Translation> {
-    // Create translation record
-    const translation: Translation = {
-      id: this.generateId(),
-      projectId: submission.projectId,
-      stringKey: submission.stringKey,
-      sourceText: await this.getSourceText(project, submission.stringKey),
-      translatedText: submission.translatedText,
-      language: submission.language,
-      status: 'draft',
-      contributor: {
-        userId: 'current-user', // TODO: Get from auth context
-        username: 'current-username' // TODO: Get from auth context
-      },
-      metadata: {
-        createdAt: new Date(),
-        updatedAt: new Date()
+  async submitTranslation(submission: TranslationSubmission, project: Project, requestId?: string): Promise<Translation> {
+    try {
+      logger.info(`Submitting translation`, {
+        projectId: submission.projectId,
+        language: submission.language,
+        stringKey: submission.stringKey
+      }, requestId);
+
+      // Create translation record
+      const translation: Translation = {
+        id: this.generateId(),
+        projectId: submission.projectId,
+        stringKey: submission.stringKey,
+        sourceText: await this.getSourceText(project, submission.stringKey),
+        translatedText: submission.translatedText,
+        language: submission.language,
+        status: 'draft',
+        contributor: {
+          userId: 'current-user', // TODO: Get from auth context
+          username: 'current-username' // TODO: Get from auth context
+        },
+        metadata: {
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      };
+
+      // Validate translation using appropriate format plugin
+      const format = this.getFormatForProject(project, submission.stringKey);
+      const validationResult = this.validateTranslation(submission.translatedText, format, requestId);
+      
+      if (!validationResult.isValid) {
+        translation.status = 'failed';
+        logger.logTranslation(
+          'validate',
+          project.id,
+          submission.language,
+          false,
+          {
+            stringKey: submission.stringKey,
+            errors: validationResult.errors,
+            warnings: validationResult.warnings
+          },
+          requestId
+        );
+      } else {
+        logger.logTranslation(
+          'submit',
+          project.id,
+          submission.language,
+          true,
+          {
+            stringKey: submission.stringKey,
+            translationId: translation.id
+          },
+          requestId
+        );
       }
-    };
 
-    // Validate translation using appropriate format plugin
-    const format = this.getFormatForProject(project, submission.stringKey);
-    const validationResult = this.validateTranslation(submission.translatedText, format);
-    
-    if (!validationResult.isValid) {
-      translation.status = 'failed';
-      // Store validation errors in metadata (simplified for now)
+      // Store translation
+      this.translations.set(translation.id, translation);
+
+      // Update progress tracking
+      this.updateTranslationProgress(project.id, submission.language);
+
+      // Start auto-save if not already running
+      this.startAutoSave(translation.id);
+
+      return translation;
+    } catch (error) {
+      logger.error(
+        `Failed to submit translation`,
+        error instanceof Error ? error : undefined,
+        {
+          projectId: submission.projectId,
+          language: submission.language,
+          stringKey: submission.stringKey
+        },
+        requestId
+      );
+      throw error;
     }
-
-    // Store translation
-    this.translations.set(translation.id, translation);
-
-    // Update progress tracking
-    this.updateTranslationProgress(project.id, submission.language);
-
-    // Start auto-save if not already running
-    this.startAutoSave(translation.id);
-
-    return translation;
   }
 
   /**

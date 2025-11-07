@@ -170,56 +170,107 @@
     - Ensure validation works across all targets
     - _Requirements: 2.1, 2.4_
 
-- [ ] 7. Migrate and consolidate tests
-  - [ ] 7.1 Create new test directory structure
+- [x] 7. Migrate and consolidate tests
+
+
+
+
+
+
+
+
+
+  - [x] 7.1 Create new test directory structure
+
+
     - Create src/__tests__ with subdirectories for api, app, lib
     - Set up test organization matching new structure
     - _Requirements: 4.2, 4.3_
   
-  - [ ] 7.2 Move backend tests to src/__tests__/api
+  - [x] 7.2 Move backend tests to src/__tests__/api
+
+
     - Relocate src/backend/__tests__ to src/__tests__/api
     - Update test imports to match new structure
     - _Requirements: 4.2, 4.3_
   
-  - [ ]* 7.3 Update test configurations
+  - [x] 7.3 Update test configurations
+
+
+
+
+
+
     - Update vitest.config.ts to work with new test locations
     - Ensure test discovery works with new structure
     - _Requirements: 4.4_
 
-- [ ] 8. Update all import statements
-  - [ ] 8.1 Update frontend component imports
+- [x] 8. Update all import statements
+
+
+
+
+
+
+  - [x] 8.1 Update frontend component imports
+
     - Replace all @/frontend imports with @/app imports
     - Update @/shared imports to @/lib imports
     - _Requirements: 2.2, 4.1_
   
-  - [ ] 8.2 Update API and backend imports
+
+  - [x] 8.2 Update API and backend imports
+
     - Replace @/backend imports with @/api imports
     - Update @/shared imports to @/lib imports
     - _Requirements: 2.2, 4.1_
   
-  - [ ] 8.3 Update workers imports
+
+  - [x] 8.3 Update workers imports
+
     - Update workers code to use new @/api and @/lib imports
     - Ensure workers can access consolidated API code
     - _Requirements: 2.2, 4.1_
   
-  - [ ] 8.4 Update test imports
+
+
+  - [x] 8.4 Update test imports
+
+
+
+
+
     - Update all test files to use new import paths
     - Ensure tests can properly import code under test
     - _Requirements: 2.2, 4.1_
 
-- [ ] 9. Update package.json scripts
-  - [ ] 9.1 Update build scripts for new structure
+- [x] 9. Update package.json scripts
+
+
+
+
+
+
+  - [x] 9.1 Update build scripts for new structure
+
     - Modify build:frontend script to work with src/app
     - Update any hardcoded paths in build scripts
     - _Requirements: 3.3, 4.4_
   
-  - [ ] 9.2 Update development scripts
+  - [x] 9.2 Update development scripts
+
+
     - Ensure dev:server and dev:frontend work with new structure
     - Update any path references in development scripts
     - _Requirements: 3.3, 4.4_
 
-- [ ] 10. Clean up old directories
-  - [ ] 10.1 Remove old directory structure
+- [-] 10. Clean up old directories
+
+
+
+  - [x] 10.1 Remove old directory structure
+
+
     - Delete src/frontend, src/backend, src/workers, src/shared directories
     - Ensure all files have been properly migrated
     - _Requirements: 1.3, 4.2_

@@ -110,11 +110,41 @@ src/
    node dist/server/backend/index.js
    ```
 
+## Documentation
+
+The platform includes comprehensive mathematical documentation maintained in Typst format:
+
+- **System Architecture**: High-level architecture, deployment models, and flows
+- **Data Models**: Mathematical type definitions and invariants
+- **Build System**: Automated documentation generation and validation
+
+### Building Documentation
+
+```bash
+# Install Typst (one-time setup)
+winget install --id Typst.Typst  # Windows
+# or: brew install typst          # macOS
+# or: see docs/architecture/README.md for Linux
+
+# Build documentation
+npm run docs:build
+
+# Validate documentation
+npm run docs:validate
+```
+
+Generated documentation is available in `docs/generated/` as PDFs and PNGs.
+
+For more information, see:
+- [Architecture Documentation](docs/architecture/README.md)
+- [Documentation Maintenance Guide](docs/DOCUMENTATION_GUIDE.md)
+
 ## Requirements
 
 - Node.js 18+
 - GitHub OAuth application
 - (Optional) Cloudflare Workers account
+- (Optional) Typst for building documentation
 
 ## License
 

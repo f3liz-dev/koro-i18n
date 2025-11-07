@@ -10,9 +10,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      '@/shared': resolve(__dirname, 'src/shared'),
-      '@/frontend': resolve(__dirname, 'src/frontend'),
-      '@/backend': resolve(__dirname, 'src/backend'),
+      '@/app': resolve(__dirname, 'src/app'),
+      '@/api': resolve(__dirname, 'src/api'),
+      '@/lib': resolve(__dirname, 'src/lib'),
+      '@/config': resolve(__dirname, 'src/config'),
     },
   },
 });

@@ -37,7 +37,7 @@ COPY package*.json ./
 RUN npm ci --only=production && npm cache clean --force
 
 # Copy built application from builder stage
-COPY --from=builder --chown=nodejs:nodejs /app/dist/server ./dist/server
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 
 # Copy environment configuration
 COPY --chown=nodejs:nodejs .env.example ./.env.example
@@ -83,4 +83,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 ENTRYPOINT ["dumb-init", "--"]
 
 # Start the optimized server
-CMD ["node", "dist/server/optimized-server.js"]
+CMD ["node", "dist/optimized-server-entry.js"]

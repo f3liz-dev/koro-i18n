@@ -66,6 +66,60 @@ export class LoggingService {
   }
 
   /**
+   * Log network failure with retry information
+   */
+  logNetworkFailure(operation: string, error: Error, attempt: number, maxAttempts: number, willRetry: boolean, requestId?: string) {
+    this.log('warn', `Network failure during ${operation} (attempt ${attempt}/${maxAttempts})`, {
+      operation,
+      attempt,
+      maxAttempts,
+      willRetry,
+      errorCode: (error as any).code,
+      errorMessage: error.message
+    }, error, requestId);
+  }
+
+  /**
+   * Log commit failure with recovery information (Requirement 2.5)
+   */
+  logCommitFailure(projectId: string, language: string, error: Error, attempt: number, maxAttempts: number, requestId?: string) {
+    this.log('error', `Commit failed for ${projectId}/${language} (attempt ${attempt}/${maxAttempts})`, {
+      projectId,
+      language,
+      attempt,
+      maxAttempts,
+      errorCode: (error as any).code,
+      errorMessage: error.message,
+      willRetry: attempt < maxAttempts
+    }, error, requestId);
+  }
+
+  /**
+   * Log validation failure with detailed error information (Requirement 5.5)
+   */
+  logValidationFailure(field: string, errors: string[], context?: Record<string, any>, requestId?: string) {
+    this.log('warn', `Validation failed for ${field}`, {
+      field,
+      errors,
+      errorCount: errors.length,
+      ...context
+    }, undefined, requestId);
+  }
+
+  /**
+   * Log error recovery attempt
+   */
+  logRecoveryAttempt(operation: string, strategy: string, success: boolean, context?: Record<string, any>, requestId?: string) {
+    const level = success ? 'info' : 'warn';
+    this.log(level, `Recovery ${success ? 'succeeded' : 'failed'} for ${operation} using ${strategy}`, {
+      operation,
+      strategy,
+      success,
+      ...context
+    }, undefined, requestId);
+  }
+
+  /**
    * Log API request
    */
   logRequest(method: string, path: string, statusCode: number, duration: number, userId?: string, requestId?: string) {

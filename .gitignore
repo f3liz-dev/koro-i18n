@@ -56,3 +56,6 @@ worker-configuration.d.ts
 # Temporary folders
 tmp/
 temp/
+
+# Generated documentation
+docs/generated/

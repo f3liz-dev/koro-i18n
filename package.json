@@ -2,7 +2,7 @@
   "name": "i18n-platform",
   "version": "1.0.0",
   "description": "Lightweight internationalization platform with GitHub integration",
-  "main": "dist/backend/index.js",
+  "main": "dist/index.js",
   "type": "module",
   "scripts": {
     "build": "npm run build:frontend && tsc && npm run build:workers && npm run build:server",
@@ -10,7 +10,7 @@
     "build:workers": "vite build --config vite.config.workers.ts",
     "build:server": "tsc --project tsconfig.server.json",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:frontend\"",
-    "dev:server": "tsx watch src/backend/index.ts",
+    "dev:server": "tsx watch src/index.ts",
     "dev:frontend": "vite",
     "dev:workers": "wrangler dev --compatibility-date=2023-11-01",
     "dev:workers:vite": "vite dev --config vite.config.workers.ts",
@@ -19,11 +19,17 @@
     "deploy:workers:staging": "powershell -ExecutionPolicy Bypass -File scripts/deploy-workers.ps1 staging",
     "deploy:server": "powershell -ExecutionPolicy Bypass -File scripts/deploy-server.ps1",
     "deploy:server:monitoring": "powershell -ExecutionPolicy Bypass -File scripts/deploy-server.ps1 production -WithMonitoring",
-    "start:optimized": "node dist/server/optimized-server-entry.js",
+    "start": "node dist/index.js",
+    "start:optimized": "node dist/optimized-server-entry.js",
     "test": "vitest --run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
     "lint": "eslint src --ext .ts,.tsx",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "docs:build": "powershell -ExecutionPolicy Bypass -File scripts/build-docs.ps1",
+    "docs:build:pdf": "powershell -ExecutionPolicy Bypass -File scripts/build-docs.ps1 -Format pdf",
+    "docs:build:png": "powershell -ExecutionPolicy Bypass -File scripts/build-docs.ps1 -Format png",
+    "docs:validate": "powershell -ExecutionPolicy Bypass -File scripts/validate-docs.ps1",
+    "docs:watch": "powershell -ExecutionPolicy Bypass -File scripts/build-docs.ps1 -Watch"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.1",

@@ -7,10 +7,13 @@ import { TranslationService } from '../services/TranslationService.js';
 import { GitHubRepositoryService, createTranslationBotService } from '../services/GitHubService.js';
 import { createProjectService } from '../services/ProjectService.js';
 import { createHonoAuthMiddleware } from '../middleware/hono-auth.js';
+import { userFriendlyErrorMiddleware } from '../middleware/user-friendly-errors.js';
 import { AuthService } from '../services/AuthService.js';
 import { TranslationSubmission } from '@/lib/types/Translation.js';
 import { User } from '@/lib/types/User.js';
 import { pluginRegistry, jsonPlugin, markdownPlugin } from '@/lib/plugins/index.js';
+import { logger } from '../services/LoggingService.js';
+import { ErrorRecoveryStrategy } from '@/lib/utils/error-handler.js';
 
 // Initialize built-in plugins
 pluginRegistry.register(jsonPlugin);
@@ -19,6 +22,9 @@ pluginRegistry.register(markdownPlugin);
 export function createTranslationRoutes(authService: AuthService) {
   const translationRoutes = new Hono();
   const { authenticate } = createHonoAuthMiddleware(authService);
+
+  // Apply user-friendly error handling middleware
+  translationRoutes.use('*', userFriendlyErrorMiddleware());
 
   // Apply authentication middleware to all routes
   translationRoutes.use('*', authenticate);
@@ -48,65 +54,89 @@ export function createTranslationRoutes(authService: AuthService) {
    * GET /api/translations/projects/:projectId/strings
    */
   translationRoutes.get('/projects/:projectId/strings', async (c: Context) => {
-    try {
-      const session = c.get('user');
-      if (!session) {
-        return c.json({ error: 'Authentication required' }, 401);
+    const requestId = c.get('requestId');
+    const session = c.get('user');
+    if (!session) {
+      throw new Error('Unauthorized');
+    }
+
+    const projectId = c.req.param('projectId');
+    const language = c.req.query('language');
+    const sourceFile = c.req.query('sourceFile');
+
+    if (!projectId) {
+      const error = new Error('Project ID is required');
+      error.name = 'ValidationError';
+      throw error;
+    }
+
+    const user = createUserFromSession(session);
+    const projectService = createProjectService(user);
+    const githubService = new GitHubRepositoryService(user.accessToken);
+    const translationService = new TranslationService(githubService);
+
+    // Get project from project service with retry on network failures
+    const project = await ErrorRecoveryStrategy.recoverFromNetworkFailure(
+      () => projectService.getProject(projectId),
+      {
+        maxAttempts: 3,
+        onRetry: (attempt, error) => {
+          logger.logNetworkFailure(
+            `Get project ${projectId}`,
+            error,
+            attempt,
+            3,
+            attempt < 3,
+            requestId
+          );
+        }
       }
+    );
 
-      const projectId = c.req.param('projectId');
-      const language = c.req.query('language');
-      const sourceFile = c.req.query('sourceFile');
+    if (!project) {
+      throw new Error('Not found');
+    }
 
-      if (!projectId) {
-        return c.json({ error: 'Project ID is required' }, 400);
-      }
+    // Validate user has access to this project
+    const hasAccess = await projectService.validateProjectAccess(projectId);
+    if (!hasAccess) {
+      throw new Error('Forbidden');
+    }
 
-      const user = createUserFromSession(session);
-      const projectService = createProjectService(user);
-      const githubService = new GitHubRepositoryService(user.accessToken);
-      const translationService = new TranslationService(githubService);
+    if (sourceFile) {
+      // Extract strings from specific source file
+      const strings = await translationService.extractTranslationStrings(project, sourceFile, requestId);
+      
+      logger.info(`Retrieved translation strings from source file`, {
+        projectId,
+        sourceFile,
+        stringCount: Object.keys(strings).length
+      }, requestId);
 
-      // Get project from project service
-      const project = await projectService.getProject(projectId);
-      if (!project) {
-        return c.json({ error: 'Project not found' }, 404);
-      }
-
-      // Validate user has access to this project
-      const hasAccess = await projectService.validateProjectAccess(projectId);
-      if (!hasAccess) {
-        return c.json({ error: 'Access denied to project' }, 403);
-      }
-
-      if (sourceFile) {
-        // Extract strings from specific source file
-        const strings = await translationService.extractTranslationStrings(project, sourceFile);
-        return c.json({ 
-          projectId,
-          sourceFile,
-          strings,
-          supportedFormats: translationService.getSupportedFormats()
-        });
-      } else {
-        // Get existing translations
-        const translations = translationService.getTranslations(projectId, language);
-        const progress = language ? translationService.getTranslationProgress(projectId, language) : null;
-        
-        return c.json({
-          projectId,
-          language,
-          translations,
-          progress,
-          supportedFormats: translationService.getSupportedFormats()
-        });
-      }
-    } catch (error) {
-      console.error('Error retrieving translation strings:', error);
       return c.json({ 
-        error: 'Failed to retrieve translation strings',
-        details: error instanceof Error ? error.message : String(error)
-      }, 500);
+        projectId,
+        sourceFile,
+        strings,
+        supportedFormats: translationService.getSupportedFormats()
+      });
+    } else {
+      // Get existing translations
+      const translations = translationService.getTranslations(projectId, language);
+      const progress = language ? translationService.getTranslationProgress(projectId, language) : null;
+      
+      logger.info(`Retrieved translations`, {
+        projectId,
+        language,
+        translationCount: translations.length
+      }, requestId);
+
+      return c.json({
+        projectId,
+        language,
+        translations,
+        progress,
+        supportedFormats: translationService.getSupportedFormats()
+      });
     }
   });
 
@@ -115,119 +145,150 @@ export function createTranslationRoutes(authService: AuthService) {
    * POST /api/translations
    */
   translationRoutes.post('/', async (c: Context) => {
-    try {
-      const session = c.get('user');
-      if (!session) {
-        return c.json({ error: 'Authentication required' }, 401);
-      }
+    const requestId = c.get('requestId');
+    const session = c.get('user');
+    if (!session) {
+      throw new Error('Unauthorized');
+    }
 
-      const submission: TranslationSubmission = await c.req.json();
+    const submission: TranslationSubmission = await c.req.json();
 
-      // Validate required fields
-      if (!submission.projectId || !submission.stringKey || !submission.translatedText || !submission.language) {
-        return c.json({ 
-          error: 'Missing required fields: projectId, stringKey, translatedText, language' 
-        }, 400);
-      }
+    // Validate required fields
+    if (!submission.projectId || !submission.stringKey || !submission.translatedText || !submission.language) {
+      const error = new Error('Missing required fields: projectId, stringKey, translatedText, language');
+      error.name = 'ValidationError';
+      throw error;
+    }
 
-      const user = createUserFromSession(session);
-      const projectService = createProjectService(user);
-      const githubService = new GitHubRepositoryService(user.accessToken);
-      const translationService = new TranslationService(githubService);
-      const translationBotService = createTranslationBotService(user);
+    const user = createUserFromSession(session);
+    const projectService = createProjectService(user);
+    const githubService = new GitHubRepositoryService(user.accessToken);
+    const translationService = new TranslationService(githubService);
+    const translationBotService = createTranslationBotService(user);
 
-      // Get project from project service
-      const project = await projectService.getProject(submission.projectId);
-      if (!project) {
-        return c.json({ error: 'Project not found' }, 404);
-      }
-
-      // Validate user has access to this project
-      const hasAccess = await projectService.validateProjectAccess(submission.projectId);
-      if (!hasAccess) {
-        return c.json({ error: 'Access denied to project' }, 403);
-      }
-
-      // Submit translation
-      const translation = await translationService.submitTranslation(submission, project);
-
-      // If translation is valid, create commit using Translation Bot Service
-      if (translation.status !== 'failed') {
-        try {
-          // Update translation status to submitted
-          translationService.updateTranslationStatus(translation.id, 'submitted');
-
-          // Determine output file path and format
-          const translationFile = project.translationFiles.find(tf => 
-            tf.language === submission.language && 
-            tf.sourcePath.includes(submission.stringKey.split('.')[0])
+    // Get project from project service with retry
+    const project = await ErrorRecoveryStrategy.recoverFromNetworkFailure(
+      () => projectService.getProject(submission.projectId),
+      {
+        maxAttempts: 3,
+        onRetry: (attempt, error) => {
+          logger.logNetworkFailure(
+            `Get project ${submission.projectId}`,
+            error,
+            attempt,
+            3,
+            attempt < 3,
+            requestId
           );
+        }
+      }
+    );
 
-          if (translationFile) {
-            // Generate translation file content
-            const translationStrings = { [submission.stringKey]: submission.translatedText };
-            const fileContent = translationService.generateTranslationFile(translationStrings, translationFile.format);
+    if (!project) {
+      throw new Error('Not found');
+    }
 
-            // Create commit with Translation Bot Service
-            const commitResult = await translationBotService.commitTranslations(
-              project.repository.owner,
-              project.repository.name,
-              [{
-                filePath: translationFile.outputPath,
-                content: fileContent,
-                language: submission.language,
-                keys: [submission.stringKey]
-              }],
-              {
-                name: user.username,
-                email: user.email || `${user.username}@users.noreply.github.com`,
-                username: user.username
-              },
-              {
-                branch: project.repository.branch,
-                createPR: project.settings.submitAsPR,
-                prTitle: project.settings.prTitleTemplate,
-                baseBranch: project.repository.branch
-              }
-            );
+    // Validate user has access to this project
+    const hasAccess = await projectService.validateProjectAccess(submission.projectId);
+    if (!hasAccess) {
+      throw new Error('Forbidden');
+    }
 
-            // Update translation status to committed
-            const commitSha = 'sha' in commitResult ? commitResult.sha : undefined;
-            translationService.updateTranslationStatus(translation.id, 'committed', commitSha);
+    // Submit translation
+    const translation = await translationService.submitTranslation(submission, project, requestId);
 
-            return c.json({
-              success: true,
-              translation,
-              commit: commitResult,
-              message: 'Translation submitted and committed successfully'
-            }, 201);
-          }
-        } catch (commitError) {
+    // If translation is valid, create commit using Translation Bot Service
+    if (translation.status !== 'failed') {
+      // Update translation status to submitted
+      translationService.updateTranslationStatus(translation.id, 'submitted');
+
+      // Determine output file path and format
+      const translationFile = project.translationFiles.find(tf => 
+        tf.language === submission.language && 
+        tf.sourcePath.includes(submission.stringKey.split('.')[0])
+      );
+
+      if (translationFile) {
+        // Generate translation file content
+        const translationStrings = { [submission.stringKey]: submission.translatedText };
+        const fileContent = translationService.generateTranslationFile(translationStrings, translationFile.format);
+
+        // Create commit with retry and recovery (Requirement 2.5)
+        const commitResult = await ErrorRecoveryStrategy.recoverFromCommitFailure(
+          () => translationBotService.commitTranslations(
+            project.repository.owner,
+            project.repository.name,
+            [{
+              filePath: translationFile.outputPath,
+              content: fileContent,
+              language: submission.language,
+              keys: [submission.stringKey]
+            }],
+            {
+              name: user.username,
+              email: user.email || `${user.username}@users.noreply.github.com`,
+              username: user.username
+            },
+            {
+              branch: project.repository.branch,
+              createPR: project.settings.submitAsPR,
+              prTitle: project.settings.prTitleTemplate,
+              baseBranch: project.repository.branch
+            }
+          )
+        ).catch((commitError) => {
           // Update translation status to failed
           translationService.updateTranslationStatus(translation.id, 'failed');
           
-          console.error('Error creating commit:', commitError);
-          return c.json({
-            success: false,
-            translation,
-            error: 'Translation submitted but commit failed',
-            details: commitError instanceof Error ? commitError.message : String(commitError)
-          }, 500);
-        }
-      }
+          logger.logCommitFailure(
+            project.id,
+            submission.language,
+            commitError,
+            3,
+            3,
+            requestId
+          );
 
-      return c.json({
-        success: true,
-        translation,
-        message: 'Translation submitted successfully'
-      }, 201);
-    } catch (error) {
-      console.error('Error submitting translation:', error);
-      return c.json({ 
-        error: 'Failed to submit translation',
-        details: error instanceof Error ? error.message : String(error)
-      }, 500);
+          // Create user-friendly error
+          const error: any = new Error('commit');
+          error.code = 'COMMIT_FAILED';
+          error.originalError = commitError;
+          error.attempt = 3;
+          error.maxAttempts = 3;
+          throw error;
+        });
+
+        // Update translation status to committed
+        const commitSha = 'sha' in commitResult ? commitResult.sha : undefined;
+        translationService.updateTranslationStatus(translation.id, 'committed', commitSha);
+
+        logger.logTranslation(
+          'commit',
+          project.id,
+          submission.language,
+          true,
+          {
+            translationId: translation.id,
+            commitSha,
+            stringKey: submission.stringKey
+          },
+          requestId
+        );
+
+        return c.json({
+          success: true,
+          translation,
+          commit: commitResult,
+          message: 'Translation submitted and committed successfully'
+        }, 201);
+      }
     }
+
+    return c.json({
+      success: true,
+      translation,
+      message: 'Translation submitted successfully'
+    }, 201);
   });
 
   /**
@@ -459,46 +520,48 @@ export function createTranslationRoutes(authService: AuthService) {
    * POST /api/translations/validate
    */
   translationRoutes.post('/validate', async (c: Context) => {
-    try {
-      const session = c.get('user');
-      if (!session) {
-        return c.json({ error: 'Authentication required' }, 401);
-      }
-
-      const { content, format } = await c.req.json();
-
-      if (!content || !format) {
-        return c.json({ 
-          error: 'Missing required fields: content, format' 
-        }, 400);
-      }
-
-      const user = createUserFromSession(session);
-      const githubService = new GitHubRepositoryService(user.accessToken);
-      const translationService = new TranslationService(githubService);
-
-      // Check if format is supported
-      if (!translationService.isFormatSupported(format)) {
-        return c.json({ 
-          error: `Unsupported format: ${format}`,
-          supportedFormats: translationService.getSupportedFormats()
-        }, 400);
-      }
-
-      // Validate content
-      const validationResult = translationService.validateTranslation(content, format);
-
-      return c.json({
-        format,
-        validation: validationResult
-      });
-    } catch (error) {
-      console.error('Error validating translation:', error);
-      return c.json({ 
-        error: 'Failed to validate translation',
-        details: error instanceof Error ? error.message : String(error)
-      }, 500);
+    const requestId = c.get('requestId');
+    const session = c.get('user');
+    if (!session) {
+      throw new Error('Unauthorized');
     }
+
+    const { content, format } = await c.req.json();
+
+    if (!content || !format) {
+      const error = new Error('Missing required fields: content, format');
+      error.name = 'ValidationError';
+      throw error;
+    }
+
+    const user = createUserFromSession(session);
+    const githubService = new GitHubRepositoryService(user.accessToken);
+    const translationService = new TranslationService(githubService);
+
+    // Check if format is supported
+    if (!translationService.isFormatSupported(format)) {
+      const error: any = new Error(`Unsupported format: ${format}`);
+      error.name = 'ValidationError';
+      error.details = {
+        supportedFormats: translationService.getSupportedFormats()
+      };
+      throw error;
+    }
+
+    // Validate content (Requirement 5.5)
+    const validationResult = translationService.validateTranslation(content, format, requestId);
+
+    logger.info(`Translation validation completed`, {
+      format,
+      isValid: validationResult.isValid,
+      errorCount: validationResult.errors.length,
+      warningCount: validationResult.warnings.length
+    }, requestId);
+
+    return c.json({
+      format,
+      validation: validationResult
+    });
   });
 
   /**
