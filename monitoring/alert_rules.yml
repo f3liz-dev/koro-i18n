@@ -1,0 +1,53 @@
+# Alerting rules for I18n Platform resource monitoring
+groups:
+  - name: i18n-platform-alerts
+    rules:
+      # High memory usage alert
+      - alert: HighMemoryUsage
+        expr: (i18n_platform_memory_used_bytes / i18n_platform_memory_limit_bytes) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 80% for more than 5 minutes. Current usage: {{ $value }}%"
+
+      # Critical memory usage alert
+      - alert: CriticalMemoryUsage
+        expr: (i18n_platform_memory_used_bytes / i18n_platform_memory_limit_bytes) * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical memory usage detected"
+          description: "Memory usage is above 95% for more than 1 minute. Current usage: {{ $value }}%"
+
+      # High error rate alert
+      - alert: HighErrorRate
+        expr: rate(i18n_platform_requests_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 10% for more than 2 minutes. Current rate: {{ $value }}"
+
+      # Service down alert
+      - alert: ServiceDown
+        expr: up{job="i18n-platform"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "I18n Platform service is down"
+          description: "The I18n Platform service has been down for more than 1 minute"
+
+      # High response time alert
+      - alert: HighResponseTime
+        expr: i18n_platform_request_duration_seconds{quantile="0.95"} > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is above 2 seconds for more than 5 minutes. Current: {{ $value }}s"

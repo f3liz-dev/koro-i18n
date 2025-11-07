@@ -1,0 +1,41 @@
+name = "i18n-platform"
+main = "dist/i18n_platform/index.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat_v2"]
+
+# Production environment variables
+[vars]
+ENVIRONMENT = "production"
+CORS_ORIGINS = "https://i18n-platform.pages.dev"
+
+# KV Namespaces for serverless storage
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "sessions_kv_namespace"
+preview_id = "sessions_kv_namespace_preview"
+
+[[kv_namespaces]]
+binding = "TRANSLATIONS"
+id = "translations_kv_namespace"
+preview_id = "translations_kv_namespace_preview"
+
+# Development environment
+[env.development]
+name = "i18n-platform-dev"
+
+[env.development.vars]
+ENVIRONMENT = "development"
+CORS_ORIGINS = "http://localhost:5173,http://localhost:3000"
+
+# Staging environment
+[env.staging]
+name = "i18n-platform-staging"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+CORS_ORIGINS = "https://staging.i18n-platform.pages.dev"
+
+# Example secrets (set via wrangler secret put)
+# GITHUB_CLIENT_ID - GitHub OAuth App Client ID
+# GITHUB_CLIENT_SECRET - GitHub OAuth App Client Secret  
+# JWT_SECRET - Secret for JWT token signing

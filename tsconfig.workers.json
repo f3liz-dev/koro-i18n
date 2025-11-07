@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "noEmit": false,
+    "jsx": "react-jsx",
+    "outDir": "./dist/workers",
+    "rootDir": "./src",
+    "types": ["@cloudflare/workers-types"],
+    "lib": ["ES2022", "WebWorker"]
+  },
+  "include": [
+    "src/api/**/*",
+    "src/lib/**/*",
+    "src/config/workers.ts"
+  ],
+  "exclude": [
+    "src/app/**/*",
+    "src/config/server.ts",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}
