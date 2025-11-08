@@ -34,9 +34,8 @@ A production-ready internationalization platform with GitHub integration, deploy
 ## Files Created
 
 ### Source Code (1600 lines)
-- `src/workers.ts` - Main API worker
-- `src/cron.ts` - Batch commit cron
-- `src/server.ts` - Node.js alternative
+- `src/workers.ts` - Main API worker (Cloudflare Workers)
+- `src/cron.ts` - Batch commit cron job
 - `src/app/` - SolidJS frontend (5 pages)
 
 ### Configuration

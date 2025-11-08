@@ -1,4 +1,4 @@
-import { createSignal, createResource } from 'solid-js';
+import { createSignal, createResource, onMount } from 'solid-js';
 
 interface User {
   id: string;
@@ -17,13 +17,16 @@ const fetchUser = async () => {
     const res = await fetch(`${API}/auth/me`, { credentials: 'include' });
     if (!res.ok) return null;
     const data: any = await res.json();
-    return data.user;
+    const userData = data.user;
+    setUser(userData); // Update the signal when resource loads
+    return userData;
   } catch {
+    setUser(null);
     return null;
   }
 };
 
-const [initialUser] = createResource(fetchUser);
+const [initialUser, { refetch }] = createResource(fetchUser);
 
 // Export user signal for components
 export const user = () => userSignal() || initialUser();
@@ -48,17 +51,7 @@ export const auth = {
   },
 
   async refresh() {
-    try {
-      const res = await fetch(`${API}/auth/me`, { credentials: 'include' });
-      if (res.ok) {
-        const data: any = await res.json();
-        setUser(data.user);
-      } else {
-        setUser(null);
-      }
-    } catch {
-      setUser(null);
-    }
+    await refetch();
   },
 
   clearError() {

@@ -1,16 +1,16 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import solid from 'vite-plugin-solid';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  plugins: [solid({ ssr: false })],
+  plugins: [solid({ ssr: false }), tailwindcss()],
   root: 'src/app',
   build: {
     outDir: '../../dist/frontend',
     emptyOutDir: true,
     target: 'esnext',
-    minify: 'terser',
-    terserOptions: { compress: { drop_console: true } },
+    minify: true,
     rollupOptions: {
       output: {
         manualChunks: undefined, // Single bundle for static serving
@@ -20,6 +20,6 @@ export default defineConfig({
   resolve: { alias: { '@': resolve(__dirname, 'src') } },
   server: {
     port: 5173,
-    proxy: { '/api': { target: 'http://localhost:3000', changeOrigin: true } },
+    proxy: { '/api': { target: 'http://localhost:8787', changeOrigin: true } },
   },
 });

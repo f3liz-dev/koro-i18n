@@ -20,14 +20,21 @@ async function fetchHistory(projectId: string, language: string, key: string) {
 }
 
 export default function TranslationHistoryPage() {
-  const [projectId, setProjectId] = createSignal('owner/repo');
-  const [language, setLanguage] = createSignal('ja');
-  const [key, setKey] = createSignal('mainpage.title');
+  const [projectId, setProjectId] = createSignal('');
+  const [language, setLanguage] = createSignal('');
+  const [key, setKey] = createSignal('');
+  const [searchParams, setSearchParams] = createSignal<{ projectId: string; language: string; key: string } | null>(null);
 
   const [history] = createResource(
-    () => ({ projectId: projectId(), language: language(), key: key() }),
+    searchParams,
     (params) => fetchHistory(params.projectId, params.language, params.key)
   );
+
+  const handleSearch = () => {
+    if (projectId() && language() && key()) {
+      setSearchParams({ projectId: projectId(), language: language(), key: key() });
+    }
+  };
 
   const getActionColor = (action: string) => {
     switch (action) {
@@ -52,17 +59,23 @@ export default function TranslationHistoryPage() {
   };
 
   return (
-    <div class="max-w-4xl mx-auto p-6">
-      <h1 class="text-3xl font-bold mb-6">Translation History</h1>
+    <div class="min-h-screen bg-white">
+      <div class="border-b">
+        <div class="max-w-5xl mx-auto px-8 py-5">
+          <h1 class="text-lg font-semibold">Translation History</h1>
+        </div>
+      </div>
 
-      <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="grid grid-cols-3 gap-4">
+      <div class="max-w-5xl mx-auto px-8 py-8">
+        <div class="border rounded-lg p-6 mb-6">
+        <div class="grid grid-cols-3 gap-4 mb-4">
           <div>
             <label class="block text-sm font-medium mb-2">Project ID</label>
             <input
               type="text"
               value={projectId()}
               onInput={(e) => setProjectId(e.currentTarget.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               class="w-full px-3 py-2 border rounded"
               placeholder="owner/repo"
             />
@@ -73,6 +86,7 @@ export default function TranslationHistoryPage() {
               type="text"
               value={language()}
               onInput={(e) => setLanguage(e.currentTarget.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               class="w-full px-3 py-2 border rounded"
               placeholder="ja"
             />
@@ -83,51 +97,52 @@ export default function TranslationHistoryPage() {
               type="text"
               value={key()}
               onInput={(e) => setKey(e.currentTarget.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               class="w-full px-3 py-2 border rounded"
               placeholder="mainpage.title"
             />
           </div>
         </div>
-      </div>
+          <button
+            onClick={handleSearch}
+            disabled={!projectId() || !language() || !key()}
+            class="px-4 py-2 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Search
+          </button>
+        </div>
 
-      <div class="bg-white rounded-lg shadow">
-        <Show when={!history.loading} fallback={<div class="p-6">Loading...</div>}>
-          <Show when={history()?.length} fallback={<div class="p-6 text-gray-500">No history found</div>}>
-            <div class="divide-y">
-              <For each={history()}>
-                {(entry) => (
-                  <div class="p-4 hover:bg-gray-50">
-                    <div class="flex items-start gap-3">
-                      <span class="text-2xl">{getActionIcon(entry.action)}</span>
-                      <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-1">
-                          <span class="font-medium">{entry.username}</span>
-                          <span class={`text-sm font-semibold ${getActionColor(entry.action)}`}>
+        <div class="border rounded-lg">
+          <Show when={!history.loading} fallback={<div class="p-8 text-center text-sm text-gray-400">Loading...</div>}>
+            <Show when={history()} fallback={<div class="p-8 text-center text-sm text-gray-400">Enter search criteria and click Search</div>}>
+              <Show when={history()?.length} fallback={<div class="p-8 text-center text-sm text-gray-400">No history found</div>}>
+                <div class="divide-y">
+                  <For each={history()}>
+                    {(entry) => (
+                      <div class="p-4 hover:bg-gray-50">
+                        <div class="flex items-center gap-3 mb-2">
+                          <span class="text-sm font-medium">{entry.username}</span>
+                          <span class={`text-xs ${getActionColor(entry.action)}`}>
                             {entry.action}
                           </span>
-                          <span class="text-sm text-gray-500">
+                          <span class="text-xs text-gray-400">
                             {new Date(entry.createdAt).toLocaleString()}
                           </span>
                         </div>
-                        <div class="text-gray-700 bg-gray-50 px-3 py-2 rounded">
-                          "{entry.value}"
+                        <div class="text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded mb-2">
+                          {entry.value}
                         </div>
                         <Show when={entry.commitSha}>
-                          <div class="text-xs text-gray-500 mt-1">
-                            Commit: <code class="bg-gray-100 px-1 rounded">{entry.commitSha?.substring(0, 7)}</code>
-                          </div>
+                          <code class="text-xs text-gray-500">{entry.commitSha?.substring(0, 7)}</code>
                         </Show>
-                        <div class="text-xs text-gray-400 mt-1">
-                          ID: {entry.id}
-                        </div>
                       </div>
-                    </div>
-                  </div>
-                )}
-              </For>
-            </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </Show>
           </Show>
-        </Show>
+        </div>
       </div>
     </div>
   );

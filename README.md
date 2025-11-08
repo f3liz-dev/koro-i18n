@@ -156,6 +156,12 @@ Expected usage for 1000 daily users: **Completely FREE!**
 
 ## 🐛 Troubleshooting
 
+### KV Namespace Errors (Old Cache)
+```bash
+npm run clean  # Remove .wrangler cache
+wrangler dev   # Restart
+```
+
 ### OAuth Fails
 ```bash
 wrangler secret list  # Check secrets are set
@@ -171,7 +177,7 @@ wrangler tail --config wrangler.cron.toml  # Check logs
 wrangler d1 execute i18n-platform-db --file=schema.sql  # Re-run schema
 ```
 
-**See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed troubleshooting.**
+**See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for complete guide.**
 
 ## 📦 Scripts
 

@@ -3,6 +3,9 @@ main = "src/workers.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat_v2"]
 
+# Serve frontend static files
+assets = { directory = "dist/frontend", binding = "ASSETS" }
+
 [vars]
 ENVIRONMENT = "production"
 
