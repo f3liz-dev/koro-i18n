@@ -13,7 +13,6 @@ interface Translation {
   key: string;
   value: string;
   userId: string;
-  username: string;
   createdAt: string;
 }
 
@@ -36,7 +35,7 @@ export default {
 
       // Group translations by project and language
       const grouped = new Map<string, Translation[]>();
-      for (const translation of pendingTranslations.results as Translation[]) {
+      for (const translation of pendingTranslations.results as unknown as Translation[]) {
         const key = `${translation.projectId}:${translation.language}`;
         if (!grouped.has(key)) {
           grouped.set(key, []);
@@ -103,13 +102,23 @@ export default {
             current[keys[keys.length - 1]] = translation.value;
           }
 
+          // Get unique user IDs and fetch usernames
+          const userIds = [...new Set(translations.map(t => t.userId))];
+          const usernames: string[] = [];
+          
+          for (const userId of userIds) {
+            const user = await env.DB.prepare('SELECT username FROM users WHERE id = ?').bind(userId).first();
+            if (user && user.username) {
+              usernames.push(user.username as string);
+            }
+          }
+
           // Create commit message with co-authors
-          const contributors = [...new Set(translations.map(t => t.username))];
           const commitMessage = `feat(i18n): Update ${language} translations
 
 Added/updated ${translations.length} translation(s)
 
-${contributors.map(username => `Co-authored-by: ${username} <${username}@users.noreply.github.com>`).join('\n')}`;
+${usernames.map(username => `Co-authored-by: ${username} <${username}@users.noreply.github.com>`).join('\n')}`;
 
           // Commit the file
           const { data: commitData } = await octokit.rest.repos.createOrUpdateFileContents({
@@ -132,8 +141,8 @@ ${contributors.map(username => `Co-authored-by: ${username} <${username}@users.n
             // Log commit to history
             const historyId = crypto.randomUUID();
             await env.DB.prepare(
-              'INSERT INTO translation_history (id, translationId, projectId, language, key, value, userId, username, action, commitSha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            ).bind(historyId, translation.id, translation.projectId, translation.language, translation.key, translation.value, translation.userId, translation.username, 'committed', commitData.commit.sha).run();
+              'INSERT INTO translation_history (id, translationId, projectId, language, key, value, userId, action, commitSha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            ).bind(historyId, translation.id, translation.projectId, translation.language, translation.key, translation.value, translation.userId, 'committed', commitData.commit.sha).run();
           }
 
           console.log(`Committed ${translations.length} translations for ${projectId}/${language}`);
@@ -149,8 +158,8 @@ ${contributors.map(username => `Co-authored-by: ${username} <${username}@users.n
             // Log rejection to history
             const historyId = crypto.randomUUID();
             await env.DB.prepare(
-              'INSERT INTO translation_history (id, translationId, projectId, language, key, value, userId, username, action, commitSha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            ).bind(historyId, translation.id, translation.projectId, translation.language, translation.key, translation.value, translation.userId, translation.username, 'rejected', null).run();
+              'INSERT INTO translation_history (id, translationId, projectId, language, key, value, userId, action, commitSha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            ).bind(historyId, translation.id, translation.projectId, translation.language, translation.key, translation.value, translation.userId, 'rejected', null).run();
           }
         }
       }

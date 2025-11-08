@@ -1,0 +1,30 @@
+{
+  "name": "@i18n-platform/client",
+  "version": "1.0.0",
+  "description": "Client library for I18n Platform - processes and uploads translation metadata",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "i18n-upload": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublish": "npm run build"
+  },
+  "keywords": [
+    "i18n",
+    "internationalization",
+    "translation",
+    "github-actions"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "glob": "^10.3.10",
+    "toml": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

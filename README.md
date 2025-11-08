@@ -47,12 +47,17 @@ npm run dev                     # Starts both server and frontend
 
 ## 📚 Documentation
 
+### Platform Setup
 - **[QUICK_START.md](QUICK_START.md)** - 5-minute deployment guide
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Comprehensive deployment guide
 - **[PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md)** - Step-by-step checklist
 - **[PRODUCTION_READY.md](PRODUCTION_READY.md)** - Production readiness summary
 - **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - File structure
 - **[SUMMARY.md](SUMMARY.md)** - Project summary
+
+### Client Setup
+- **[CLIENT_SETUP.md](CLIENT_SETUP.md)** - Configure your translation repository
+- **[client-workflow-template.yml](client-workflow-template.yml)** - GitHub Actions template
 
 ## 🏗️ Architecture
 
@@ -218,6 +223,8 @@ npm run logs:cron           # Cron worker logs
 - ✅ OAuth state validation (CSRF)
 - ✅ HttpOnly cookies
 - ✅ No sensitive data in logs
+- ✅ **Minimal GitHub permissions** - Users only grant `user:email` scope
+- ✅ **Bot token for commits** - User tokens never write to repositories
 
 ## 📄 License
 

@@ -155,11 +155,11 @@ export function createWorkerApp(env: Env) {
   });
 
   // Helper to log translation history
-  const logHistory = async (translationId: string, projectId: string, language: string, key: string, value: string, userId: string, username: string, action: string, commitSha?: string) => {
+  const logHistory = async (translationId: string, projectId: string, language: string, key: string, value: string, userId: string, action: string, commitSha?: string) => {
     const historyId = crypto.randomUUID();
     await env.DB.prepare(
-      'INSERT INTO translation_history (id, translationId, projectId, language, key, value, userId, username, action, commitSha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(historyId, translationId, projectId, language, key, value, userId, username, action, commitSha || null).run();
+      'INSERT INTO translation_history (id, translationId, projectId, language, key, value, userId, action, commitSha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(historyId, translationId, projectId, language, key, value, userId, action, commitSha || null).run();
   };
 
   // Translation endpoints
@@ -184,11 +184,11 @@ export function createWorkerApp(env: Env) {
 
     const id = crypto.randomUUID();
     await env.DB.prepare(
-      'INSERT INTO translations (id, projectId, language, key, value, userId, username, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, projectId, language, key, value, payload.userId, payload.username, 'pending').run();
+      'INSERT INTO translations (id, projectId, language, key, value, userId, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, projectId, language, key, value, payload.userId, 'pending').run();
 
     // Log submission
-    await logHistory(id, projectId, language, key, value, payload.userId, payload.username, 'submitted');
+    await logHistory(id, projectId, language, key, value, payload.userId, 'submitted');
 
     return c.json({ success: true, id });
   });
@@ -284,7 +284,7 @@ export function createWorkerApp(env: Env) {
     ).bind('approved', id).run();
 
     // Log approval
-    await logHistory(id, translation.projectId as string, translation.language as string, translation.key as string, translation.value as string, payload.userId, payload.username, 'approved');
+    await logHistory(id, translation.projectId as string, translation.language as string, translation.key as string, translation.value as string, payload.userId, 'approved');
 
     return c.json({ success: true });
   });
@@ -317,7 +317,7 @@ export function createWorkerApp(env: Env) {
     ).bind('deleted', id).run();
 
     // Log deletion
-    await logHistory(id, translation.projectId as string, translation.language as string, translation.key as string, translation.value as string, payload.userId, payload.username, 'deleted');
+    await logHistory(id, translation.projectId as string, translation.language as string, translation.key as string, translation.value as string, payload.userId, 'deleted');
 
     return c.json({ success: true });
   });
@@ -340,6 +340,109 @@ export function createWorkerApp(env: Env) {
 
     return c.json({ history: result.results });
   });
+
+  // Upload project files from client (GitHub Actions)
+  app.post('/api/projects/upload', async (c) => {
+    const apiKey = c.req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!apiKey) {
+      return c.json({ error: 'API key required' }, 401);
+    }
+
+    // Verify API key (should match a project's API key in database)
+    // For now, accept any valid JWT token
+    const payload = await validateToken(apiKey);
+    if (!payload) {
+      return c.json({ error: 'Invalid API key' }, 401);
+    }
+
+    const body = await c.req.json();
+    const { repository, branch, commit, sourceLanguage, targetLanguages, files, generatedAt } = body;
+
+    if (!repository || !files || !Array.isArray(files)) {
+      return c.json({ error: 'Invalid payload' }, 400);
+    }
+
+    const projectId = repository; // e.g., "owner/repo"
+
+    try {
+      // Store each file
+      for (const file of files) {
+        const { filetype, filename, lang, contents, metadata } = file;
+
+        const fileId = crypto.randomUUID();
+        
+        await env.DB.prepare(
+          `INSERT OR REPLACE INTO project_files 
+           (id, projectId, branch, commit, filename, filetype, lang, contents, metadata, uploadedAt) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+        ).bind(
+          fileId,
+          projectId,
+          branch,
+          commit,
+          filename,
+          filetype,
+          lang,
+          JSON.stringify(contents),
+          JSON.stringify(metadata || {})
+        ).run();
+      }
+
+      return c.json({
+        success: true,
+        projectId,
+        filesUploaded: files.length,
+        uploadedAt: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      return c.json({ error: 'Failed to store files' }, 500);
+    }
+  });
+
+  // Get project files
+  app.get('/api/projects/:projectId/files', async (c) => {
+    let token = getCookie(c, 'auth_token');
+    if (!token) {
+      const authHeader = c.req.header('Authorization');
+      if (authHeader?.startsWith('Bearer ')) token = authHeader.substring(7);
+    }
+
+    if (!token) return c.json({ error: 'Unauthorized' }, 401);
+
+    const payload = await validateToken(token);
+    if (!payload) return c.json({ error: 'Invalid token' }, 401);
+
+    const projectId = c.req.param('projectId');
+    const branch = c.req.query('branch') || 'main';
+    const lang = c.req.query('lang');
+
+    let query = 'SELECT * FROM project_files WHERE projectId = ? AND branch = ?';
+    const params: any[] = [projectId, branch];
+
+    if (lang) {
+      query += ' AND lang = ?';
+      params.push(lang);
+    }
+
+    query += ' ORDER BY uploadedAt DESC';
+
+    const result = await env.DB.prepare(query).bind(...params).all();
+
+    // Parse contents back to objects
+    const files = result.results.map((row: any) => ({
+      ...row,
+      contents: JSON.parse(row.contents),
+      metadata: JSON.parse(row.metadata || '{}')
+    }));
+
+    return c.json({ files });
+  });
+
+
+
+
 
   app.get('/health', (c) => c.json({ status: 'ok', runtime: 'cloudflare-workers' }));
   app.get('/', (c) => c.json({ name: 'I18n Platform API', runtime: 'cloudflare-workers' }));

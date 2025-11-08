@@ -28,6 +28,8 @@ A production-ready internationalization platform with GitHub integration, deploy
 - Serverless database (D1)
 - Batch processing (cron)
 - Static frontend (Pages)
+- **No repository cloning** (GitHub API only)
+- **Client-side metadata generation** (GitHub Actions)
 
 ## Files Created
 
@@ -88,10 +90,17 @@ wrangler secret put GITHUB_BOT_TOKEN
 
 ## Workflow
 
-1. **User submits translation** → Status: pending
-2. **Reviewer approves** → Status: approved
-3. **Cron commits to GitHub** (every 5 min) → Status: committed
-4. **All actions logged** → Complete audit trail
+### Client Repository Setup
+1. **Add `.i18n-platform.toml`** → Configuration
+2. **Add GitHub Actions workflow** → Generates metadata
+3. **Metadata committed to repo** → `.i18n-metadata/` directory
+
+### Translation Workflow
+1. **Platform fetches metadata** → From GitHub raw content
+2. **User submits translation** → Status: pending
+3. **Reviewer approves** → Status: approved
+4. **Cron commits to GitHub** (every 5 min) → Status: committed via API
+5. **All actions logged** → Complete audit trail in D1
 
 ## API Endpoints
 

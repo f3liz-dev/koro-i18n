@@ -19,6 +19,24 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 CREATE INDEX IF NOT EXISTS idx_users_githubId ON users(githubId);
 CREATE INDEX IF NOT EXISTS idx_oauth_states_expiresAt ON oauth_states(expiresAt);
 
+-- Project source files (uploaded by client)
+CREATE TABLE IF NOT EXISTS project_files (
+  id TEXT PRIMARY KEY,
+  projectId TEXT NOT NULL,
+  branch TEXT NOT NULL,
+  commit TEXT NOT NULL,
+  filename TEXT NOT NULL,
+  filetype TEXT NOT NULL,
+  lang TEXT NOT NULL,
+  contents TEXT NOT NULL, -- JSON string of flattened key-value pairs
+  metadata TEXT, -- JSON string of file metadata
+  uploadedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(projectId, branch, filename, lang)
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_files_project ON project_files(projectId, branch);
+CREATE INDEX IF NOT EXISTS idx_project_files_lang ON project_files(projectId, lang);
+
 -- Translations table (pending translations to be batched and committed)
 CREATE TABLE IF NOT EXISTS translations (
   id TEXT PRIMARY KEY,
@@ -27,7 +45,6 @@ CREATE TABLE IF NOT EXISTS translations (
   key TEXT NOT NULL,
   value TEXT NOT NULL,
   userId TEXT NOT NULL,
-  username TEXT NOT NULL,
   status TEXT DEFAULT 'pending', -- pending, approved, committed, rejected, deleted
   commitSha TEXT,
   createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -49,7 +66,6 @@ CREATE TABLE IF NOT EXISTS translation_history (
   key TEXT NOT NULL,
   value TEXT NOT NULL,
   userId TEXT NOT NULL,
-  username TEXT NOT NULL,
   action TEXT NOT NULL, -- submitted, approved, rejected, deleted, committed
   commitSha TEXT,
   createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
