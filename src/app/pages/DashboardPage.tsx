@@ -10,89 +10,81 @@ interface Project {
   progress: number;
 }
 
-interface ApiKey {
-  id: string;
-  projectId: string;
-  name: string;
-  lastUsedAt: string | null;
-  createdAt: string;
-  expiresAt: string | null;
-  revoked: number;
-}
-
 export default function DashboardPage() {
   const navigate = useNavigate();
 
-  const [projects] = createSignal<Project[]>([]);
-  const [apiKeys, setApiKeys] = createSignal<ApiKey[]>([]);
-  const [showNewKeyModal, setShowNewKeyModal] = createSignal(false);
-  const [newKeyProject, setNewKeyProject] = createSignal('');
-  const [newKeyName, setNewKeyName] = createSignal('');
-  const [generatedKey, setGeneratedKey] = createSignal<string | null>(null);
+  const [projects, setProjects] = createSignal<Project[]>([]);
+  const [showNewProjectModal, setShowNewProjectModal] = createSignal(false);
+  const [newProjectName, setNewProjectName] = createSignal('');
+  const [newProjectRepo, setNewProjectRepo] = createSignal('');
+  const [isSubmitting, setIsSubmitting] = createSignal(false);
 
-  const loadApiKeys = async () => {
+  const loadProjects = async () => {
     try {
-      const res = await fetch('/api/keys', { credentials: 'include' });
+      const res = await fetch('/api/projects', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
-        setApiKeys(data.keys);
+        setProjects(data.projects.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          repository: p.repository,
+          languages: [],
+          progress: 0
+        })));
       }
     } catch (error) {
-      console.error('Failed to load API keys:', error);
+      console.error('Failed to load projects:', error);
     }
   };
 
-  const handleGenerateKey = async () => {
+  const handleAddProject = async () => {
+    if (isSubmitting()) return;
+
+    // Frontend validation
+    const nameExists = projects().some(p => p.name.toLowerCase() === newProjectName().toLowerCase());
+    if (nameExists) {
+      alert('Project name already exists');
+      return;
+    }
+
+    const repoExists = projects().some(p => p.repository.toLowerCase() === newProjectRepo().toLowerCase());
+    if (repoExists) {
+      alert('Repository already registered');
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      const res = await fetch('/api/keys', {
+      const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          projectId: newKeyProject(),
-          name: newKeyName(),
+          name: newProjectName(),
+          repository: newProjectRepo(),
         }),
       });
 
       if (res.ok) {
+        setNewProjectName('');
+        setNewProjectRepo('');
+        setShowNewProjectModal(false);
+        loadProjects();
+      } else {
         const data = await res.json();
-        setGeneratedKey(data.key);
-        setNewKeyProject('');
-        setNewKeyName('');
-      } else {
-        alert('Failed to generate key');
+        alert(data.error || 'Failed to add project');
       }
     } catch (error) {
-      console.error('Failed to generate key:', error);
-      alert('Failed to generate key');
-    }
-  };
-
-  const handleRevokeKey = async (id: string) => {
-    if (!confirm('Are you sure you want to revoke this key? This cannot be undone.')) {
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/keys/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (res.ok) {
-        loadApiKeys();
-      } else {
-        alert('Failed to revoke key');
-      }
-    } catch (error) {
-      console.error('Failed to revoke key:', error);
-      alert('Failed to revoke key');
+      console.error('Failed to add project:', error);
+      alert('Failed to add project');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   onMount(() => {
     auth.refresh();
-    loadApiKeys();
+    loadProjects();
   });
 
   createEffect(() => {
@@ -130,62 +122,20 @@ export default function DashboardPage() {
       </div>
 
       <div class="max-w-6xl mx-auto px-8 py-16">
-        <div class="mb-12">
+        <div>
           <div class="flex items-center justify-between mb-6">
-            <h2 class="text-lg font-semibold">API Keys</h2>
+            <h2 class="text-lg font-semibold">Projects</h2>
             <button
-              onClick={() => setShowNewKeyModal(true)}
+              onClick={() => setShowNewProjectModal(true)}
               class="px-4 py-2 text-sm border rounded hover:bg-gray-50"
             >
-              Generate Key
+              Add Project
             </button>
           </div>
-          
-          {apiKeys().length === 0 ? (
-            <div class="border rounded-lg p-8 text-center">
-              <p class="text-sm text-gray-400">No API keys yet</p>
-            </div>
-          ) : (
-            <div class="border rounded-lg divide-y">
-              <For each={apiKeys()}>
-                {(key) => (
-                  <div class="p-4 flex items-center justify-between">
-                    <div class="flex-1">
-                      <div class="flex items-center gap-3 mb-1">
-                        <span class="font-medium text-sm">{key.name}</span>
-                        {key.revoked ? (
-                          <span class="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded">Revoked</span>
-                        ) : (
-                          <span class="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded">Active</span>
-                        )}
-                      </div>
-                      <code class="text-xs text-gray-500">{key.projectId}</code>
-                      <div class="text-xs text-gray-400 mt-1">
-                        Created {new Date(key.createdAt).toLocaleDateString()}
-                        {key.lastUsedAt && ` • Last used ${new Date(key.lastUsedAt).toLocaleDateString()}`}
-                      </div>
-                    </div>
-                    {!key.revoked && (
-                      <button
-                        onClick={() => handleRevokeKey(key.id)}
-                        class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
-                      >
-                        Revoke
-                      </button>
-                    )}
-                  </div>
-                )}
-              </For>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h2 class="text-lg font-semibold mb-6">Projects</h2>
           {projects().length === 0 ? (
             <div class="border rounded-lg p-8 text-center">
-              <p class="text-sm text-gray-400 mb-2">No projects yet</p>
-              <p class="text-xs text-gray-400">Upload translation files to get started</p>
+              <p class="text-sm text-gray-400 mb-2">No projects registered</p>
+              <p class="text-xs text-gray-400">Add a project to allow uploads from GitHub Actions</p>
             </div>
           ) : (
             <div class="space-y-3">
@@ -198,10 +148,10 @@ export default function DashboardPage() {
                         <code class="text-xs text-gray-500">{project.repository}</code>
                       </div>
                       <button
-                        onClick={() => navigate(`/projects/${project.id}/translate/ja`)}
-                        class="px-4 py-2 text-sm border rounded hover:bg-gray-50"
+                        onClick={() => handleDeleteProject(project.id)}
+                        class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
                       >
-                        Translate
+                        Remove
                       </button>
                     </div>
                     <div class="flex gap-2">
@@ -224,74 +174,49 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* New Key Modal */}
-      {showNewKeyModal() && (
-        <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-6" onClick={() => setShowNewKeyModal(false)}>
+      {/* Add Project Modal */}
+      {showNewProjectModal() && (
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-6" onClick={() => setShowNewProjectModal(false)}>
           <div class="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 class="text-lg font-semibold mb-4">Generate API Key</h3>
+            <h3 class="text-lg font-semibold mb-4">Add Project</h3>
             <div class="space-y-4">
               <div>
-                <label class="block text-sm font-medium mb-1">Project ID</label>
+                <label class="block text-sm font-medium mb-1">Repository</label>
                 <input
                   type="text"
-                  value={newKeyProject()}
-                  onInput={(e) => setNewKeyProject(e.currentTarget.value)}
+                  value={newProjectRepo()}
+                  onInput={(e) => setNewProjectRepo(e.currentTarget.value)}
                   placeholder="owner/repo"
                   class="w-full px-3 py-2 border rounded text-sm"
                 />
+                <p class="text-xs text-gray-500 mt-1">Format: owner/repo (e.g., facebook/react)</p>
               </div>
               <div>
                 <label class="block text-sm font-medium mb-1">Name</label>
                 <input
                   type="text"
-                  value={newKeyName()}
-                  onInput={(e) => setNewKeyName(e.currentTarget.value)}
-                  placeholder="GitHub Actions"
+                  value={newProjectName()}
+                  onInput={(e) => setNewProjectName(e.currentTarget.value)}
+                  placeholder="My Project"
                   class="w-full px-3 py-2 border rounded text-sm"
                 />
               </div>
               <div class="flex gap-2">
                 <button
-                  onClick={handleGenerateKey}
-                  disabled={!newKeyProject() || !newKeyName()}
+                  onClick={handleAddProject}
+                  disabled={!newProjectRepo() || !newProjectName() || isSubmitting()}
                   class="flex-1 px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
-                  Generate
+                  {isSubmitting() ? 'Adding...' : 'Add'}
                 </button>
                 <button
-                  onClick={() => setShowNewKeyModal(false)}
+                  onClick={() => setShowNewProjectModal(false)}
                   class="px-4 py-2 border rounded hover:bg-gray-50 text-sm"
                 >
                   Cancel
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Generated Key Modal */}
-      {generatedKey() && (
-        <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-6">
-          <div class="bg-white rounded-lg max-w-lg w-full p-6">
-            <h3 class="text-lg font-semibold mb-4">API Key Generated</h3>
-            <div class="bg-yellow-50 border border-yellow-200 rounded p-4 mb-4">
-              <p class="text-sm text-yellow-800 mb-2">⚠️ Save this key securely. It will not be shown again.</p>
-            </div>
-            <div class="bg-gray-50 rounded p-4 mb-4">
-              <code class="text-xs break-all">{generatedKey()}</code>
-            </div>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(generatedKey()!);
-                setGeneratedKey(null);
-                setShowNewKeyModal(false);
-                loadApiKeys();
-              }}
-              class="w-full px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800 text-sm"
-            >
-              Copy & Close
-            </button>
           </div>
         </div>
       )}

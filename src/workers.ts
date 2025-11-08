@@ -343,54 +343,20 @@ export function createWorkerApp(env: Env) {
     return c.json({ history: result.results });
   });
 
-  // Helper to hash API key
-  const hashApiKey = async (key: string): Promise<string> => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(key);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
-
-  // Helper to validate API key
-  const validateApiKey = async (key: string, projectId: string): Promise<any> => {
-    const keyHash = await hashApiKey(key);
-    const apiKey = await env.DB.prepare(
-      'SELECT * FROM api_keys WHERE keyHash = ? AND projectId = ? AND revoked = 0 AND (expiresAt IS NULL OR expiresAt > datetime("now"))'
-    ).bind(keyHash, projectId).first();
+  // Upload project files from GitHub Actions (OIDC + Project Name)
+  app.post('/api/projects/:projectName/upload', async (c) => {
+    const token = c.req.header('Authorization')?.replace('Bearer ', '');
     
-    if (!apiKey) return null;
-    
-    // Update last used timestamp
-    await env.DB.prepare(
-      'UPDATE api_keys SET lastUsedAt = datetime("now") WHERE id = ?'
-    ).bind(apiKey.id).run();
-    
-    return apiKey;
-  };
-
-  // Helper to check rate limit (100 uploads per hour)
-  const checkRateLimit = async (apiKeyId: string): Promise<boolean> => {
-    const result = await env.DB.prepare(
-      'SELECT COUNT(*) as count FROM api_key_usage WHERE apiKeyId = ? AND createdAt > datetime("now", "-1 hour")'
-    ).bind(apiKeyId).first();
-    
-    return (result?.count as number || 0) < 100;
-  };
-
-  // Upload project files from client (GitHub Actions)
-  app.post('/api/projects/upload', async (c) => {
-    const apiKey = c.req.header('Authorization')?.replace('Bearer ', '');
-    
-    if (!apiKey) {
-      return c.json({ error: 'API key required' }, 401);
+    if (!token) {
+      return c.json({ error: 'OIDC token required' }, 401);
     }
 
+    const projectName = c.req.param('projectName');
     const body = await c.req.json();
-    const { repository, branch, commitSha, files } = body;
+    const { branch, commitSha, files } = body;
 
-    if (!repository || !files || !Array.isArray(files)) {
-      return c.json({ error: 'Invalid payload' }, 400);
+    if (!files || !Array.isArray(files)) {
+      return c.json({ error: 'Missing required field: files' }, 400);
     }
 
     // Size limits
@@ -406,19 +372,49 @@ export function createWorkerApp(env: Env) {
       return c.json({ error: `Payload too large. Max ${MAX_PAYLOAD_SIZE / 1024 / 1024}MB` }, 400);
     }
 
-    const projectId = repository; // e.g., "owner/repo"
+    // 1. Get project by name
+    const project = await env.DB.prepare(
+      'SELECT id, userId, repository FROM projects WHERE name = ?'
+    ).bind(projectName).first();
 
-    // Validate API key
-    const validKey = await validateApiKey(apiKey, projectId);
-    if (!validKey) {
-      return c.json({ error: 'Invalid or revoked API key' }, 401);
+    if (!project) {
+      return c.json({ error: `Project '${projectName}' not found` }, 404);
     }
 
-    // Check rate limit
-    const withinLimit = await checkRateLimit(validKey.id as string);
-    if (!withinLimit) {
-      return c.json({ error: 'Rate limit exceeded. Max 100 uploads per hour' }, 429);
+    const repository = project.repository as string;
+
+    // 2. Verify OIDC token (proves request is from GitHub Actions)
+    let oidcPayload;
+    try {
+      const { verifyGitHubOIDCToken } = await import('./oidc.js');
+      oidcPayload = await verifyGitHubOIDCToken(
+        token,
+        new URL(c.req.url).origin,
+        repository
+      );
+    } catch (error: any) {
+      return c.json({ error: `OIDC verification failed: ${error.message}` }, 401);
     }
+
+    // 3. Verify OIDC token repository matches project repository
+    if (oidcPayload.repository !== repository) {
+      return c.json({ 
+        error: 'Repository mismatch',
+        projectRepository: repository,
+        tokenRepository: oidcPayload.repository
+      }, 403);
+    }
+
+    // All checks passed! Upload is authorized.
+    console.log('Authorized upload:', { 
+      projectName,
+      repository: oidcPayload.repository, 
+      actor: oidcPayload.actor,
+      workflow: oidcPayload.workflow,
+      projectOwner: project.userId
+    });
+
+    const projectId = repository;
 
     try {
       // Store each file
@@ -443,12 +439,6 @@ export function createWorkerApp(env: Env) {
         ).run();
       }
 
-      // Log usage
-      const usageId = crypto.randomUUID();
-      await env.DB.prepare(
-        'INSERT INTO api_key_usage (id, apiKeyId, endpoint, filesCount, payloadSize, success) VALUES (?, ?, ?, ?, ?, ?)'
-      ).bind(usageId, validKey.id, '/api/projects/upload', files.length, payloadSize, 1).run();
-
       return c.json({
         success: true,
         projectId,
@@ -456,12 +446,6 @@ export function createWorkerApp(env: Env) {
         uploadedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      // Log failed usage
-      const usageId = crypto.randomUUID();
-      await env.DB.prepare(
-        'INSERT INTO api_key_usage (id, apiKeyId, endpoint, filesCount, payloadSize, success) VALUES (?, ?, ?, ?, ?, ?)'
-      ).bind(usageId, validKey.id, '/api/projects/upload', files.length, payloadSize, 0).run();
-      
       console.error('Upload error:', error);
       return c.json({ error: 'Failed to store files' }, 500);
     }
@@ -510,8 +494,8 @@ export function createWorkerApp(env: Env) {
 
 
 
-  // Generate API key for a project
-  app.post('/api/keys', async (c) => {
+  // Create a project
+  app.post('/api/projects', async (c) => {
     let token = getCookie(c, 'auth_token');
     if (!token) {
       const authHeader = c.req.header('Authorization');
@@ -524,36 +508,59 @@ export function createWorkerApp(env: Env) {
     if (!payload) return c.json({ error: 'Invalid token' }, 401);
 
     const body = await c.req.json();
-    const { projectId, name } = body;
+    const { name, repository } = body;
 
-    if (!projectId || !name) {
-      return c.json({ error: 'Missing projectId or name' }, 400);
+    if (!name || !repository) {
+      return c.json({ error: 'Missing name or repository' }, 400);
     }
 
-    // Generate random API key (32 bytes = 64 hex chars)
-    const keyBytes = new Uint8Array(32);
-    crypto.getRandomValues(keyBytes);
-    const apiKey = Array.from(keyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-    const keyHash = await hashApiKey(apiKey);
+    // Validate project name (alphanumeric, hyphens, underscores)
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      return c.json({ error: 'Invalid project name. Use only letters, numbers, hyphens, and underscores' }, 400);
+    }
+
+    // Validate repository format
+    if (!/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+$/.test(repository)) {
+      return c.json({ error: 'Invalid repository format. Use: owner/repo' }, 400);
+    }
 
     const id = crypto.randomUUID();
-    await env.DB.prepare(
-      'INSERT INTO api_keys (id, userId, projectId, keyHash, name) VALUES (?, ?, ?, ?, ?)'
-    ).bind(id, payload.userId, projectId, keyHash, name).run();
 
-    // Return the key only once (never stored in plain text)
-    return c.json({
-      success: true,
-      id,
-      key: apiKey,
-      projectId,
-      name,
-      message: 'Save this key securely. It will not be shown again.'
-    });
+    // Check if name already exists
+    const existingName = await env.DB.prepare(
+      'SELECT id FROM projects WHERE name = ?'
+    ).bind(name).first();
+
+    if (existingName) {
+      return c.json({ error: 'Project name already taken' }, 400);
+    }
+
+    // Check if repository already registered
+    const existingRepo = await env.DB.prepare(
+      'SELECT id, name FROM projects WHERE repository = ?'
+    ).bind(repository).first();
+
+    if (existingRepo) {
+      return c.json({ 
+        error: 'Repository already registered',
+        existingProject: existingRepo.name
+      }, 400);
+    }
+
+    try {
+      await env.DB.prepare(
+        'INSERT INTO projects (id, userId, name, repository) VALUES (?, ?, ?, ?)'
+      ).bind(id, payload.userId, name, repository).run();
+
+      return c.json({ success: true, id, name, repository });
+    } catch (error: any) {
+      console.error('Failed to create project:', error);
+      return c.json({ error: 'Failed to create project' }, 500);
+    }
   });
 
-  // List API keys for user
-  app.get('/api/keys', async (c) => {
+  // List user's projects
+  app.get('/api/projects', async (c) => {
     let token = getCookie(c, 'auth_token');
     if (!token) {
       const authHeader = c.req.header('Authorization');
@@ -566,14 +573,14 @@ export function createWorkerApp(env: Env) {
     if (!payload) return c.json({ error: 'Invalid token' }, 401);
 
     const result = await env.DB.prepare(
-      'SELECT id, projectId, name, lastUsedAt, createdAt, expiresAt, revoked FROM api_keys WHERE userId = ? ORDER BY createdAt DESC'
+      'SELECT id, name, repository, createdAt FROM projects WHERE userId = ? ORDER BY createdAt DESC'
     ).bind(payload.userId).all();
 
-    return c.json({ keys: result.results });
+    return c.json({ projects: result.results });
   });
 
-  // Revoke API key
-  app.delete('/api/keys/:id', async (c) => {
+  // Delete a project
+  app.delete('/api/projects/:id', async (c) => {
     let token = getCookie(c, 'auth_token');
     if (!token) {
       const authHeader = c.req.header('Authorization');
@@ -587,16 +594,13 @@ export function createWorkerApp(env: Env) {
 
     const id = c.req.param('id');
 
-    // Verify ownership
-    const key = await env.DB.prepare(
-      'SELECT id FROM api_keys WHERE id = ? AND userId = ?'
+    const project = await env.DB.prepare(
+      'SELECT id FROM projects WHERE id = ? AND userId = ?'
     ).bind(id, payload.userId).first();
 
-    if (!key) return c.json({ error: 'Key not found' }, 404);
+    if (!project) return c.json({ error: 'Project not found' }, 404);
 
-    await env.DB.prepare(
-      'UPDATE api_keys SET revoked = 1 WHERE id = ?'
-    ).bind(id).run();
+    await env.DB.prepare('DELETE FROM projects WHERE id = ?').bind(id).run();
 
     return c.json({ success: true });
   });
