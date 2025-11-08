@@ -1,82 +1,61 @@
-import { Component, createSignal, Show, createEffect } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { authStore } from '../stores/authStore';
-import LoginButton from '../components/auth/LoginButton';
+import { createEffect } from 'solid-js';
+import { user } from '../auth';
 
-const LoginPage: Component = () => {
+export default function LoginPage() {
   const navigate = useNavigate();
-  const [error, setError] = createSignal<string | null>(null);
 
-  // Redirect if already authenticated
   createEffect(() => {
-    if (!authStore.isLoading && authStore.isAuthenticated) {
-      navigate('/dashboard', { replace: true });
-    }
+    if (user()) navigate('/dashboard', { replace: true });
   });
 
-  const handleLoginSuccess = () => {
-    // OAuth flow will handle redirect
-    setError(null);
-  };
-
-  const handleLoginError = (errorMessage: string) => {
-    setError(errorMessage);
-  };
-
-  const clearError = () => {
-    setError(null);
+  const handleLogin = () => {
+    window.location.href = '/api/auth/github';
   };
 
   return (
-    <div class="container py-xl">
-      <div class="card max-w-md mx-auto">
-        <div class="card-header text-center">
-          <h1 class="text-xl font-semibold">Sign in to I18n Platform</h1>
-          <p class="text-sm text-muted mt-sm">
-            Connect with your GitHub account to get started
-          </p>
-        </div>
-        <div class="card-body">
-          <Show when={error()}>
-            <div class="bg-red-50 border border-red-200 rounded-md p-3 mb-md">
-              <div class="flex">
-                <div class="flex-shrink-0">
-                  <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                  </svg>
-                </div>
-                <div class="ml-3">
-                  <p class="text-sm text-red-800">{error()}</p>
-                </div>
-                <div class="ml-auto pl-3">
-                  <button
-                    class="text-red-400 hover:text-red-600"
-                    onClick={clearError}
-                  >
-                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </Show>
-
-          <LoginButton 
-            class="w-full"
-            onSuccess={handleLoginSuccess}
-            onError={handleLoginError}
-          />
-          
-          <div class="mt-lg text-center">
-            <p class="text-xs text-muted">
-              By signing in, you agree to our terms of service and privacy policy.
+    <div class="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center px-4">
+      <div class="max-w-md w-full">
+        <div class="bg-white rounded-lg shadow-lg p-8">
+          <div class="text-center mb-8">
+            <div class="text-6xl mb-4">🌍</div>
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">
+              Welcome Back
+            </h1>
+            <p class="text-gray-600">
+              Sign in to continue to I18n Platform
             </p>
           </div>
+
+          <button
+            onClick={handleLogin}
+            class="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition font-medium"
+          >
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            Sign in with GitHub
+          </button>
+
+          <div class="mt-6 text-center text-sm text-gray-600">
+            <p>By signing in, you agree to our</p>
+            <p>
+              <a href="#" class="text-blue-600 hover:text-blue-800">Terms of Service</a>
+              {' and '}
+              <a href="#" class="text-blue-600 hover:text-blue-800">Privacy Policy</a>
+            </p>
+          </div>
+        </div>
+
+        <div class="mt-8 text-center">
+          <button
+            onClick={() => navigate('/')}
+            class="text-gray-600 hover:text-gray-900"
+          >
+            ← Back to Home
+          </button>
         </div>
       </div>
     </div>
   );
-};
-
-export default LoginPage;
+}

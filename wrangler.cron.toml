@@ -1,22 +1,26 @@
-name = "i18n-platform"
-main = "src/workers.ts"
+name = "i18n-platform-cron"
+main = "src/cron.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat_v2"]
 
 [vars]
 ENVIRONMENT = "production"
 
-# D1 Database Configuration
-# Run: wrangler d1 create i18n-platform-db
-# Then replace "REPLACE_WITH_YOUR_DATABASE_ID" with the actual database_id
+# D1 Database Configuration (must match main worker)
 [[d1_databases]]
 binding = "DB"
 database_name = "i18n-platform-db"
 database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
 
+# Cron Schedule - Batch commit approved translations
+# Current: Every 5 minutes
+# Adjust as needed: https://crontab.guru/
+[triggers]
+crons = ["*/5 * * * *"]
+
 # Development Environment
 [env.development]
-name = "i18n-platform-dev"
+name = "i18n-platform-cron-dev"
 [env.development.vars]
 ENVIRONMENT = "development"
 

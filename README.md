@@ -1,151 +1,232 @@
 # I18n Platform
 
-A lightweight internationalization platform with GitHub integration, similar to Crowdin but with minimal infrastructure requirements. Built with Hono for high-performance backend API.
+Production-ready internationalization platform with GitHub OAuth, stateless JWT, and automated batch commits. Deploy to Cloudflare Workers in 5 minutes.
 
-## Features
+## ✨ Features
 
-- **GitHub OAuth Authentication**: Secure authentication with 24-hour sessions
-- **JWT Token Management**: Secure token-based authentication with automatic refresh
-- **CSRF Protection**: Built-in CSRF protection for state-changing operations
-- **Automatic translation commits** with co-author attribution
-- **Support for TOML translation files**
-- **Responsive web interface** for desktop and mobile
-- **Dual deployment options**: Cloudflare Workers or traditional server
-- **High-performance API**: Built with Hono framework for optimal performance
+- 🔐 **GitHub OAuth** - Secure authentication
+- ⚡ **Stateless JWT** - No session storage, scales horizontally
+- 📦 **Batch Commits** - Auto-commit every 5 minutes with co-author attribution
+- 📝 **Complete History** - Crowdin-like audit trail
+- 🎨 **Full Editor** - Search, filter, auto-save, progress tracking
+- 🚀 **Edge Deployment** - Cloudflare Workers + D1 + Pages
+- 💰 **Free Tier** - Completely free for 1000+ daily users
 
-## Authentication System
-
-The platform uses GitHub OAuth for authentication with the following security features:
-
-### Security Features
-- **OAuth 2.0 Flow**: Standard GitHub OAuth implementation
-- **JWT Tokens**: Secure session management with 24-hour expiry
-- **CSRF Protection**: Automatic CSRF token validation for state-changing operations
-- **Secure Cookies**: HttpOnly cookies with proper SameSite settings
-- **Rate Limiting**: Built-in rate limiting for authentication endpoints
-
-### API Endpoints
-- `GET /api/auth/github` - Initiate GitHub OAuth flow
-- `GET /api/auth/callback` - Handle OAuth callback
-- `GET /api/auth/me` - Get current user information
-- `POST /api/auth/logout` - Logout and invalidate session
-- `GET /api/auth/csrf-token` - Get CSRF token for protected operations
-
-### Environment Variables
-```bash
-GITHUB_CLIENT_ID=your_github_client_id
-GITHUB_CLIENT_SECRET=your_github_client_secret
-GITHUB_REDIRECT_URI=http://localhost:3000/api/auth/callback
-JWT_SECRET=your_secure_jwt_secret
-```
-
-## Project Structure
-
-```
-src/
-├── frontend/          # Frontend application
-│   ├── components/    # UI components
-│   ├── services/      # Frontend services
-│   └── types/         # Frontend type definitions
-├── backend/           # Backend API
-│   ├── api/           # API endpoints
-│   ├── services/      # Backend services
-│   └── types/         # Backend type definitions
-├── shared/            # Shared utilities and types
-│   ├── types/         # Common type definitions
-│   ├── utils/         # Utility functions
-│   └── validation/    # Validation schemas
-└── workers/           # Cloudflare Workers entry point
-```
-
-## Development
-
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-2. Copy environment variables:
-   ```bash
-   cp .env.example .env
-   ```
-
-3. Configure your GitHub OAuth app and update `.env`
-
-4. Start development server:
-   ```bash
-   npm run dev
-   ```
-
-## Deployment
-
-### Cloudflare Workers
-
-1. Configure wrangler:
-   ```bash
-   wrangler login
-   ```
-
-2. Set secrets:
-   ```bash
-   wrangler secret put GITHUB_CLIENT_SECRET
-   wrangler secret put JWT_SECRET
-   ```
-
-3. Deploy:
-   ```bash
-   npm run build:workers
-   wrangler deploy
-   ```
-
-### Traditional Server
-
-1. Build the application:
-   ```bash
-   npm run build:server
-   ```
-
-2. Start the server:
-   ```bash
-   node dist/server/backend/index.js
-   ```
-
-## Documentation
-
-The platform includes comprehensive mathematical documentation maintained in Typst format:
-
-- **System Architecture**: High-level architecture, deployment models, and flows
-- **Data Models**: Mathematical type definitions and invariants
-- **Build System**: Automated documentation generation and validation
-
-### Building Documentation
+## 🚀 Quick Deploy (5 minutes)
 
 ```bash
-# Install Typst (one-time setup)
-winget install --id Typst.Typst  # Windows
-# or: brew install typst          # macOS
-# or: see docs/architecture/README.md for Linux
+# 1. Create database
+wrangler d1 create i18n-platform-db
+# Copy database_id and update wrangler.toml + wrangler.cron.toml
 
-# Build documentation
-npm run docs:build
+# 2. Initialize schema
+wrangler d1 execute i18n-platform-db --file=schema.sql
 
-# Validate documentation
-npm run docs:validate
+# 3. Set secrets
+wrangler secret put GITHUB_CLIENT_ID
+wrangler secret put GITHUB_CLIENT_SECRET
+wrangler secret put JWT_SECRET
+wrangler secret put GITHUB_BOT_TOKEN
+
+# 4. Deploy
+./deploy.sh
 ```
 
-Generated documentation is available in `docs/generated/` as PDFs and PNGs.
+**See [QUICK_START.md](QUICK_START.md) for detailed steps.**
 
-For more information, see:
-- [Architecture Documentation](docs/architecture/README.md)
-- [Documentation Maintenance Guide](docs/DOCUMENTATION_GUIDE.md)
+## 💻 Local Development
 
-## Requirements
+```bash
+# Option 1: Cloudflare Workers (recommended)
+wrangler dev                    # Terminal 1
+npm run dev:frontend            # Terminal 2
 
-- Node.js 18+
-- GitHub OAuth application
-- (Optional) Cloudflare Workers account
-- (Optional) Typst for building documentation
+# Option 2: Node.js Server
+npm run dev                     # Starts both server and frontend
+```
 
-## License
+## 📚 Documentation
+
+- **[QUICK_START.md](QUICK_START.md)** - 5-minute deployment guide
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Comprehensive deployment guide
+- **[PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md)** - Step-by-step checklist
+- **[PRODUCTION_READY.md](PRODUCTION_READY.md)** - Production readiness summary
+- **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - File structure
+- **[SUMMARY.md](SUMMARY.md)** - Project summary
+
+## 🏗️ Architecture
+
+### Stateless Design
+- No session storage (server or database)
+- JWT contains user info + encrypted GitHub token
+- 24-hour token expiration
+- Horizontal scaling ready
+
+### Translation Workflow
+1. **Submit** → User submits translation (status: pending)
+2. **Approve** → Reviewer approves (status: approved)
+3. **Commit** → Cron commits to GitHub every 5 min (status: committed)
+4. **History** → All actions logged with user attribution
+
+### Tech Stack
+- **Backend**: Cloudflare Workers + D1 Database
+- **Frontend**: SolidJS + Vite
+- **Auth**: GitHub OAuth + JWT
+- **Cron**: Cloudflare Workers Cron
+- **Deployment**: Cloudflare Pages
+
+## 📊 Database Schema
+
+```sql
+users              -- GitHub user profiles
+oauth_states       -- OAuth CSRF tokens (10min TTL)
+translations       -- Current/pending translations
+translation_history -- Immutable audit log
+```
+
+## 🔌 API Endpoints
+
+```
+Authentication:
+  GET  /api/auth/github              - Initiate OAuth
+  GET  /api/auth/callback            - OAuth callback
+  GET  /api/auth/me                  - Get current user
+  POST /api/auth/logout              - Logout
+
+Translations:
+  POST   /api/translations           - Submit translation
+  GET    /api/translations           - List translations
+  GET    /api/translations/history   - Get history
+  POST   /api/translations/:id/approve - Approve
+  DELETE /api/translations/:id       - Delete
+
+Health:
+  GET  /health                       - Health check
+```
+
+## ⚙️ Configuration
+
+### GitHub OAuth App
+1. Go to https://github.com/settings/developers
+2. Create new OAuth App
+3. Set callback: `https://your-worker.workers.dev/api/auth/callback`
+
+### Cron Frequency
+Edit `wrangler.cron.toml`:
+```toml
+[triggers]
+crons = ["*/5 * * * *"]  # Every 5 minutes
+```
+
+### CORS Origins
+Edit `src/workers.ts`:
+```typescript
+origin: ['https://your-pages.pages.dev']
+```
+
+## 📈 Monitoring
+
+```bash
+# View logs
+wrangler tail
+wrangler tail --config wrangler.cron.toml
+
+# Check database
+wrangler d1 execute i18n-platform-db --command="SELECT * FROM translations"
+
+# Check stats
+wrangler d1 execute i18n-platform-db \
+  --command="SELECT status, COUNT(*) FROM translations GROUP BY status"
+```
+
+## 💰 Cost
+
+**FREE** on Cloudflare free tier:
+- Workers: 100K requests/day
+- D1: 5M reads/day, 100K writes/day
+- Pages: Unlimited requests
+- Cron: 288 executions/day (every 5 min)
+
+Expected usage for 1000 daily users: **Completely FREE!**
+
+## 🐛 Troubleshooting
+
+### OAuth Fails
+```bash
+wrangler secret list  # Check secrets are set
+```
+
+### Cron Not Running
+```bash
+wrangler tail --config wrangler.cron.toml  # Check logs
+```
+
+### Database Errors
+```bash
+wrangler d1 execute i18n-platform-db --file=schema.sql  # Re-run schema
+```
+
+**See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed troubleshooting.**
+
+## 📦 Scripts
+
+```bash
+# Development
+npm run dev                 # Node.js server + frontend
+npm run dev:workers         # Cloudflare Workers local
+
+# Build
+npm run build               # Build frontend + server
+
+# Deployment
+npm run deploy              # Deploy workers + cron
+npm run deploy:pages        # Deploy frontend
+
+# Database
+npm run db:init             # Initialize production DB
+npm run db:query            # Query database
+
+# Monitoring
+npm run logs                # Main worker logs
+npm run logs:cron           # Cron worker logs
+```
+
+## 🎯 Features
+
+### Translation Editor
+- Side-by-side source/translation view
+- Real-time search and filtering
+- Auto-save every 30 seconds
+- Character count and warnings
+- Complete history timeline
+- Progress tracking
+- Mobile responsive
+
+### Pages
+1. **Home** - Landing page with features
+2. **Login** - GitHub OAuth
+3. **Dashboard** - Project list with stats
+4. **Editor** - Full-featured translation editor
+5. **History** - Complete audit trail viewer
+
+## 🔒 Security
+
+- ✅ HTTPS enforced (Cloudflare)
+- ✅ Secrets stored securely (Wrangler)
+- ✅ CORS restricted to known domains
+- ✅ JWT signed and verified
+- ✅ OAuth state validation (CSRF)
+- ✅ HttpOnly cookies
+- ✅ No sensitive data in logs
+
+## 📄 License
 
 MIT
+
+---
+
+## 🚀 Ready to Deploy!
+
+Follow [QUICK_START.md](QUICK_START.md) for 5-minute deployment or [DEPLOYMENT.md](DEPLOYMENT.md) for comprehensive guide.
+
+**Happy translating! 🌍**
