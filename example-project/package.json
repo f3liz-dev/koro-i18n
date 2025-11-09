@@ -1,0 +1,16 @@
+{
+  "name": "example-project",
+  "version": "1.0.0",
+  "description": "Example project for testing I18n Platform",
+  "private": true,
+  "scripts": {
+    "upload": "i18n-upload",
+    "test": "echo \"No tests yet\""
+  },
+  "keywords": [
+    "i18n",
+    "example"
+  ],
+  "author": "",
+  "license": "MIT"
+}

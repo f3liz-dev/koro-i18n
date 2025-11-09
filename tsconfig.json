@@ -16,6 +16,6 @@
     "paths": { "@/*": ["./src/*"] },
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/workers.ts", "src/cron.ts", "src/app/**/*"],
+  "include": ["src/workers.ts", "src/oidc.ts", "src/app/**/*"],
   "exclude": ["node_modules", "dist"]
 }

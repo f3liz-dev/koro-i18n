@@ -80,9 +80,10 @@ CREATE INDEX IF NOT EXISTS idx_history_created ON translation_history(createdAt)
 -- Projects (Cloudflare-style: simple name + repository binding)
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY, -- UUID
-  userId TEXT NOT NULL,
+  userId TEXT NOT NULL, -- Project owner
   name TEXT UNIQUE NOT NULL, -- Project name (globally unique, used in API)
   repository TEXT UNIQUE NOT NULL, -- GitHub repository (globally unique, owner/repo)
+  accessControl TEXT DEFAULT 'whitelist', -- 'whitelist' or 'blacklist'
   createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -90,3 +91,23 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(userId);
 CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name);
 CREATE INDEX IF NOT EXISTS idx_projects_repo ON projects(repository);
+
+-- Project members (users who have access to a project)
+CREATE TABLE IF NOT EXISTS project_members (
+  id TEXT PRIMARY KEY,
+  projectId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  status TEXT DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
+  role TEXT DEFAULT 'member', -- 'owner', 'member'
+  addedBy TEXT, -- userId who added/invited this member
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (projectId) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (addedBy) REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE(projectId, userId)
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_members_project ON project_members(projectId);
+CREATE INDEX IF NOT EXISTS idx_project_members_user ON project_members(userId);
+CREATE INDEX IF NOT EXISTS idx_project_members_status ON project_members(projectId, status);

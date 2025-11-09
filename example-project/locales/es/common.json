@@ -1,0 +1,21 @@
+{
+  "welcome": "Bienvenido a nuestra aplicación",
+  "goodbye": "Adiós",
+  "buttons": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar"
+  },
+  "messages": {
+    "success": "Operación completada con éxito",
+    "error": "Ocurrió un error",
+    "loading": "Cargando..."
+  },
+  "navigation": {
+    "home": "Inicio",
+    "about": "Acerca de",
+    "contact": "Contacto",
+    "settings": "Configuración"
+  }
+}

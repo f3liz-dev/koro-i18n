@@ -184,6 +184,8 @@ export function createWorkerApp(env: Env) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
+    // Allow multiple suggestions per key from same or different users
+    // Each suggestion is a separate entry
     const id = crypto.randomUUID();
     await env.DB.prepare(
       'INSERT INTO translations (id, projectId, language, key, value, userId, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -252,10 +254,53 @@ export function createWorkerApp(env: Env) {
     }
 
     const result = await env.DB.prepare(
-      'SELECT * FROM translation_history WHERE projectId = ? AND language = ? AND key = ? ORDER BY createdAt DESC'
+      `SELECT th.*, u.username, u.avatarUrl 
+       FROM translation_history th 
+       LEFT JOIN users u ON th.userId = u.id 
+       WHERE th.projectId = ? AND th.language = ? AND th.key = ? 
+       ORDER BY th.createdAt DESC`
     ).bind(projectId, language, key).all();
 
     return c.json({ history: result.results });
+  });
+
+  // Get all translation suggestions with user info (public view)
+  app.get('/api/translations/suggestions', async (c) => {
+    let token = getCookie(c, 'auth_token');
+    if (!token) {
+      const authHeader = c.req.header('Authorization');
+      if (authHeader?.startsWith('Bearer ')) token = authHeader.substring(7);
+    }
+
+    if (!token) return c.json({ error: 'Unauthorized' }, 401);
+
+    const payload = await validateToken(token);
+    if (!payload) return c.json({ error: 'Invalid token' }, 401);
+
+    const projectId = c.req.query('projectId');
+    const language = c.req.query('language');
+
+    if (!projectId) {
+      return c.json({ error: 'Missing projectId parameter' }, 400);
+    }
+
+    let query = `
+      SELECT t.*, u.username, u.avatarUrl 
+      FROM translations t 
+      JOIN users u ON t.userId = u.id 
+      WHERE t.projectId = ? AND t.status != 'deleted'
+    `;
+    const params: any[] = [projectId];
+
+    if (language) {
+      query += ' AND t.language = ?';
+      params.push(language);
+    }
+
+    query += ' ORDER BY t.createdAt DESC LIMIT 500';
+
+    const result = await env.DB.prepare(query).bind(...params).all();
+    return c.json({ suggestions: result.results });
   });
 
   // Approve a translation
@@ -348,7 +393,7 @@ export function createWorkerApp(env: Env) {
     const token = c.req.header('Authorization')?.replace('Bearer ', '');
     
     if (!token) {
-      return c.json({ error: 'OIDC token required' }, 401);
+      return c.json({ error: 'Authorization token required' }, 401);
     }
 
     const projectName = c.req.param('projectName');
@@ -383,34 +428,69 @@ export function createWorkerApp(env: Env) {
 
     const repository = project.repository as string;
 
-    // 2. Verify OIDC token (proves request is from GitHub Actions)
-    let oidcPayload;
-    try {
-      const { verifyGitHubOIDCToken } = await import('./oidc.js');
-      oidcPayload = await verifyGitHubOIDCToken(
-        token,
-        new URL(c.req.url).origin,
-        repository
-      );
-    } catch (error: any) {
-      return c.json({ error: `OIDC verification failed: ${error.message}` }, 401);
+    // 2. Verify token (OIDC in production, JWT in development)
+    let uploadAuthorized = false;
+    let uploadInfo: any = {};
+
+    // Try JWT first (for development/testing)
+    const jwtPayload = await validateToken(token);
+    if (jwtPayload) {
+      // JWT authentication - check if user owns or is member of project
+      const isMember = await env.DB.prepare(
+        `SELECT 1 FROM project_members 
+         WHERE projectId = ? AND userId = ? AND status = 'approved'
+         UNION
+         SELECT 1 FROM projects WHERE id = ? AND userId = ?`
+      ).bind(project.id, jwtPayload.userId, project.id, jwtPayload.userId).first();
+
+      if (isMember || env.ENVIRONMENT === 'development') {
+        uploadAuthorized = true;
+        uploadInfo = {
+          method: 'JWT',
+          userId: jwtPayload.userId,
+          username: jwtPayload.username
+        };
+      }
+    } else {
+      // Try OIDC (for GitHub Actions)
+      try {
+        const { verifyGitHubOIDCToken } = await import('./oidc.js');
+        const oidcPayload = await verifyGitHubOIDCToken(
+          token,
+          new URL(c.req.url).origin,
+          repository
+        );
+
+        // Verify OIDC token repository matches project repository
+        if (oidcPayload.repository === repository) {
+          uploadAuthorized = true;
+          uploadInfo = {
+            method: 'OIDC',
+            repository: oidcPayload.repository,
+            actor: oidcPayload.actor,
+            workflow: oidcPayload.workflow
+          };
+        } else {
+          return c.json({ 
+            error: 'Repository mismatch',
+            projectRepository: repository,
+            tokenRepository: oidcPayload.repository
+          }, 403);
+        }
+      } catch (error: any) {
+        return c.json({ error: `Authentication failed: ${error.message}` }, 401);
+      }
     }
 
-    // 3. Verify OIDC token repository matches project repository
-    if (oidcPayload.repository !== repository) {
-      return c.json({ 
-        error: 'Repository mismatch',
-        projectRepository: repository,
-        tokenRepository: oidcPayload.repository
-      }, 403);
+    if (!uploadAuthorized) {
+      return c.json({ error: 'Unauthorized to upload to this project' }, 403);
     }
 
     // All checks passed! Upload is authorized.
     console.log('Authorized upload:', { 
       projectName,
-      repository: oidcPayload.repository, 
-      actor: oidcPayload.actor,
-      workflow: oidcPayload.workflow,
+      repository,
+      ...uploadInfo,
       projectOwner: project.userId
     });
 
@@ -464,12 +544,25 @@ export function createWorkerApp(env: Env) {
     const payload = await validateToken(token);
     if (!payload) return c.json({ error: 'Invalid token' }, 401);
 
-    const projectId = c.req.param('projectId');
+    const projectIdOrName = c.req.param('projectId');
     const branch = c.req.query('branch') || 'main';
     const lang = c.req.query('lang');
 
+    // Look up repository from project name (projectId could be name or repository)
+    let actualProjectId = projectIdOrName;
+    
+    // Try to find project by name first
+    const project = await env.DB.prepare(
+      'SELECT repository FROM projects WHERE name = ?'
+    ).bind(projectIdOrName).first();
+    
+    if (project) {
+      // Use repository as the actual projectId for file queries
+      actualProjectId = project.repository as string;
+    }
+
     let query = 'SELECT * FROM project_files WHERE projectId = ? AND branch = ?';
-    const params: any[] = [projectId, branch];
+    const params: any[] = [actualProjectId, branch];
 
     if (lang) {
       query += ' AND lang = ?';
@@ -559,7 +652,7 @@ export function createWorkerApp(env: Env) {
     }
   });
 
-  // List user's projects
+  // List user's projects (owned + member of)
   app.get('/api/projects', async (c) => {
     let token = getCookie(c, 'auth_token');
     if (!token) {
@@ -572,11 +665,22 @@ export function createWorkerApp(env: Env) {
     const payload = await validateToken(token);
     if (!payload) return c.json({ error: 'Invalid token' }, 401);
 
-    const result = await env.DB.prepare(
-      'SELECT id, name, repository, createdAt FROM projects WHERE userId = ? ORDER BY createdAt DESC'
+    // Get owned projects
+    const owned = await env.DB.prepare(
+      'SELECT id, name, repository, userId, accessControl, createdAt, "owner" as role FROM projects WHERE userId = ?'
     ).bind(payload.userId).all();
 
-    return c.json({ projects: result.results });
+    // Get projects user is a member of (approved only)
+    const member = await env.DB.prepare(
+      `SELECT p.id, p.name, p.repository, p.userId, p.accessControl, p.createdAt, pm.role 
+       FROM projects p 
+       JOIN project_members pm ON p.id = pm.projectId 
+       WHERE pm.userId = ? AND pm.status = 'approved'`
+    ).bind(payload.userId).all();
+
+    const projects = [...owned.results, ...member.results];
+
+    return c.json({ projects });
   });
 
   // Delete a project
@@ -603,6 +707,209 @@ export function createWorkerApp(env: Env) {
     await env.DB.prepare('DELETE FROM projects WHERE id = ?').bind(id).run();
 
     return c.json({ success: true });
+  });
+
+  // Update project access control
+  app.patch('/api/projects/:id', async (c) => {
+    let token = getCookie(c, 'auth_token');
+    if (!token) {
+      const authHeader = c.req.header('Authorization');
+      if (authHeader?.startsWith('Bearer ')) token = authHeader.substring(7);
+    }
+
+    if (!token) return c.json({ error: 'Unauthorized' }, 401);
+
+    const payload = await validateToken(token);
+    if (!payload) return c.json({ error: 'Invalid token' }, 401);
+
+    const id = c.req.param('id');
+    const body = await c.req.json();
+    const { accessControl } = body;
+
+    if (!accessControl || !['whitelist', 'blacklist'].includes(accessControl)) {
+      return c.json({ error: 'Invalid accessControl value' }, 400);
+    }
+
+    const project = await env.DB.prepare(
+      'SELECT id FROM projects WHERE id = ? AND userId = ?'
+    ).bind(id, payload.userId).first();
+
+    if (!project) return c.json({ error: 'Project not found' }, 404);
+
+    await env.DB.prepare(
+      'UPDATE projects SET accessControl = ? WHERE id = ?'
+    ).bind(accessControl, id).run();
+
+    return c.json({ success: true });
+  });
+
+  // Request to join a project
+  app.post('/api/projects/:id/join', async (c) => {
+    let token = getCookie(c, 'auth_token');
+    if (!token) {
+      const authHeader = c.req.header('Authorization');
+      if (authHeader?.startsWith('Bearer ')) token = authHeader.substring(7);
+    }
+
+    if (!token) return c.json({ error: 'Unauthorized' }, 401);
+
+    const payload = await validateToken(token);
+    if (!payload) return c.json({ error: 'Invalid token' }, 401);
+
+    const projectId = c.req.param('id');
+
+    const project = await env.DB.prepare(
+      'SELECT id, userId FROM projects WHERE id = ?'
+    ).bind(projectId).first();
+
+    if (!project) return c.json({ error: 'Project not found' }, 404);
+
+    // Check if already a member
+    const existing = await env.DB.prepare(
+      'SELECT id, status FROM project_members WHERE projectId = ? AND userId = ?'
+    ).bind(projectId, payload.userId).first();
+
+    if (existing) {
+      return c.json({ error: 'Already requested or member', status: existing.status }, 400);
+    }
+
+    const memberId = crypto.randomUUID();
+    await env.DB.prepare(
+      'INSERT INTO project_members (id, projectId, userId, status, role) VALUES (?, ?, ?, ?, ?)'
+    ).bind(memberId, projectId, payload.userId, 'pending', 'member').run();
+
+    return c.json({ success: true, status: 'pending' });
+  });
+
+  // Get project members
+  app.get('/api/projects/:id/members', async (c) => {
+    let token = getCookie(c, 'auth_token');
+    if (!token) {
+      const authHeader = c.req.header('Authorization');
+      if (authHeader?.startsWith('Bearer ')) token = authHeader.substring(7);
+    }
+
+    if (!token) return c.json({ error: 'Unauthorized' }, 401);
+
+    const payload = await validateToken(token);
+    if (!payload) return c.json({ error: 'Invalid token' }, 401);
+
+    const projectId = c.req.param('id');
+
+    const project = await env.DB.prepare(
+      'SELECT id, userId FROM projects WHERE id = ?'
+    ).bind(projectId).first();
+
+    if (!project) return c.json({ error: 'Project not found' }, 404);
+
+    // Only project owner can see members
+    if (project.userId !== payload.userId) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const result = await env.DB.prepare(
+      `SELECT pm.*, u.username, u.avatarUrl 
+       FROM project_members pm 
+       JOIN users u ON pm.userId = u.id 
+       WHERE pm.projectId = ? 
+       ORDER BY pm.createdAt DESC`
+    ).bind(projectId).all();
+
+    return c.json({ members: result.results });
+  });
+
+  // Approve/reject member
+  app.post('/api/projects/:id/members/:memberId/approve', async (c) => {
+    let token = getCookie(c, 'auth_token');
+    if (!token) {
+      const authHeader = c.req.header('Authorization');
+      if (authHeader?.startsWith('Bearer ')) token = authHeader.substring(7);
+    }
+
+    if (!token) return c.json({ error: 'Unauthorized' }, 401);
+
+    const payload = await validateToken(token);
+    if (!payload) return c.json({ error: 'Invalid token' }, 401);
+
+    const projectId = c.req.param('id');
+    const memberId = c.req.param('memberId');
+    const body = await c.req.json();
+    const { status } = body;
+
+    if (!status || !['approved', 'rejected'].includes(status)) {
+      return c.json({ error: 'Invalid status' }, 400);
+    }
+
+    const project = await env.DB.prepare(
+      'SELECT id, userId FROM projects WHERE id = ?'
+    ).bind(projectId).first();
+
+    if (!project) return c.json({ error: 'Project not found' }, 404);
+
+    // Only project owner can approve
+    if (project.userId !== payload.userId) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    await env.DB.prepare(
+      'UPDATE project_members SET status = ?, updatedAt = datetime("now") WHERE id = ? AND projectId = ?'
+    ).bind(status, memberId, projectId).run();
+
+    return c.json({ success: true });
+  });
+
+  // Remove member
+  app.delete('/api/projects/:id/members/:memberId', async (c) => {
+    let token = getCookie(c, 'auth_token');
+    if (!token) {
+      const authHeader = c.req.header('Authorization');
+      if (authHeader?.startsWith('Bearer ')) token = authHeader.substring(7);
+    }
+
+    if (!token) return c.json({ error: 'Unauthorized' }, 401);
+
+    const payload = await validateToken(token);
+    if (!payload) return c.json({ error: 'Invalid token' }, 401);
+
+    const projectId = c.req.param('id');
+    const memberId = c.req.param('memberId');
+
+    const project = await env.DB.prepare(
+      'SELECT id, userId FROM projects WHERE id = ?'
+    ).bind(projectId).first();
+
+    if (!project) return c.json({ error: 'Project not found' }, 404);
+
+    // Only project owner can remove members
+    if (project.userId !== payload.userId) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    await env.DB.prepare(
+      'DELETE FROM project_members WHERE id = ? AND projectId = ?'
+    ).bind(memberId, projectId).run();
+
+    return c.json({ success: true });
+  });
+
+  // List all projects (for joining)
+  app.get('/api/projects/all', async (c) => {
+    let token = getCookie(c, 'auth_token');
+    if (!token) {
+      const authHeader = c.req.header('Authorization');
+      if (authHeader?.startsWith('Bearer ')) token = authHeader.substring(7);
+    }
+
+    if (!token) return c.json({ error: 'Unauthorized' }, 401);
+
+    const payload = await validateToken(token);
+    if (!payload) return c.json({ error: 'Invalid token' }, 401);
+
+    const result = await env.DB.prepare(
+      'SELECT id, name, repository, userId, createdAt FROM projects ORDER BY createdAt DESC'
+    ).bind().all();
+
+    return c.json({ projects: result.results });
   });
 
   app.get('/health', (c) => c.json({ status: 'ok', runtime: 'cloudflare-workers' }));

@@ -8,15 +8,17 @@
     "build": "vite build",
     "dev": "vite",
     "dev:workers": "wrangler dev",
-    "dev:all": "node dev-all.js",
+    "dev:all": "node scripts/dev-all.js",
     "test": "vitest --run",
     "type-check": "tsc --noEmit",
     "clean": "rimraf .wrangler dist",
     "deploy": "npm run build && wrangler deploy && wrangler deploy --config wrangler.cron.toml",
     "deploy:pages": "npm run build && wrangler pages deploy dist/frontend --project-name=i18n-platform",
-    "db:init": "wrangler d1 execute DB --file=schema.sql --local",
-    "db:query": "wrangler d1 execute DB --local",
-    "logs": "wrangler tail"
+    "db:init": "wrangler d1 execute i18n-platform-db --file=schema.sql",
+    "db:migrate": "wrangler d1 execute i18n-platform-db --file=docs/migrate-project-members.sql",
+    "db:query": "wrangler d1 execute i18n-platform-db",
+    "logs": "wrangler tail",
+    "logs:cron": "wrangler tail --config wrangler.cron.toml"
   },
   "dependencies": {
     "@octokit/auth-oauth-app": "^9.0.3",
@@ -57,5 +59,6 @@
     "toml"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "pnpm@10.20.0+sha512.cf9998222162dd85864d0a8102e7892e7ba4ceadebbf5a31f9c2fce48dfce317a9c53b9f6464d1ef9042cba2e02ae02a9f7c143a2b438cd93c91840f0192b9dd"
 }

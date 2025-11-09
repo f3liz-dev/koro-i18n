@@ -1,5 +1,5 @@
 import { useNavigate } from '@solidjs/router';
-import { createEffect, createSignal, For, onMount } from 'solid-js';
+import { createEffect, createSignal, For, onMount, Show } from 'solid-js';
 import { user, auth } from '../auth';
 
 interface Project {
@@ -20,17 +20,58 @@ export default function DashboardPage() {
   const [isSubmitting, setIsSubmitting] = createSignal(false);
 
   const loadProjects = async () => {
+    console.log('loadProjects called');
     try {
+      console.log('Fetching projects...');
       const res = await fetch('/api/projects', { credentials: 'include' });
+      console.log('Projects response:', res.status);
       if (res.ok) {
-        const data = await res.json();
-        setProjects(data.projects.map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          repository: p.repository,
-          languages: [],
-          progress: 0
-        })));
+        const data = await res.json() as { projects: any[] };
+        console.log('Projects data:', data);
+        console.log('Number of projects:', data.projects.length);
+        
+        // Load languages for each project
+        const projectsWithLanguages = await Promise.all(
+          data.projects.map(async (p: any) => {
+            try {
+              // Use project name for file queries (API will look up repository)
+              const filesRes = await fetch(`/api/projects/${p.name}/files`, {
+                credentials: 'include'
+              });
+              console.log(`Files API response for ${p.name}:`, filesRes.status);
+              if (filesRes.ok) {
+                const filesData = await filesRes.json() as { files: any[] };
+                console.log(`Files for ${p.name}:`, filesData.files);
+                const languages = [...new Set(filesData.files.map((f: any) => f.lang))] as string[];
+                console.log(`Languages for ${p.name}:`, languages);
+                return {
+                  id: p.id,
+                  name: p.name,
+                  repository: p.repository,
+                  languages,
+                  progress: 0
+                };
+              } else {
+                const errorText = await filesRes.text();
+                console.error(`Failed to load files for ${p.name}:`, filesRes.status, errorText);
+              }
+            } catch (err) {
+              console.error(`Failed to load files for ${p.name}:`, err);
+            }
+            return {
+              id: p.id,
+              name: p.name,
+              repository: p.repository,
+              languages: [],
+              progress: 0
+            };
+          })
+        );
+        
+        setProjects(projectsWithLanguages);
+      } else {
+        const errorData = await res.json();
+        console.error('Failed to load projects:', res.status, errorData);
       }
     } catch (error) {
       console.error('Failed to load projects:', error);
@@ -55,6 +96,7 @@ export default function DashboardPage() {
 
     setIsSubmitting(true);
     try {
+      console.log('Creating project:', { name: newProjectName(), repository: newProjectRepo() });
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,13 +107,17 @@ export default function DashboardPage() {
         }),
       });
 
+      console.log('Create project response:', res.status);
       if (res.ok) {
+        const data = await res.json();
+        console.log('Project created:', data);
         setNewProjectName('');
         setNewProjectRepo('');
         setShowNewProjectModal(false);
         loadProjects();
       } else {
-        const data = await res.json();
+        const data = await res.json() as { error?: string };
+        console.error('Failed to create project:', data);
         alert(data.error || 'Failed to add project');
       }
     } catch (error) {
@@ -83,6 +129,8 @@ export default function DashboardPage() {
   };
 
   onMount(() => {
+    console.log('DashboardPage mounted');
+    console.log('Current user:', user());
     auth.refresh();
     loadProjects();
   });
@@ -95,6 +143,27 @@ export default function DashboardPage() {
     await auth.logout();
   };
 
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm('Delete this project? This cannot be undone.')) return;
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (res.ok) {
+        loadProjects();
+      } else {
+        const data = await res.json() as { error?: string };
+        alert(data.error || 'Failed to delete project');
+      }
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+      alert('Failed to delete project');
+    }
+  };
+
   return (
     <div class="min-h-screen bg-white">
       <div class="border-b">
@@ -105,6 +174,12 @@ export default function DashboardPage() {
             <span class="text-sm text-gray-600">{user()?.username}</span>
           </div>
           <div class="flex items-center gap-1">
+            <button
+              onClick={() => navigate('/projects/join')}
+              class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 rounded hover:bg-gray-50"
+            >
+              Join Project
+            </button>
             <button
               onClick={() => navigate('/history')}
               class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 rounded hover:bg-gray-50"
@@ -147,24 +222,47 @@ export default function DashboardPage() {
                         <h3 class="font-medium text-gray-900 mb-1.5">{project.name}</h3>
                         <code class="text-xs text-gray-500">{project.repository}</code>
                       </div>
-                      <button
-                        onClick={() => handleDeleteProject(project.id)}
-                        class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
-                      >
-                        Remove
-                      </button>
+                      <div class="flex gap-2">
+                        <button
+                          onClick={() => navigate(`/projects/${project.id}/manage`)}
+                          class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50"
+                        >
+                          Manage
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProject(project.id)}
+                          class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
-                    <div class="flex gap-2">
-                      <For each={project.languages}>
-                        {(lang) => (
-                          <button
-                            onClick={() => navigate(`/projects/${project.id}/translate/${lang}`)}
-                            class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50"
-                          >
-                            {lang}
-                          </button>
-                        )}
-                      </For>
+                    <div class="space-y-2">
+                      <div class="flex gap-2 items-center">
+                        <Show when={project.languages.length > 0} fallback={
+                          <span class="text-xs text-gray-400 italic">No files uploaded yet</span>
+                        }>
+                          <span class="text-xs text-gray-600 mr-2">Languages:</span>
+                          <For each={project.languages}>
+                            {(lang) => (
+                              <button
+                                onClick={() => navigate(`/projects/${project.name}/translate/${lang}`)}
+                                class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50 font-medium"
+                              >
+                                {lang.toUpperCase()}
+                              </button>
+                            )}
+                          </For>
+                        </Show>
+                      </div>
+                      <div>
+                        <button
+                          onClick={() => navigate(`/projects/${project.name}/suggestions`)}
+                          class="px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded border border-blue-200"
+                        >
+                          View All Suggestions
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

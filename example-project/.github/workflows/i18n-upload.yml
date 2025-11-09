@@ -1,0 +1,30 @@
+name: Upload Translations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'locales/**'
+      - '.i18n-platform.toml'
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install i18n client
+        run: npm install -g @i18n-platform/client
+      
+      - name: Upload translations
+        env:
+          I18N_PLATFORM_URL: ${{ secrets.I18N_PLATFORM_URL }}
+          I18N_PLATFORM_API_KEY: ${{ secrets.I18N_PLATFORM_API_KEY }}
+        run: i18n-upload
