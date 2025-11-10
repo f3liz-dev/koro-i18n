@@ -1,5 +1,5 @@
 import { useNavigate } from '@solidjs/router';
-import { createSignal, onMount, For } from 'solid-js';
+import { createSignal, onMount, For, Show } from 'solid-js';
 import { user } from '../auth';
 
 interface Project {
@@ -63,43 +63,51 @@ export default function JoinProjectPage() {
   );
 
   return (
-    <div class="min-h-screen bg-white">
-      <div class="border-b">
-        <div class="max-w-6xl mx-auto px-8 py-5 flex items-center justify-between">
-          <div class="flex items-center gap-4">
-            <button onClick={() => navigate('/dashboard')} class="text-lg font-semibold hover:text-gray-600">
-              ← Back
+    <div class="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div class="bg-white border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div class="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/dashboard')}
+              class="text-gray-400 hover:text-gray-600"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
             </button>
+            <h1 class="text-xl font-semibold text-gray-900">Join a Project</h1>
           </div>
         </div>
       </div>
 
-      <div class="max-w-6xl mx-auto px-8 py-16">
-        <h1 class="text-2xl font-semibold mb-8">Join a Project</h1>
+      {/* Content */}
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Show when={availableProjects().length === 0}>
+          <div class="bg-white rounded-lg border p-12 text-center">
+            <div class="text-gray-400 mb-2">No projects available</div>
+            <div class="text-sm text-gray-400">All projects have been joined or there are no public projects</div>
+          </div>
+        </Show>
 
         <div class="space-y-3">
           <For each={availableProjects()}>
             {(project) => (
-              <div class="border rounded-lg p-6 flex items-start justify-between">
+              <div class="bg-white rounded-lg border p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-gray-300 transition">
                 <div>
-                  <h3 class="font-medium text-gray-900 mb-1.5">{project.name}</h3>
+                  <h3 class="font-medium text-gray-900 mb-1">{project.name}</h3>
                   <code class="text-xs text-gray-500">{project.repository}</code>
                 </div>
                 <button
                   onClick={() => handleJoin(project.id)}
                   disabled={requestedProjects().has(project.id)}
-                  class="px-4 py-2 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-50"
                 >
-                  {requestedProjects().has(project.id) ? 'Requested' : 'Request to Join'}
+                  {requestedProjects().has(project.id) ? 'Request Sent' : 'Request to Join'}
                 </button>
               </div>
             )}
           </For>
-          {availableProjects().length === 0 && (
-            <div class="border rounded-lg p-8 text-center">
-              <p class="text-sm text-gray-400">No projects available to join</p>
-            </div>
-          )}
         </div>
       </div>
     </div>
