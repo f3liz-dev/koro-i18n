@@ -15,8 +15,8 @@ async function fetchHistory(projectId: string, language: string, key: string) {
     credentials: 'include',
   });
   if (!response.ok) throw new Error('Failed to fetch history');
-  const data = await response.json();
-  return data.history as HistoryEntry[];
+  const data = await response.json() as { history: HistoryEntry[] };
+  return data.history;
 }
 
 export default function TranslationHistoryPage() {

@@ -60,6 +60,7 @@ export default function TranslationEditorPage() {
   
   const projectId = () => params.projectId || '';
   const language = () => params.language || 'en';
+  const filename = () => params.filename ? decodeURIComponent(params.filename) : null;
 
   const [selectedKey, setSelectedKey] = createSignal<string | null>(null);
   const [translationValue, setTranslationValue] = createSignal('');
@@ -90,13 +91,24 @@ export default function TranslationEditorPage() {
       }
       
       const sourceData = await sourceRes.json() as { files: any[] };
-      const sourceFiles = sourceData.files || [];
+      let sourceFiles = sourceData.files || [];
+      
+      // Filter by filename if specified
+      const targetFilename = filename();
+      if (targetFilename) {
+        sourceFiles = sourceFiles.filter(f => f.filename === targetFilename);
+      }
       
       const targetUrl = `/api/projects/${pid}/files?lang=${language()}`;
       const targetRes = await fetch(targetUrl, { credentials: 'include' });
       
       const targetData = targetRes.ok ? (await targetRes.json() as { files: any[] }) : { files: [] };
-      const targetFiles = targetData.files || [];
+      let targetFiles = targetData.files || [];
+      
+      // Filter by filename if specified
+      if (targetFilename) {
+        targetFiles = targetFiles.filter(f => f.filename === targetFilename);
+      }
       
       const strings: TranslationString[] = [];
       
