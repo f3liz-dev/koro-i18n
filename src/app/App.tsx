@@ -21,6 +21,7 @@ export default function App() {
         <Route path="/projects/join" component={JoinProjectPage} />
         <Route path="/projects/:id" component={ProjectPage} />
         <Route path="/projects/:id/settings" component={ProjectSettingsPage} />
+        <Route path="/projects/:id/manage" component={ProjectSettingsPage} /> {/* Backward compatibility */}
         <Route path="/projects/:projectId/translate/:language/:filename" component={TranslationEditorPage} />
         <Route path="/projects/:projectId/translate/:language?" component={TranslationEditorPage} />
         <Route path="/projects/:projectId/suggestions" component={TranslationSuggestionsPage} />
