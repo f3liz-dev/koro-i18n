@@ -10,13 +10,14 @@ export interface GitHubOIDCToken {
   run_id: string;
 }
 
-const JWKS = createRemoteJWKSet(new URL('https://token.actions.githubusercontent.com/.well-known/jwks'));
-
 export async function verifyGitHubOIDCToken(
   token: string,
   expectedAudience?: string,
   expectedRepo?: string
 ): Promise<GitHubOIDCToken> {
+  // Create JWKS inside the function to ensure compatibility with Cloudflare Workers
+  const JWKS = createRemoteJWKSet(new URL('https://token.actions.githubusercontent.com/.well-known/jwks'));
+  
   const verifyOptions: any = {
     issuer: 'https://token.actions.githubusercontent.com',
   };
