@@ -32,6 +32,8 @@ npm run deploy:pages
 - **Translation Approval** - Review and approve translations
 - **Batch Commits** - Auto-commit every 5 minutes
 - **Complete History** - Full audit trail
+- **Native JSON Upload** - Direct JSON file upload support
+- **GitHub Actions** - Reusable actions for upload/download
 - **Edge Deployment** - Cloudflare Workers + D1 + Pages
 
 ## Architecture
@@ -93,6 +95,9 @@ Projects:
   GET    /api/projects/:id/members  - List members
   POST   /api/projects/:id/members/:memberId/approve - Approve/reject
   DELETE /api/projects/:id/members/:memberId - Remove member
+  POST   /api/projects/:projectName/upload        - Upload structured files
+  POST   /api/projects/:projectName/upload-json   - Upload JSON files natively
+  GET    /api/projects/:projectName/download      - Download translations
 
 Translations:
   POST   /api/translations
@@ -101,6 +106,35 @@ Translations:
   POST   /api/translations/:id/approve
   DELETE /api/translations/:id
 ```
+
+## GitHub Actions
+
+Koro i18n provides reusable GitHub Actions for easy integration:
+
+### Upload Translations Action
+
+Upload source translations automatically:
+
+```yaml
+- uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
+  with:
+    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
+    project-name: my-project
+    mode: json  # or 'structured'
+```
+
+### Download Translations Action
+
+Download completed translations and commit them:
+
+```yaml
+- uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
+  with:
+    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
+    project-name: my-project
+```
+
+See [GITHUB_ACTIONS.md](./GITHUB_ACTIONS.md) for complete documentation.
 
 ## Database Schema
 
@@ -168,9 +202,10 @@ wrangler d1 execute i18n-platform-db --file=schema.sql
 
 ## Documentation Files
 
-- `README.md` - This file
+- `README.md` - This file (Platform overview)
 - `DEPLOYMENT.md` - Detailed deployment guide
 - `CLIENT_SETUP.md` - Client repository setup
+- `GITHUB_ACTIONS.md` - GitHub Actions integration guide
 - `migrate-project-members.sql` - Database migration
 
 ---

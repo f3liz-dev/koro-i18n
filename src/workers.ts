@@ -531,6 +531,264 @@ export function createWorkerApp(env: Env) {
     }
   });
 
+  // Upload JSON files directly (native JSON upload)
+  app.post('/api/projects/:projectName/upload-json', async (c) => {
+    const token = c.req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return c.json({ error: 'Authorization token required' }, 401);
+    }
+
+    const projectName = c.req.param('projectName');
+    const body = await c.req.json();
+    const { branch, commitSha, language, files } = body;
+
+    if (!files || typeof files !== 'object') {
+      return c.json({ error: 'Missing required field: files (object with filename -> content mapping)' }, 400);
+    }
+
+    // Size limits
+    const MAX_FILES = 100;
+    const MAX_PAYLOAD_SIZE = 5 * 1024 * 1024; // 5MB
+    const payloadSize = JSON.stringify(body).length;
+
+    if (Object.keys(files).length > MAX_FILES) {
+      return c.json({ error: `Too many files. Max ${MAX_FILES} files per upload` }, 400);
+    }
+
+    if (payloadSize > MAX_PAYLOAD_SIZE) {
+      return c.json({ error: `Payload too large. Max ${MAX_PAYLOAD_SIZE / 1024 / 1024}MB` }, 400);
+    }
+
+    // 1. Get project by name
+    const project = await env.DB.prepare(
+      'SELECT id, userId, repository FROM projects WHERE name = ?'
+    ).bind(projectName).first();
+
+    if (!project) {
+      return c.json({ error: `Project '${projectName}' not found` }, 404);
+    }
+
+    const repository = project.repository as string;
+
+    // 2. Verify token (OIDC in production, JWT in development)
+    let uploadAuthorized = false;
+    let uploadInfo: any = {};
+
+    // Try JWT first (for development/testing)
+    const jwtPayload = await validateToken(token);
+    if (jwtPayload) {
+      // JWT authentication - check if user owns or is member of project
+      const isMember = await env.DB.prepare(
+        `SELECT 1 FROM project_members 
+         WHERE projectId = ? AND userId = ? AND status = 'approved'
+         UNION
+         SELECT 1 FROM projects WHERE id = ? AND userId = ?`
+      ).bind(project.id, jwtPayload.userId, project.id, jwtPayload.userId).first();
+
+      if (isMember || env.ENVIRONMENT === 'development') {
+        uploadAuthorized = true;
+        uploadInfo = {
+          method: 'JWT',
+          userId: jwtPayload.userId,
+          username: jwtPayload.username
+        };
+      }
+    } else {
+      // Try OIDC (for GitHub Actions)
+      try {
+        const { verifyGitHubOIDCToken } = await import('./oidc.js');
+        const oidcPayload = await verifyGitHubOIDCToken(
+          token,
+          new URL(c.req.url).origin,
+          repository
+        );
+
+        // Verify OIDC token repository matches project repository
+        if (oidcPayload.repository === repository) {
+          uploadAuthorized = true;
+          uploadInfo = {
+            method: 'OIDC',
+            repository: oidcPayload.repository,
+            actor: oidcPayload.actor,
+            workflow: oidcPayload.workflow
+          };
+        } else {
+          return c.json({ 
+            error: 'Repository mismatch',
+            projectRepository: repository,
+            tokenRepository: oidcPayload.repository
+          }, 403);
+        }
+      } catch (error: any) {
+        return c.json({ error: `Authentication failed: ${error.message}` }, 401);
+      }
+    }
+
+    if (!uploadAuthorized) {
+      return c.json({ error: 'Unauthorized to upload to this project' }, 403);
+    }
+
+    // All checks passed! Upload is authorized.
+    console.log('Authorized JSON upload:', { 
+      projectName,
+      repository,
+      ...uploadInfo,
+      projectOwner: project.userId
+    });
+
+    const projectId = repository;
+
+    // Helper function to flatten nested objects
+    const flattenObject = (obj: any, prefix = ''): Record<string, string> => {
+      const result: Record<string, string> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        const newKey = prefix ? `${prefix}.${key}` : key;
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          Object.assign(result, flattenObject(value, newKey));
+        } else {
+          result[newKey] = String(value);
+        }
+      }
+      return result;
+    };
+
+    try {
+      // Process and store each JSON file
+      const fileCount = Object.keys(files).length;
+      
+      for (const [filename, content] of Object.entries(files)) {
+        const fileId = crypto.randomUUID();
+        
+        // Parse JSON content and flatten it
+        let parsedContent: any;
+        try {
+          if (typeof content === 'string') {
+            parsedContent = JSON.parse(content);
+          } else {
+            parsedContent = content;
+          }
+        } catch (error) {
+          return c.json({ error: `Invalid JSON in file ${filename}` }, 400);
+        }
+
+        const flattened = flattenObject(parsedContent);
+        
+        await env.DB.prepare(
+          `INSERT OR REPLACE INTO project_files 
+           (id, projectId, branch, commitSha, filename, filetype, lang, contents, metadata, uploadedAt) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+        ).bind(
+          fileId,
+          projectId,
+          branch || 'main',
+          commitSha || '',
+          filename,
+          'json',
+          language || 'en',
+          JSON.stringify(flattened),
+          JSON.stringify({
+            keys: Object.keys(flattened).length,
+            uploadMethod: 'json-direct'
+          })
+        ).run();
+      }
+
+      return c.json({
+        success: true,
+        projectId,
+        filesUploaded: fileCount,
+        uploadedAt: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('JSON upload error:', error);
+      return c.json({ error: 'Failed to store files' }, 500);
+    }
+  });
+
+  // Download translations for a project
+  app.get('/api/projects/:projectName/download', async (c) => {
+    let token = c.req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      const cookieToken = getCookie(c, 'auth_token');
+      if (cookieToken) {
+        token = cookieToken;
+      } else {
+        return c.json({ error: 'Authorization token required' }, 401);
+      }
+    }
+
+    const projectName = c.req.param('projectName');
+    const branch = c.req.query('branch') || 'main';
+    const language = c.req.query('language');
+
+    // Get project by name
+    const project = await env.DB.prepare(
+      'SELECT id, userId, repository FROM projects WHERE name = ?'
+    ).bind(projectName).first();
+
+    if (!project) {
+      return c.json({ error: `Project '${projectName}' not found` }, 404);
+    }
+
+    const repository = project.repository as string;
+
+    // Verify token
+    const jwtPayload = await validateToken(token);
+    if (!jwtPayload) {
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+
+    // Check if user has access to project
+    const hasAccess = await env.DB.prepare(
+      `SELECT 1 FROM project_members 
+       WHERE projectId = ? AND userId = ? AND status = 'approved'
+       UNION
+       SELECT 1 FROM projects WHERE id = ? AND userId = ?`
+    ).bind(project.id, jwtPayload.userId, project.id, jwtPayload.userId).first();
+
+    if (!hasAccess && env.ENVIRONMENT !== 'development') {
+      return c.json({ error: 'Access denied to this project' }, 403);
+    }
+
+    // Query files
+    let query = 'SELECT * FROM project_files WHERE projectId = ? AND branch = ?';
+    const params: any[] = [repository, branch];
+
+    if (language) {
+      query += ' AND lang = ?';
+      params.push(language);
+    }
+
+    query += ' ORDER BY lang, filename';
+
+    const result = await env.DB.prepare(query).bind(...params).all();
+
+    // Group files by language and filename
+    const filesByLang: Record<string, Record<string, any>> = {};
+    
+    for (const row of result.results) {
+      const lang = row.lang as string;
+      const filename = row.filename as string;
+      const contents = JSON.parse(row.contents as string);
+      
+      if (!filesByLang[lang]) {
+        filesByLang[lang] = {};
+      }
+      
+      filesByLang[lang][filename] = contents;
+    }
+
+    return c.json({
+      project: projectName,
+      repository,
+      branch,
+      files: filesByLang,
+      generatedAt: new Date().toISOString()
+    });
+  });
+
   // Get project files
   app.get('/api/projects/:projectId/files', async (c) => {
     let token = getCookie(c, 'auth_token');
