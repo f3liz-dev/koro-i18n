@@ -19,10 +19,14 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     const jwtPayload = await verifyJWT(token, jwtSecret);
     
     if (jwtPayload) {
-      const hasAccess = await checkProjectAccess(prisma, projectId, jwtPayload.userId);
-      if (hasAccess || env.ENVIRONMENT === 'development') {
-        return { authorized: true, method: 'JWT', userId: jwtPayload.userId, username: jwtPayload.username };
+      // JWT upload is only allowed in development environment
+      if (env.ENVIRONMENT === 'development') {
+        const hasAccess = await checkProjectAccess(prisma, projectId, jwtPayload.userId);
+        if (hasAccess) {
+          return { authorized: true, method: 'JWT', userId: jwtPayload.userId, username: jwtPayload.username };
+        }
       }
+      // In production, JWT tokens are not accepted for upload - fall through to try OIDC
     } else {
       try {
         const { verifyGitHubOIDCToken } = await import('../oidc.js');

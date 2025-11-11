@@ -1,4 +1,9 @@
-# How to Get Your JWT Token
+# How to Get Your JWT Token (Development Only)
+
+⚠️ **IMPORTANT: JWT authentication is only available in DEVELOPMENT environment!**
+
+For production deployments, use OIDC authentication via GitHub Actions workflows.
+JWT uploads are disabled in production for security reasons.
 
 ## Quick Method (Browser Console)
 
@@ -62,7 +67,10 @@ It's a long string with three parts separated by dots (`.`):
 - **Payload** (user data)
 - **Signature** (verification)
 
-## Using the Token
+## Using the Token (Development Only)
+
+⚠️ **Note:** These examples only work in development environment.
+In production, use GitHub Actions with OIDC authentication.
 
 ### With upload-dev.js
 
@@ -138,34 +146,41 @@ The token is like a password - anyone with it can act as you on the platform.
 
 ### "Unauthorized" error
 
-**Problem:** Token is valid but you don't have access
+**Problem:** Token is valid but you don't have access, or you're using JWT in production
 
 **Solution:**
-- Make sure you own the project or are an approved member
+- **If in production:** JWT authentication is disabled in production. Use OIDC via GitHub Actions instead.
+- **If in development:** Make sure you own the project or are an approved member
 - Check project settings
 
-## Alternative: API Keys (Production)
+## Production Authentication
 
-For production use, generate an API key instead:
+For production use, JWT uploads are disabled. Use GitHub Actions with OIDC authentication:
 
-1. Go to project settings
-2. Click "Generate API Key"
-3. Copy and save it securely
-4. Use it in GitHub Actions secrets
+1. Configure your GitHub Actions workflow
+2. Use the provided upload-translations action
+3. OIDC tokens are automatically generated and verified
+4. See `.github/workflows/i18n-sync-example.yml` for examples
 
-API keys don't expire and are project-specific.
+**Why OIDC for Production?**
+- More secure than JWT tokens
+- Automatically verified against GitHub repository
+- No manual token management needed
+- Prevents unauthorized uploads
 
 ---
 
 **Quick Reference:**
 
 ```bash
-# Get token from browser console
+# Get token from browser console (development only)
 document.cookie.split('; ').find(row => row.startsWith('auth_token=')).split('=')[1]
 
-# Use token
+# Use token in development
 node upload-dev.js YOUR_TOKEN
 
 # Or
 JWT_TOKEN=YOUR_TOKEN node upload-dev.js
+
+# For production: Use GitHub Actions with OIDC instead
 ```

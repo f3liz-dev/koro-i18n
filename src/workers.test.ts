@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createWorkerApp } from './workers';
+import { createJWT } from './lib/auth';
 
 // Mock environment for testing
-const createMockEnv = () => {
+const createMockEnv = (environment = 'test') => {
   const db = {
     prepare: (query: string) => ({
       bind: (...params: any[]) => ({
@@ -18,7 +19,7 @@ const createMockEnv = () => {
     GITHUB_CLIENT_ID: 'test-client-id',
     GITHUB_CLIENT_SECRET: 'test-client-secret',
     JWT_SECRET: 'test-jwt-secret',
-    ENVIRONMENT: 'test',
+    ENVIRONMENT: environment,
   };
 };
 
