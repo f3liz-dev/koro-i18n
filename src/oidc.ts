@@ -15,6 +15,11 @@ export interface GitHubOIDCToken {
 let jwksCache: { keys: JWK[], timestamp: number } | null = null;
 const CACHE_TTL = 3600000; // 1 hour in milliseconds
 
+// Export function to clear cache (mainly for testing)
+export function clearJWKSCache() {
+  jwksCache = null;
+}
+
 async function fetchGitHubJWKS(): Promise<{ keys: JWK[] }> {
   // Return cached JWKS if still valid
   if (jwksCache && Date.now() - jwksCache.timestamp < CACHE_TTL) {
