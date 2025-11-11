@@ -12,16 +12,14 @@
     "test": "vitest --run",
     "type-check": "tsc --noEmit",
     "clean": "rimraf .wrangler dist",
-    "deploy": "npm run build && wrangler deploy && wrangler deploy --config wrangler.cron.toml",
-    "deploy:pages": "npm run build && wrangler pages deploy dist/frontend --project-name=i18n-platform",
-    "db:init": "wrangler d1 execute i18n-platform-db --file=schema.sql",
-    "db:migrate": "wrangler d1 execute i18n-platform-db --file=docs/migrate-project-members.sql",
-    "db:query": "wrangler d1 execute i18n-platform-db",
+    "deploy": "pnpm run build && wrangler deploy",
+    "db:init": "wrangler d1 execute koro-i18n-db --file=schema.sql",
+    "db:migrate": "wrangler d1 execute koro-i18n-db --file=docs/migrate-project-members.sql",
+    "db:query": "wrangler d1 execute koro-i18n-db",
     "prisma:generate": "prisma generate",
-    "prisma:migrate:local": "wrangler d1 migrations apply i18n-platform-db --local",
-    "prisma:migrate:remote": "wrangler d1 migrations apply i18n-platform-db --remote",
-    "logs": "wrangler tail",
-    "logs:cron": "wrangler tail --config wrangler.cron.toml"
+    "prisma:migrate:local": "wrangler d1 migrations apply koro-i18n-db --local",
+    "prisma:migrate:remote": "wrangler d1 migrations apply koro-i18n-db --remote",
+    "logs": "wrangler tail"
   },
   "dependencies": {
     "@octokit/auth-oauth-app": "^9.0.3",

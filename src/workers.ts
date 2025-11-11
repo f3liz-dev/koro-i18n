@@ -27,7 +27,7 @@ export function createWorkerApp(env: Env) {
   app.use('*', cors({
     origin: env.ENVIRONMENT === 'development' 
       ? ['http://localhost:5173', 'http://localhost:8787', 'http://localhost:3000']
-      : ['https://i18n-platform.pages.dev'],
+      : ['https://koro.f3liz.workers.dev'],
     credentials: true,
   }));
 
