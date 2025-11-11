@@ -2,7 +2,7 @@
 
 set -e
 
-echo "🚀 Deploying I18n Platform to Cloudflare..."
+echo "🚀 Deploying Koro I18n Platform to Cloudflare Workers..."
 
 # Check if wrangler is installed
 if ! command -v wrangler &> /dev/null; then
@@ -14,21 +14,15 @@ fi
 echo "📦 Building frontend..."
 npm run build
 
-# Deploy main worker
-echo "🔧 Deploying main API worker..."
+# Deploy worker with assets
+echo "🔧 Deploying worker with static assets..."
 wrangler deploy
-
-# Deploy cron worker
-echo "⏰ Deploying cron worker..."
-wrangler deploy --config wrangler.cron.toml
-
-# Deploy frontend to Pages
-echo "🌐 Deploying frontend to Cloudflare Pages..."
-wrangler pages deploy dist/frontend --project-name=i18n-platform
 
 echo "✅ Deployment complete!"
 echo ""
+echo "🌐 Your app is live at: https://koro.f3liz.workers.dev"
+echo ""
 echo "Next steps:"
 echo "1. Configure GitHub OAuth callback URLs"
-echo "2. Set up GitHub Actions secrets for log generation"
+echo "2. Set secrets: wrangler secret put GITHUB_CLIENT_ID"
 echo "3. Test the deployment"

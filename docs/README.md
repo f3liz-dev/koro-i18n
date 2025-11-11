@@ -6,7 +6,7 @@ Production-ready internationalization platform with GitHub OAuth, project manage
 
 ```bash
 # 1. Create database
-wrangler d1 create i18n-platform-db
+wrangler d1 create koro-i18n-db
 # Update wrangler.toml with database_id
 
 # 2. Initialize schema
@@ -156,10 +156,10 @@ wrangler tail
 wrangler tail --config wrangler.cron.toml
 
 # Check database
-wrangler d1 execute i18n-platform-db --command="SELECT * FROM translations"
+wrangler d1 execute koro-i18n-db --command="SELECT * FROM translations"
 
 # Check stats
-wrangler d1 execute i18n-platform-db \
+wrangler d1 execute koro-i18n-db \
   --command="SELECT status, COUNT(*) FROM translations GROUP BY status"
 ```
 
@@ -187,7 +187,7 @@ wrangler tail --config wrangler.cron.toml
 
 ### Database Errors
 ```bash
-wrangler d1 execute i18n-platform-db --file=schema.sql
+wrangler d1 execute koro-i18n-db --file=schema.sql
 ```
 
 ## Security

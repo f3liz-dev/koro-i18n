@@ -12,19 +12,19 @@
 ### 1. Create D1 Database
 
 ```bash
-wrangler d1 create i18n-platform-db
+wrangler d1 create koro-i18n-db
 ```
 
 Copy the `database_id` from output.
 
 ### 2. Update Configuration
 
-Update both `wrangler.toml` and `wrangler.cron.toml`:
+Update `wrangler.toml`:
 
 ```toml
 [[d1_databases]]
 binding = "DB"
-database_name = "i18n-platform-db"
+database_name = "koro-i18n-db"
 database_id = "YOUR_DATABASE_ID_HERE"
 ```
 
@@ -123,7 +123,7 @@ curl https://your-worker.workers.dev/health
 ### Test Database
 
 ```bash
-wrangler d1 execute i18n-platform-db --command="SELECT * FROM users"
+wrangler d1 execute koro-i18n-db --command="SELECT * FROM users"
 ```
 
 ## Monitoring
@@ -131,12 +131,6 @@ wrangler d1 execute i18n-platform-db --command="SELECT * FROM users"
 ### View Logs
 
 ```bash
-# Main worker
-wrangler tail
-
-# Cron worker
-wrangler tail --config wrangler.cron.toml
-
 # Filter errors
 wrangler tail --status error
 ```
@@ -145,11 +139,11 @@ wrangler tail --status error
 
 ```bash
 # Translation stats
-wrangler d1 execute i18n-platform-db \
+wrangler d1 execute koro-i18n-db \
   --command="SELECT status, COUNT(*) FROM translations GROUP BY status"
 
 # Project stats
-wrangler d1 execute i18n-platform-db \
+wrangler d1 execute koro-i18n-db \
   --command="SELECT COUNT(*) as total FROM projects"
 ```
 
@@ -189,13 +183,13 @@ wrangler d1 execute i18n-platform-db \
 **Solution:**
 ```bash
 # Check deployment
-wrangler deployments list --config wrangler.cron.toml
+wrangler deployments list
 
 # Check logs
-wrangler tail --config wrangler.cron.toml
+wrangler tail
 
-# Verify bot token
-wrangler secret list --config wrangler.cron.toml
+# Verify secrets
+wrangler secret list
 ```
 
 ### Database Errors
@@ -231,28 +225,14 @@ wrangler rollback --message "Rollback to previous version"
 
 ```bash
 # Export database
-wrangler d1 export i18n-platform-db --output=backup.sql
+wrangler d1 export koro-i18n-db --output=backup.sql
 
 # Export specific tables
-wrangler d1 execute i18n-platform-db \
+wrangler d1 execute koro-i18n-db \
   --command="SELECT * FROM translations" --json > translations.json
 ```
 
 ## Scaling
-
-### Increase Cron Frequency
-
-Edit `wrangler.cron.toml`:
-
-```toml
-[triggers]
-crons = ["*/1 * * * *"]  # Every minute
-```
-
-Redeploy:
-```bash
-wrangler deploy --config wrangler.cron.toml
-```
 
 ### Upgrade to Paid Plan
 

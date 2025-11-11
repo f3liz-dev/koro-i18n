@@ -96,7 +96,7 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
         maxAge: 86400, 
         path: '/',
         sameSite: 'Lax',
-        secure: false
+        secure: env.ENVIRONMENT === 'production'
       });
 
       return c.redirect('/dashboard');

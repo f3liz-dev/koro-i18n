@@ -16,10 +16,10 @@ The `example-project/` directory contains a complete example with:
 
 ```bash
 # Initialize schema (if not done already)
-npx wrangler d1 execute i18n-platform-db --file=schema.sql --local
+npx wrangler d1 execute koro-i18n-db --file=schema.sql --local
 
 # Run migration for project management
-npx wrangler d1 execute i18n-platform-db --file=docs/migrate-project-members.sql --local
+npx wrangler d1 execute koro-i18n-db --file=docs/migrate-project-members.sql --local
 ```
 
 ### 2. Start Platform Locally
