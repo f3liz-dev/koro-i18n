@@ -23,6 +23,8 @@
   "dependencies": {
     "@octokit/auth-oauth-app": "^9.0.3",
     "@octokit/rest": "^22.0.1",
+    "@prisma/adapter-d1": "^6.19.0",
+    "@prisma/client": "^6.19.0",
     "@solidjs/router": "^0.15.3",
     "hono": "^4.6.3",
     "jose": "^6.1.0",
@@ -40,6 +42,7 @@
     "@typescript-eslint/parser": "^8.46.3",
     "eslint": "^9.39.1",
     "jsdom": "^27.1.0",
+    "prisma": "^6.19.0",
     "tailwindcss": "^4.1.17",
     "typescript": "^5.2.2",
     "vite": "npm:rolldown-vite@latest",
