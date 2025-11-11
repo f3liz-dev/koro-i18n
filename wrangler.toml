@@ -10,6 +10,7 @@ binding = "ASSETS"
 
 [vars]
 ENVIRONMENT = "production"
+PLATFORM_URL = "https://koro.f3liz.workers.dev"
 
 # D1 Database Configuration
 [[d1_databases]]
@@ -22,6 +23,7 @@ database_id = "c8f2819b-7f7f-482e-9ac7-8235c0573e10"
 # name = "i18n-platform-dev"
 # [env.development.vars]
 # ENVIRONMENT = "development"
+# PLATFORM_URL = "http://localhost:8787"
 
 # [[env.development.d1_databases]]
 # binding = "DB"

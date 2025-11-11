@@ -7,6 +7,7 @@ import { checkProjectAccess, flattenObject } from '../lib/database';
 interface Env {
   JWT_SECRET: string;
   ENVIRONMENT: string;
+  PLATFORM_URL?: string;
 }
 
 const MAX_FILES = 100;
@@ -30,7 +31,9 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     } else {
       try {
         const { verifyGitHubOIDCToken } = await import('../oidc.js');
-        const oidcPayload = await verifyGitHubOIDCToken(token, undefined, repository);
+        // Use platform URL as audience for OIDC token verification
+        const platformUrl = env.PLATFORM_URL || 'https://koro.f3liz.workers.dev';
+        const oidcPayload = await verifyGitHubOIDCToken(token, platformUrl, repository);
 
         if (oidcPayload.repository === repository) {
           return {
