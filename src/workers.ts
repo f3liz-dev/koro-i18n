@@ -7,6 +7,8 @@ import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { Octokit } from '@octokit/rest';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import jwt from 'jsonwebtoken';
+import { PrismaClient } from './generated/prisma/';
+import { PrismaD1 } from '@prisma/adapter-d1';
 
 interface Env {
   DB: D1Database;
@@ -24,6 +26,12 @@ export function createWorkerApp(env: Env) {
     clientId: env.GITHUB_CLIENT_ID,
     clientSecret: env.GITHUB_CLIENT_SECRET,
   });
+
+  // Initialize Prisma with D1 adapter
+  const getPrisma = () => {
+    const adapter = new PrismaD1(env.DB);
+    return new PrismaClient({ adapter });
+  };
 
   const generateJWT = (user: any, accessToken: string): string => {
     return jwt.sign(
@@ -1171,6 +1179,27 @@ export function createWorkerApp(env: Env) {
   });
 
   app.get('/health', (c) => c.json({ status: 'ok', runtime: 'cloudflare-workers' }));
+
+  // Prisma example endpoint - demonstrates using Prisma ORM with D1
+  app.get('/api/prisma/users', async (c) => {
+    try {
+      const prisma = getPrisma();
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          avatarUrl: true,
+          createdAt: true,
+        },
+        take: 10,
+      });
+      return c.json({ users, source: 'prisma-orm' });
+    } catch (error) {
+      console.error('Prisma error:', error);
+      return c.json({ error: 'Failed to fetch users' }, 500);
+    }
+  });
 
   return app;
 }
