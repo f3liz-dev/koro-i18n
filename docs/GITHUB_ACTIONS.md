@@ -1,6 +1,25 @@
 # GitHub Actions Integration
 
-Koro i18n provides reusable GitHub Actions for easy integration with your repositories.
+Koro i18n provides reusable GitHub Actions for easy integration with your repositories using OIDC authentication.
+
+## Authentication
+
+These actions use **GitHub OIDC tokens** for secure authentication:
+- ✅ No API keys or secrets needed
+- ✅ Tokens expire automatically in 10 minutes
+- ✅ Repository is automatically verified
+- ✅ Industry-standard security
+
+### Required Permissions
+
+Add to your workflows:
+
+```yaml
+permissions:
+  id-token: write  # Required for OIDC authentication
+  contents: read   # For upload action
+  contents: write  # For download action (if auto-commit enabled)
+```
 
 ## Available Actions
 
@@ -23,6 +42,10 @@ on:
     paths:
       - 'locales/**'
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   upload:
     runs-on: ubuntu-latest
@@ -31,7 +54,6 @@ jobs:
       
       - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
         with:
-          api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
           project-name: my-project
 ```
 
@@ -41,7 +63,6 @@ jobs:
 ```yaml
 - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
   with:
-    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
     project-name: my-project
     mode: structured
 ```
@@ -50,7 +71,6 @@ jobs:
 ```yaml
 - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
   with:
-    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
     project-name: my-project
     mode: json
 ```
@@ -73,17 +93,18 @@ on:
     - cron: '0 */6 * * *'  # Every 6 hours
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: write
+
 jobs:
   download:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       
       - uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
         with:
-          api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
           project-name: my-project
 ```
 
@@ -108,12 +129,14 @@ jobs:
   upload-source:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       
       - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
         with:
-          api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
           project-name: my-project
 
   # Download completed translations periodically
@@ -121,26 +144,26 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: write
     steps:
       - uses: actions/checkout@v4
       
       - uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
         with:
-          api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
           project-name: my-project
           commit-message: 'chore: Update translations [skip ci]'
 ```
 
 ## API Endpoints
 
-For custom integrations, you can use the API endpoints directly:
+For custom integrations, you can use the API endpoints directly with OIDC tokens:
 
 ### Upload JSON Files
 
 ```bash
 POST /api/projects/:projectName/upload-json
-Authorization: Bearer YOUR_API_KEY
+Authorization: Bearer <OIDC_TOKEN>
 Content-Type: application/json
 
 {
@@ -163,7 +186,7 @@ Content-Type: application/json
 
 ```bash
 GET /api/projects/:projectName/download?branch=main&language=ja
-Authorization: Bearer YOUR_API_KEY
+Authorization: Bearer <OIDC_TOKEN>
 ```
 
 Response:
@@ -186,28 +209,20 @@ Response:
 
 ## Setup Instructions
 
-### 1. Get Your API Key
+### 1. Create Project on Platform
 
 1. Sign in to Koro i18n platform with GitHub
-2. Create or select your project
-3. Go to Settings → API Keys
-4. Generate a new API key
-5. Copy the key (you won't see it again)
+2. Create a new project
+3. Set the repository to match your GitHub repository (e.g., `owner/repo`)
+4. Note your project name
 
-### 2. Add to Repository Secrets
-
-1. Go to your repository on GitHub
-2. Settings → Secrets and variables → Actions
-3. Click "New repository secret"
-4. Name: `I18N_PLATFORM_API_KEY`
-5. Value: Paste your API key
-6. Click "Add secret"
-
-### 3. Create Workflow File
+### 2. Create Workflow File
 
 Create `.github/workflows/i18n.yml` with one of the examples above.
 
-### 4. Test
+**No secrets needed!** The workflow uses OIDC authentication automatically.
+
+### 3. Test
 
 - Push to trigger upload
 - Or use "Run workflow" button for manual testing
@@ -242,7 +257,6 @@ Download only specific languages:
 ```yaml
 - uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
   with:
-    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
     project-name: my-project
     language: ja
 ```
@@ -252,7 +266,6 @@ Download only specific languages:
 ```yaml
 - uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
   with:
-    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
     project-name: my-project
     output-dir: src/locales
 ```
@@ -260,16 +273,19 @@ Download only specific languages:
 ## Permissions
 
 ### Upload Action
-- `contents: read` (default)
+- `id-token: write` - Required for OIDC
+- `contents: read` - To read files
 
 ### Download Action
-- `contents: write` (required for auto-commit)
+- `id-token: write` - Required for OIDC
+- `contents: write` - Required for auto-commit
 
 ```yaml
 jobs:
   download:
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: write
     steps:
       # ...
@@ -279,17 +295,19 @@ jobs:
 
 ### Upload Fails
 
-1. Check API key is correct in secrets
+1. Check permissions include `id-token: write`
 2. Verify project name matches platform
-3. Check file patterns in configuration
-4. Review GitHub Actions logs
+3. Verify repository in project matches GitHub repository
+4. Check file patterns in configuration
+5. Review GitHub Actions logs
 
 ### Download Fails
 
-1. Ensure API key has correct permissions
+1. Ensure permissions include `id-token: write` and `contents: write`
 2. Verify project has translations
 3. Check branch name is correct
-4. Review network/API logs
+4. Verify repository in project matches GitHub repository
+5. Review network/API logs
 
 ### No Changes Committed
 
@@ -300,15 +318,15 @@ This is normal if:
 
 ### Authentication Errors
 
-- Regenerate API key on platform
-- Update repository secret
-- Ensure secret name is `I18N_PLATFORM_API_KEY`
+- Ensure workflow has `id-token: write` permission
+- Verify repository matches project configuration on platform
+- Check OIDC token audience matches platform URL
 
 ## Security Best Practices
 
-1. **Never commit API keys** - Always use secrets
-2. **Use minimal permissions** - Only `contents: read` for upload, `contents: write` for download
-3. **Rotate keys regularly** - Generate new keys periodically
+1. **Use OIDC tokens** - Automatically used by the actions, no static secrets
+2. **Repository verification** - Platform verifies repository matches project
+3. **Use minimal permissions** - Only `contents: read` for upload, `contents: write` for download
 4. **Use branch protection** - Protect main branch to review translation PRs
 5. **Monitor actions** - Review action logs regularly
 
@@ -321,14 +339,14 @@ If you're using the client library directly:
 - run: npm install -g @i18n-platform/client
 - run: i18n-upload
   env:
-    I18N_PLATFORM_API_KEY: ${{ secrets.I18N_PLATFORM_API_KEY }}
+    I18N_PLATFORM_URL: ${{ secrets.I18N_PLATFORM_URL }}
+    OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
 ```
 
 **After:**
 ```yaml
 - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
   with:
-    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
     project-name: my-project
 ```
 
@@ -337,6 +355,7 @@ Benefits:
 - Better error handling
 - Consistent versioning
 - Automatic updates
+- No need to manage OIDC token manually
 
 ## Support
 

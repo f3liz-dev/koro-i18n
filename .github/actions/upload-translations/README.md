@@ -1,6 +1,6 @@
 # Upload Translations Action
 
-A GitHub Action to upload translation files to Koro i18n platform.
+A GitHub Action to upload translation files to Koro i18n platform using OIDC authentication.
 
 ## Usage
 
@@ -16,6 +16,10 @@ on:
       - 'locales/**'
       - '.i18n-platform.toml'
 
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
 jobs:
   upload:
     runs-on: ubuntu-latest
@@ -24,7 +28,6 @@ jobs:
       
       - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
         with:
-          api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
           project-name: my-project
 ```
 
@@ -41,6 +44,10 @@ on:
     paths:
       - 'locales/**'
 
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
 jobs:
   upload:
     runs-on: ubuntu-latest
@@ -49,7 +56,6 @@ jobs:
       
       - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
         with:
-          api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
           project-name: my-project
           mode: json
 ```
@@ -60,7 +66,6 @@ jobs:
 - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
   with:
     platform-url: https://my-custom-instance.workers.dev
-    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
     project-name: my-project
 ```
 
@@ -69,7 +74,6 @@ jobs:
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `platform-url` | URL of the i18n platform | No | `https://i18n-platform.workers.dev` |
-| `api-key` | API key for authentication | Yes | - |
 | `project-name` | Project name on the platform | Yes | - |
 | `config-path` | Path to configuration file | No | `.i18n-platform.toml` |
 | `mode` | Upload mode: `structured` or `json` | No | `structured` |
@@ -80,6 +84,27 @@ jobs:
 |--------|-------------|
 | `files-uploaded` | Number of files uploaded |
 | `upload-status` | Status of the upload operation |
+
+## Authentication
+
+This action uses **GitHub OIDC tokens** for authentication. No API keys or secrets are required!
+
+### Required Permissions
+
+Add to your workflow:
+
+```yaml
+permissions:
+  id-token: write  # Required for OIDC token
+  contents: read   # Required to read repository files
+```
+
+### How It Works
+
+1. The action automatically requests an OIDC token from GitHub
+2. The token is scoped to your repository and expires in 10 minutes
+3. The platform verifies the token and checks the repository matches your project
+4. No long-lived secrets to manage!
 
 ## Modes
 
@@ -139,9 +164,11 @@ This action needs:
 
 ## Security
 
-- API keys should always be stored in GitHub secrets
+- Uses GitHub OIDC tokens - no static secrets needed
+- Tokens expire automatically in 10 minutes
+- Platform verifies repository matches project
 - The action uses HTTPS for all API communications
-- Supports GitHub OIDC authentication when available
+- Supports GitHub OIDC authentication (recommended)
 
 ## License
 

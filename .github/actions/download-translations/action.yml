@@ -11,9 +11,6 @@ inputs:
     description: 'The URL of the i18n platform'
     required: false
     default: 'https://i18n-platform.workers.dev'
-  api-key:
-    description: 'API key for authentication with the platform'
-    required: true
   project-name:
     description: 'Project name on the platform'
     required: true
@@ -48,18 +45,26 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Get OIDC Token
+      id: oidc
+      shell: bash
+      run: |
+        OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${{ inputs.platform-url }}" | jq -r .value)
+        echo "token=$OIDC_TOKEN" >> $GITHUB_OUTPUT
+
     - name: Download translations
       id: download
       shell: bash
       env:
         I18N_PLATFORM_URL: ${{ inputs.platform-url }}
-        I18N_PLATFORM_API_KEY: ${{ inputs.api-key }}
+        OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
         PROJECT_NAME: ${{ inputs.project-name }}
         BRANCH: ${{ inputs.branch }}
         LANGUAGE: ${{ inputs.language }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
       run: |
-        # Download translations from platform
+        # Download translations from platform using OIDC token
         DOWNLOAD_URL="$I18N_PLATFORM_URL/api/projects/$PROJECT_NAME/download?branch=$BRANCH"
         
         if [ -n "$LANGUAGE" ]; then
@@ -68,7 +73,7 @@ runs:
         
         echo "Downloading from: $DOWNLOAD_URL"
         
-        RESPONSE=$(curl -s -H "Authorization: Bearer $I18N_PLATFORM_API_KEY" "$DOWNLOAD_URL")
+        RESPONSE=$(curl -sS -H "Authorization: Bearer $OIDC_TOKEN" "$DOWNLOAD_URL")
         
         # Check if download was successful
         if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then

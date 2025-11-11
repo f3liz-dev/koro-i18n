@@ -1,6 +1,6 @@
 # Download Translations Action
 
-A GitHub Action to download translated files from Koro i18n platform and apply them to your repository.
+A GitHub Action to download translated files from Koro i18n platform and apply them to your repository using OIDC authentication.
 
 ## Usage
 
@@ -15,6 +15,10 @@ on:
     - cron: '0 */6 * * *'
   workflow_dispatch:
 
+permissions:
+  id-token: write   # Required for OIDC
+  contents: write   # Required to commit changes
+
 jobs:
   download:
     runs-on: ubuntu-latest
@@ -23,7 +27,6 @@ jobs:
       
       - uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
         with:
-          api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
           project-name: my-project
 ```
 
@@ -32,7 +35,6 @@ jobs:
 ```yaml
 - uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
   with:
-    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
     project-name: my-project
     language: ja
 ```
@@ -42,7 +44,6 @@ jobs:
 ```yaml
 - uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
   with:
-    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
     project-name: my-project
     output-dir: src/locales
 ```
@@ -54,7 +55,6 @@ If you want to review changes before committing:
 ```yaml
 - uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
   with:
-    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
     project-name: my-project
     commit-changes: 'false'
 
@@ -69,7 +69,6 @@ If you want to review changes before committing:
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `platform-url` | URL of the i18n platform | No | `https://i18n-platform.workers.dev` |
-| `api-key` | API key for authentication | Yes | - |
 | `project-name` | Project name on the platform | Yes | - |
 | `branch` | Branch to download from | No | `main` |
 | `language` | Specific language to download | No | (all) |
@@ -171,26 +170,34 @@ Downloaded files will maintain this structure and convert flattened keys back to
 ## Permissions
 
 This action needs:
+- `id-token: write` - To get OIDC token from GitHub
 - `contents: write` - To commit and push translation updates
 
 Add to your workflow:
 ```yaml
 permissions:
+  id-token: write
   contents: write
 ```
 
-## Getting Your API Key
+## Setup
+
+### 1. Create Project on Platform
 
 1. Sign in to the Koro i18n platform with GitHub
-2. Create or select your project
-3. Go to project settings
-4. Generate an API key
-5. Add it to your repository secrets as `I18N_PLATFORM_API_KEY`
+2. Create a new project
+3. Set the repository to match your GitHub repository (e.g., `owner/repo`)
+4. Note your project name
+
+### 2. Add Workflow
+
+No secrets needed! Just add the workflow file.
 
 ## Security
 
-- API keys should always be stored in GitHub secrets
-- The action uses HTTPS for all API communications
+- Uses GitHub OIDC tokens - no static secrets needed
+- Tokens expire automatically in 10 minutes
+- Platform verifies repository matches project
 - Commits are made with the `github-actions[bot]` identity
 
 ## License

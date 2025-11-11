@@ -11,9 +11,6 @@ inputs:
     description: 'The URL of the i18n platform'
     required: false
     default: 'https://i18n-platform.workers.dev'
-  api-key:
-    description: 'API key for authentication with the platform'
-    required: true
   project-name:
     description: 'Project name on the platform'
     required: true
@@ -42,6 +39,14 @@ runs:
       with:
         node-version: '20'
 
+    - name: Get OIDC Token
+      id: oidc
+      shell: bash
+      run: |
+        OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${{ inputs.platform-url }}" | jq -r .value)
+        echo "token=$OIDC_TOKEN" >> $GITHUB_OUTPUT
+
     - name: Install i18n client
       shell: bash
       run: npm install -g @i18n-platform/client
@@ -52,12 +57,12 @@ runs:
       shell: bash
       env:
         I18N_PLATFORM_URL: ${{ inputs.platform-url }}
-        I18N_PLATFORM_API_KEY: ${{ inputs.api-key }}
+        OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_REF_NAME: ${{ github.ref_name }}
         GITHUB_SHA: ${{ github.sha }}
       run: |
-        i18n-upload
+        i18n-upload --oidc-token "$OIDC_TOKEN"
         echo "files-uploaded=0" >> $GITHUB_OUTPUT
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -67,10 +72,10 @@ runs:
       shell: bash
       env:
         I18N_PLATFORM_URL: ${{ inputs.platform-url }}
-        I18N_PLATFORM_API_KEY: ${{ inputs.api-key }}
+        OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
         PROJECT_NAME: ${{ inputs.project-name }}
       run: |
-        # Direct JSON upload using curl
+        # Direct JSON upload using curl with OIDC token
         # Find all JSON files in locales directories
         FILES_JSON="{"
         FIRST=true
@@ -92,10 +97,10 @@ runs:
         # Extract language from first locale directory found
         LANG=$(find locales -name "*.json" | head -1 | grep -oP "locales/\K[a-z]{2}(-[A-Z]{2})?" || echo "en")
         
-        # Upload to platform
+        # Upload to platform using OIDC token
         RESPONSE=$(curl -X POST \
           "$I18N_PLATFORM_URL/api/projects/$PROJECT_NAME/upload-json" \
-          -H "Authorization: Bearer $I18N_PLATFORM_API_KEY" \
+          -H "Authorization: Bearer $OIDC_TOKEN" \
           -H "Content-Type: application/json" \
           -d "{\"branch\":\"$GITHUB_REF_NAME\",\"commitSha\":\"$GITHUB_SHA\",\"language\":\"$LANG\",\"files\":$FILES_JSON}")
         
