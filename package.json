@@ -12,13 +12,11 @@
     "test": "vitest --run",
     "type-check": "tsc --noEmit",
     "clean": "rimraf .wrangler dist",
-    "deploy": "npm run build && wrangler deploy && wrangler deploy --config wrangler.cron.toml",
-    "deploy:pages": "npm run build && wrangler pages deploy dist/frontend --project-name=i18n-platform",
-    "db:init": "wrangler d1 execute i18n-platform-db --file=schema.sql",
-    "db:migrate": "wrangler d1 execute i18n-platform-db --file=docs/migrate-project-members.sql",
-    "db:query": "wrangler d1 execute i18n-platform-db",
-    "logs": "wrangler tail",
-    "logs:cron": "wrangler tail --config wrangler.cron.toml"
+    "deploy": "pnpm run build && wrangler deploy",
+    "db:init": "wrangler d1 execute koro-i18n-db --file=schema.sql",
+    "db:migrate": "wrangler d1 execute koro-i18n-db --file=docs/migrate-project-members.sql",
+    "db:query": "wrangler d1 execute koro-i18n-db",
+    "logs": "wrangler tail"
   },
   "dependencies": {
     "@octokit/auth-oauth-app": "^9.0.3",
@@ -45,7 +43,7 @@
     "vite": "npm:rolldown-vite@latest",
     "vite-plugin-solid": "^2.11.10",
     "vitest": "^4.0.7",
-    "wrangler": "^4.45.4"
+    "wrangler": "^4.46.0"
   },
   "engines": {
     "node": ">=18.0.0"

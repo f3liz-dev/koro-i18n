@@ -196,7 +196,7 @@ i18n-upload
 
 1. Verify platform has `GITHUB_BOT_TOKEN`
 2. Check token has `repo` scope
-3. View cron logs: `wrangler tail --config wrangler.cron.toml`
+3. View logs: `wrangler tail`
 
 ## Next Steps
 

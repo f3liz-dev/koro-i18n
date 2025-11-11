@@ -19,12 +19,12 @@ Copy the `database_id` from output.
 
 ### 2. Update Configuration
 
-Update both `wrangler.toml` and `wrangler.cron.toml`:
+Update `wrangler.toml`:
 
 ```toml
 [[d1_databases]]
 binding = "DB"
-database_name = "i18n-platform-db"
+database_name = "koro-i18n-db"
 database_id = "YOUR_DATABASE_ID_HERE"
 ```
 
@@ -131,11 +131,8 @@ wrangler d1 execute i18n-platform-db --command="SELECT * FROM users"
 ### View Logs
 
 ```bash
-# Main worker
+# View logs
 wrangler tail
-
-# Cron worker
-wrangler tail --config wrangler.cron.toml
 
 # Filter errors
 wrangler tail --status error
@@ -189,13 +186,13 @@ wrangler d1 execute i18n-platform-db \
 **Solution:**
 ```bash
 # Check deployment
-wrangler deployments list --config wrangler.cron.toml
+wrangler deployments list
 
 # Check logs
-wrangler tail --config wrangler.cron.toml
+wrangler tail
 
-# Verify bot token
-wrangler secret list --config wrangler.cron.toml
+# Verify secrets
+wrangler secret list
 ```
 
 ### Database Errors
@@ -239,20 +236,6 @@ wrangler d1 execute i18n-platform-db \
 ```
 
 ## Scaling
-
-### Increase Cron Frequency
-
-Edit `wrangler.cron.toml`:
-
-```toml
-[triggers]
-crons = ["*/1 * * * *"]  # Every minute
-```
-
-Redeploy:
-```bash
-wrangler deploy --config wrangler.cron.toml
-```
 
 ### Upgrade to Paid Plan
 

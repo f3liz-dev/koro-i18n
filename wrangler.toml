@@ -1,29 +1,29 @@
-name = "i18n-platform"
+name = "koro"
 main = "src/workers.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat_v2"]
 
 # Serve frontend static files
-assets = { directory = "dist/frontend", binding = "ASSETS" }
+[assets]
+directory = "dist/frontend"
+binding = "ASSETS"
 
 [vars]
 ENVIRONMENT = "production"
 
 # D1 Database Configuration
-# Run: wrangler d1 create i18n-platform-db
-# Then replace "REPLACE_WITH_YOUR_DATABASE_ID" with the actual database_id
 [[d1_databases]]
 binding = "DB"
-database_name = "i18n-platform-db"
-database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
+database_name = "koro-i18n-db"
+database_id = "c8f2819b-7f7f-482e-9ac7-8235c0573e10"
 
-# Development Environment
-[env.development]
-name = "i18n-platform-dev"
-[env.development.vars]
-ENVIRONMENT = "development"
+# # Development Environment
+# [env.development]
+# name = "i18n-platform-dev"
+# [env.development.vars]
+# ENVIRONMENT = "development"
 
-[[env.development.d1_databases]]
-binding = "DB"
-database_name = "i18n-platform-db-dev"
-database_id = "REPLACE_WITH_YOUR_DEV_DATABASE_ID"
+# [[env.development.d1_databases]]
+# binding = "DB"
+# database_name = "i18n-platform-db-dev"
+# database_id = "REPLACE_WITH_YOUR_DEV_DATABASE_ID"

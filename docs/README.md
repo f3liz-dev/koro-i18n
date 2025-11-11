@@ -61,13 +61,6 @@ npm run deploy:pages
 2. Create OAuth App
 3. Callback: `https://your-worker.workers.dev/api/auth/callback`
 
-### Cron Frequency
-Edit `wrangler.cron.toml`:
-```toml
-[triggers]
-crons = ["*/5 * * * *"]  # Every 5 minutes
-```
-
 ### CORS Origins
 Edit `src/workers.ts`:
 ```typescript
@@ -119,13 +112,12 @@ project_files      -- Uploaded translation files
 ```bash
 # View logs
 wrangler tail
-wrangler tail --config wrangler.cron.toml
 
 # Check database
-wrangler d1 execute i18n-platform-db --command="SELECT * FROM translations"
+wrangler d1 execute koro-i18n-db --command="SELECT * FROM translations"
 
 # Check stats
-wrangler d1 execute i18n-platform-db \
+wrangler d1 execute koro-i18n-db \
   --command="SELECT status, COUNT(*) FROM translations GROUP BY status"
 ```
 
@@ -146,14 +138,9 @@ Expected usage for 1000 daily users: **Completely FREE!**
 wrangler secret list  # Check secrets
 ```
 
-### Cron Not Running
-```bash
-wrangler tail --config wrangler.cron.toml
-```
-
 ### Database Errors
 ```bash
-wrangler d1 execute i18n-platform-db --file=schema.sql
+wrangler d1 execute koro-i18n-db --file=schema.sql
 ```
 
 ## Security

@@ -144,12 +144,6 @@ For testing without waiting 5 minutes:
 curl http://localhost:8787/cron/commit-translations
 ```
 
-Or run the cron worker:
-
-```bash
-wrangler dev --config wrangler.cron.toml
-```
-
 ## Database Inspection
 
 ```bash
@@ -238,12 +232,9 @@ npm run db:query -- --command="SELECT * FROM projects WHERE name='example-projec
 npm run db:query -- --command="SELECT * FROM project_files WHERE projectId='example-project'" --local
 ```
 
-### Cron Not Running
+### Verify Translations
 
 ```bash
-# Check cron logs
-wrangler tail --config wrangler.cron.toml
-
 # Verify approved translations exist
 npm run db:query -- --command="SELECT * FROM translations WHERE status='approved'" --local
 ```
