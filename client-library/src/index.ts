@@ -218,6 +218,73 @@ export async function uploadToPlatform(
 }
 
 /**
+ * Upload JSON files directly to I18n Platform (native JSON mode)
+ */
+export async function uploadJSONDirectly(
+  projectName: string,
+  branch: string,
+  commit: string,
+  language: string,
+  files: Record<string, any>,
+  platformUrl: string,
+  apiKey: string
+): Promise<void> {
+  const payload = {
+    branch,
+    commitSha: commit,
+    language,
+    files,
+  };
+
+  const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload-json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`JSON upload failed: ${error}`);
+  }
+
+  const result = await response.json();
+  console.log('JSON upload successful:', result);
+}
+
+/**
+ * Download translations from I18n Platform
+ */
+export async function downloadFromPlatform(
+  projectName: string,
+  branch: string,
+  language: string | undefined,
+  platformUrl: string,
+  apiKey: string
+): Promise<any> {
+  let url = `${platformUrl}/api/projects/${projectName}/download?branch=${branch}`;
+  if (language) {
+    url += `&language=${language}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Download failed: ${error}`);
+  }
+
+  return await response.json();
+}
+
+/**
  * Main function for CLI
  */
 export async function main() {
