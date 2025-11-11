@@ -17,36 +17,38 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
 
   async function validateUploadAuth(token: string, projectId: string, repository: string, jwtSecret: string) {
-    const jwtPayload = await verifyJWT(token, jwtSecret);
-    
-    if (jwtPayload) {
-      // JWT upload is only allowed in development environment
-      if (env.ENVIRONMENT === 'development') {
-        const hasAccess = await checkProjectAccess(prisma, projectId, jwtPayload.userId);
-        if (hasAccess) {
-          return { authorized: true, method: 'JWT', userId: jwtPayload.userId, username: jwtPayload.username };
-        }
-      }
-      // In production, JWT tokens are not accepted for upload - fall through to try OIDC
-    } else {
-      try {
-        const { verifyGitHubOIDCToken } = await import('../oidc.js');
-        // Use platform URL as audience for OIDC token verification
-        const platformUrl = env.PLATFORM_URL || 'https://koro.f3liz.workers.dev';
-        const oidcPayload = await verifyGitHubOIDCToken(token, platformUrl, repository);
+    // Try OIDC verification first (OIDC tokens are more specific with GitHub issuer)
+    try {
+      const { verifyGitHubOIDCToken } = await import('../oidc.js');
+      // Use platform URL as audience for OIDC token verification
+      const platformUrl = env.PLATFORM_URL || 'https://koro.f3liz.workers.dev';
+      const oidcPayload = await verifyGitHubOIDCToken(token, platformUrl, repository);
 
-        if (oidcPayload.repository === repository) {
-          return {
-            authorized: true,
-            method: 'OIDC',
-            repository: oidcPayload.repository,
-            actor: oidcPayload.actor,
-            workflow: oidcPayload.workflow
-          };
-        }
-      } catch (error: any) {
-        throw new Error(`Authentication failed: ${error.message}`);
+      if (oidcPayload.repository === repository) {
+        return {
+          authorized: true,
+          method: 'OIDC',
+          repository: oidcPayload.repository,
+          actor: oidcPayload.actor,
+          workflow: oidcPayload.workflow
+        };
       }
+    } catch (oidcError: any) {
+      // OIDC verification failed, try JWT verification as fallback
+      const jwtPayload = await verifyJWT(token, jwtSecret);
+      
+      if (jwtPayload) {
+        // JWT upload is only allowed in development environment
+        if (env.ENVIRONMENT === 'development') {
+          const hasAccess = await checkProjectAccess(prisma, projectId, jwtPayload.userId);
+          if (hasAccess) {
+            return { authorized: true, method: 'JWT', userId: jwtPayload.userId, username: jwtPayload.username };
+          }
+        }
+      }
+      
+      // If we get here, both OIDC and JWT verification failed
+      throw new Error(`Authentication failed: ${oidcError.message}`);
     }
     
     return { authorized: false };
