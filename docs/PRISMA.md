@@ -35,6 +35,8 @@ The Prisma schema is located at `prisma/schema.prisma` and mirrors the existing 
 
 To generate the Prisma Client after schema changes:
 ```bash
+pnpm run prisma:generate
+# or
 pnpm prisma generate
 ```
 
@@ -96,11 +98,15 @@ DATABASE_URL="file:./dev.db" pnpm prisma migrate diff \
 
 Apply migrations to local database:
 ```bash
+pnpm run prisma:migrate:local
+# or
 npx wrangler d1 migrations apply i18n-platform-db --local
 ```
 
 Apply migrations to remote database:
 ```bash
+pnpm run prisma:migrate:remote
+# or
 npx wrangler d1 migrations apply i18n-platform-db --remote
 ```
 
@@ -108,8 +114,8 @@ npx wrangler d1 migrations apply i18n-platform-db --remote
 
 1. Edit `prisma/schema.prisma`
 2. Generate migration SQL as shown above
-3. Apply migrations to local and remote databases
-4. Regenerate Prisma Client: `pnpm prisma generate`
+3. Apply migrations to local and remote databases using the npm scripts
+4. Regenerate Prisma Client: `pnpm run prisma:generate`
 5. Update your code to use the new schema
 
 ## Benefits

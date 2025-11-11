@@ -17,6 +17,9 @@
     "db:init": "wrangler d1 execute i18n-platform-db --file=schema.sql",
     "db:migrate": "wrangler d1 execute i18n-platform-db --file=docs/migrate-project-members.sql",
     "db:query": "wrangler d1 execute i18n-platform-db",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:local": "wrangler d1 migrations apply i18n-platform-db --local",
+    "prisma:migrate:remote": "wrangler d1 migrations apply i18n-platform-db --remote",
     "logs": "wrangler tail",
     "logs:cron": "wrangler tail --config wrangler.cron.toml"
   },
