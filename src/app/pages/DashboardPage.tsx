@@ -14,10 +14,6 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   const [projects, setProjects] = createSignal<Project[]>([]);
-  const [showNewProjectModal, setShowNewProjectModal] = createSignal(false);
-  const [newProjectName, setNewProjectName] = createSignal('');
-  const [newProjectRepo, setNewProjectRepo] = createSignal('');
-  const [isSubmitting, setIsSubmitting] = createSignal(false);
 
   const loadProjects = async () => {
     console.log('loadProjects called');
@@ -75,56 +71,6 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Failed to load projects:', error);
-    }
-  };
-
-  const handleAddProject = async () => {
-    if (isSubmitting()) return;
-
-    // Frontend validation
-    const nameExists = projects().some(p => p.name.toLowerCase() === newProjectName().toLowerCase());
-    if (nameExists) {
-      alert('Project name already exists');
-      return;
-    }
-
-    const repoExists = projects().some(p => p.repository.toLowerCase() === newProjectRepo().toLowerCase());
-    if (repoExists) {
-      alert('Repository already registered');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      console.log('Creating project:', { name: newProjectName(), repository: newProjectRepo() });
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: newProjectName(),
-          repository: newProjectRepo(),
-        }),
-      });
-
-      console.log('Create project response:', res.status);
-      if (res.ok) {
-        const data = await res.json();
-        console.log('Project created:', data);
-        setNewProjectName('');
-        setNewProjectRepo('');
-        setShowNewProjectModal(false);
-        loadProjects();
-      } else {
-        const data = await res.json() as { error?: string };
-        console.error('Failed to create project:', data);
-        alert(data.error || 'Failed to add project');
-      }
-    } catch (error) {
-      console.error('Failed to add project:', error);
-      alert('Failed to add project');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -206,10 +152,10 @@ export default function DashboardPage() {
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-2xl font-semibold text-gray-900">Projects</h2>
           <button
-            onClick={() => setShowNewProjectModal(true)}
+            onClick={() => navigate('/projects/join')}
             class="px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800"
           >
-            New Project
+            Join Project
           </button>
         </div>
         
@@ -254,53 +200,6 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-
-      {/* Add Project Modal */}
-      {showNewProjectModal() && (
-        <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-50" onClick={() => setShowNewProjectModal(false)}>
-          <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 class="text-xl font-semibold mb-4">Create New Project</h3>
-            <div class="space-y-4">
-              <div>
-                <label class="block text-sm font-medium mb-2">Repository</label>
-                <input
-                  type="text"
-                  value={newProjectRepo()}
-                  onInput={(e) => setNewProjectRepo(e.currentTarget.value)}
-                  placeholder="owner/repo"
-                  class="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                />
-                <p class="text-xs text-gray-500 mt-1.5">Format: owner/repo (e.g., facebook/react)</p>
-              </div>
-              <div>
-                <label class="block text-sm font-medium mb-2">Project Name</label>
-                <input
-                  type="text"
-                  value={newProjectName()}
-                  onInput={(e) => setNewProjectName(e.currentTarget.value)}
-                  placeholder="My Project"
-                  class="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                />
-              </div>
-              <div class="flex gap-3 pt-2">
-                <button
-                  onClick={handleAddProject}
-                  disabled={!newProjectRepo() || !newProjectName() || isSubmitting()}
-                  class="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                >
-                  {isSubmitting() ? 'Creating...' : 'Create Project'}
-                </button>
-                <button
-                  onClick={() => setShowNewProjectModal(false)}
-                  class="px-4 py-2.5 border rounded-lg hover:bg-gray-50 text-sm font-medium"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
