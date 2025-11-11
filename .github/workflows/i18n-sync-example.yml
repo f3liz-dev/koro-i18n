@@ -9,6 +9,10 @@
 # 2. Update PROJECT_NAME with your project name
 # 3. Adjust file paths to match your project structure
 # 4. No secrets needed - uses OIDC authentication!
+#
+# Note: The upload-translations and download-translations actions automatically
+# build and use the koro-i18n client library from the repository, so you don't
+# need to install anything manually or publish to npm.
 
 name: i18n Sync
 

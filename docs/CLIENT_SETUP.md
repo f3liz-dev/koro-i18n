@@ -4,13 +4,88 @@ Guide for configuring your translation repository to work with the I18n Platform
 
 ## Quick Setup
 
-### 1. Install Client Library
+### 1. Recommended: Use GitHub Actions
 
-```bash
-npm install -g @i18n-platform/client
+The easiest way to integrate with Koro i18n is to use the provided reusable GitHub Actions:
+
+Create `.github/workflows/i18n-sync.yml`:
+
+```yaml
+name: i18n Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'locales/en/**'  # Source language
+  schedule:
+    - cron: '0 */6 * * *'  # Download translations every 6 hours
+  workflow_dispatch:
+
+jobs:
+  upload-source:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
+        with:
+          project-name: my-project
+
+  download-translations:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
+        with:
+          project-name: my-project
 ```
 
-### 2. Create Configuration
+**No secrets needed!** The actions use GitHub OIDC for secure authentication.
+
+See [GITHUB_ACTIONS.md](./GITHUB_ACTIONS.md) for more details.
+
+### 2. Alternative: Manual Client Library Setup
+
+If you need to use the client library directly (not recommended for most users):
+
+The `@i18n-platform/client` package is **not published to npm**. Instead, you need to build it from the repository:
+
+```yaml
+- name: Checkout koro-i18n client library
+  uses: actions/checkout@v4
+  with:
+    repository: f3liz-dev/koro-i18n
+    path: .koro-i18n-client
+    sparse-checkout: |
+      client-library
+    sparse-checkout-cone-mode: false
+
+- name: Build and install client
+  run: |
+    cd .koro-i18n-client/client-library
+    npm install
+    npm run build
+    npm link
+    cd ../..
+
+- name: Upload translations
+  env:
+    I18N_PLATFORM_URL: https://koro.f3liz.workers.dev
+    OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+  run: i18n-upload
+```
+
+### 3. Create Configuration
 
 Create `.i18n-platform.toml` in repository root:
 
@@ -31,54 +106,18 @@ excludePatterns = [
 outputPattern = "locales/{lang}/{file}"
 ```
 
-### 3. Add GitHub Actions Workflow
+### 4. Get Project Set Up
 
-Create `.github/workflows/i18n-upload.yml`:
-
-```yaml
-name: Upload Translations
-
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'locales/**'
-      - '.i18n-platform.toml'
-
-jobs:
-  upload:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      
-      - name: Install client
-        run: npm install -g @i18n-platform/client
-      
-      - name: Upload translations
-        env:
-          I18N_PLATFORM_URL: ${{ secrets.I18N_PLATFORM_URL }}
-          I18N_PLATFORM_API_KEY: ${{ secrets.I18N_PLATFORM_API_KEY }}
-        run: i18n-upload
-```
-
-### 4. Get API Key
-
-1. Go to I18n Platform
+1. Go to Koro i18n Platform
 2. Sign in with GitHub
 3. Create a project
-4. Go to project settings → Generate API key
-5. Add to repository secrets:
-   - `I18N_PLATFORM_URL`: Your worker URL
-   - `I18N_PLATFORM_API_KEY`: Generated key
+4. Set the repository to match your GitHub repository (e.g., `owner/repo`)
+5. Note your project name
 
 ### 5. Push and Test
 
 ```bash
-git add .i18n-platform.toml .github/workflows/i18n-upload.yml
+git add .i18n-platform.toml .github/workflows/i18n-sync.yml
 git commit -m "feat: Add i18n platform integration"
 git push
 ```
