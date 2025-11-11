@@ -30,7 +30,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     } else {
       try {
         const { verifyGitHubOIDCToken } = await import('../oidc.js');
-        const oidcPayload = await verifyGitHubOIDCToken(token, '', repository);
+        const oidcPayload = await verifyGitHubOIDCToken(token, undefined, repository);
 
         if (oidcPayload.repository === repository) {
           return {

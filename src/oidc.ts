@@ -14,13 +14,19 @@ const JWKS = createRemoteJWKSet(new URL('https://token.actions.githubusercontent
 
 export async function verifyGitHubOIDCToken(
   token: string,
-  expectedAudience: string,
+  expectedAudience?: string,
   expectedRepo?: string
 ): Promise<GitHubOIDCToken> {
-  const { payload } = await jwtVerify(token, JWKS, {
+  const verifyOptions: any = {
     issuer: 'https://token.actions.githubusercontent.com',
-    audience: expectedAudience,
-  });
+  };
+  
+  // Only add audience check if provided
+  if (expectedAudience) {
+    verifyOptions.audience = expectedAudience;
+  }
+  
+  const { payload } = await jwtVerify(token, JWKS, verifyOptions);
 
   const oidcPayload = payload as unknown as GitHubOIDCToken;
 

@@ -1,6 +1,6 @@
 import { Context } from 'hono';
 import { getCookie, deleteCookie } from 'hono/cookie';
-import jwt from 'jsonwebtoken';
+import { SignJWT, jwtVerify } from 'jose';
 
 export interface AuthPayload {
   userId: string;
@@ -9,22 +9,29 @@ export interface AuthPayload {
   accessToken?: string;
 }
 
-export function createJWT(user: { id: string; username: string; githubId: number }, accessToken: string, secret: string): string {
-  return jwt.sign(
-    { 
-      userId: user.id, 
-      username: user.username, 
-      githubId: user.githubId,
-      accessToken
-    },
-    secret,
-    { expiresIn: '24h' }
-  );
+export async function createJWT(user: { id: string; username: string; githubId: number }, accessToken: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const secretKey = encoder.encode(secret);
+  
+  return await new SignJWT({ 
+    userId: user.id, 
+    username: user.username, 
+    githubId: user.githubId,
+    accessToken
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('24h')
+    .sign(secretKey);
 }
 
 export async function verifyJWT(token: string, secret: string): Promise<AuthPayload | null> {
   try {
-    return jwt.verify(token, secret) as AuthPayload;
+    const encoder = new TextEncoder();
+    const secretKey = encoder.encode(secret);
+    
+    const { payload } = await jwtVerify(token, secretKey);
+    return payload as unknown as AuthPayload;
   } catch {
     return null;
   }

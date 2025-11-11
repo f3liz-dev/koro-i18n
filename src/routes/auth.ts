@@ -86,7 +86,7 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
         });
       }
 
-      const token = createJWT(
+      const token = await createJWT(
         { id: userId, username: profile.login, githubId: profile.id },
         auth.token,
         env.JWT_SECRET
