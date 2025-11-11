@@ -80,17 +80,30 @@ JWT_TOKEN=YOUR_JWT_TOKEN node upload-dev.js
 
 **Using the client library (for production):**
 
+Since the client library is not published to npm, you need to build it from the koro-i18n repository:
+
 ```bash
-# Install client
-npm install -g @i18n-platform/client
+# Clone the koro-i18n repository
+git clone https://github.com/f3liz-dev/koro-i18n.git /tmp/koro-i18n
+
+# Build and install the client
+cd /tmp/koro-i18n/client-library
+npm install
+npm run build
+npm link
+
+# Go back to your project
+cd -
 
 # Set environment variables
-export I18N_PLATFORM_URL=https://your-worker.workers.dev
-export I18N_PLATFORM_API_KEY=your-api-key
+export I18N_PLATFORM_URL=https://koro.f3liz.workers.dev
+export OIDC_TOKEN=your-oidc-token
 
 # Upload
 i18n-upload
 ```
+
+**Note:** For most users, it's recommended to use the GitHub Actions integration instead of the client library directly. See [../docs/GITHUB_ACTIONS.md](../docs/GITHUB_ACTIONS.md) for details.
 
 ## Testing Translation Workflow
 

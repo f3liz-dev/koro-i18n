@@ -47,9 +47,23 @@ runs:
           "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${{ inputs.platform-url }}" | jq -r .value)
         echo "token=$OIDC_TOKEN" >> $GITHUB_OUTPUT
 
-    - name: Install i18n client
+    - name: Checkout koro-i18n client library
+      uses: actions/checkout@v4
+      with:
+        repository: f3liz-dev/koro-i18n
+        path: .koro-i18n-client
+        sparse-checkout: |
+          client-library
+        sparse-checkout-cone-mode: false
+
+    - name: Build and install i18n client
       shell: bash
-      run: npm install -g @i18n-platform/client
+      run: |
+        cd .koro-i18n-client/client-library
+        npm install
+        npm run build
+        npm link
+        cd ../..
 
     - name: Upload translations (structured mode)
       if: inputs.mode == 'structured'

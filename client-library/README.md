@@ -12,9 +12,25 @@ npm install -g @i18n-platform/client
 
 ### In GitHub Actions
 
+Since this package is not published to npm, you need to build it directly from the repository:
+
 ```yaml
-- name: Install I18n Platform Client
-  run: npm install -g @i18n-platform/client
+- name: Checkout koro-i18n client library
+  uses: actions/checkout@v4
+  with:
+    repository: f3liz-dev/koro-i18n
+    path: .koro-i18n-client
+    sparse-checkout: |
+      client-library
+    sparse-checkout-cone-mode: false
+
+- name: Build and install I18n Platform Client
+  run: |
+    cd .koro-i18n-client/client-library
+    npm install
+    npm run build
+    npm link
+    cd ../..
 
 - name: Upload translations
   env:
@@ -23,9 +39,22 @@ npm install -g @i18n-platform/client
   run: i18n-upload
 ```
 
+Alternatively, use the reusable action provided by koro-i18n:
+
+```yaml
+- name: Upload translations
+  uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
+  with:
+    project-name: my-project
+    mode: structured
+```
+
 ### Programmatically
 
+The client library is not published to npm, but you can use it locally:
+
 ```typescript
+// After building and linking the client library
 import { processProject, uploadToPlatform } from '@i18n-platform/client';
 
 const metadata = await processProject(
@@ -36,10 +65,12 @@ const metadata = await processProject(
 
 await uploadToPlatform(
   metadata,
-  'https://i18n-platform.workers.dev',
-  'your-api-key'
+  'https://koro.f3liz.workers.dev',
+  'your-oidc-token'
 );
 ```
+
+**Note:** Most users should use the GitHub Actions integration instead. See the examples above.
 
 ## Configuration
 
@@ -144,19 +175,15 @@ Parsed to:
 
 ## Environment Variables
 
-- `I18N_PLATFORM_URL` - Platform API URL (default: https://i18n-platform.workers.dev)
-- `I18N_PLATFORM_API_KEY` - Your API key (required)
+- `I18N_PLATFORM_URL` - Platform API URL (default: https://koro.f3liz.workers.dev)
+- `OIDC_TOKEN` - OIDC token for authentication (automatically provided in GitHub Actions)
 - `GITHUB_REPOSITORY` - Repository name (auto-set in GitHub Actions)
 - `GITHUB_REF_NAME` - Branch name (auto-set in GitHub Actions)
 - `GITHUB_SHA` - Commit SHA (auto-set in GitHub Actions)
 
-## API Key
+## Authentication
 
-Get your API key from the I18n Platform:
-1. Sign in with GitHub
-2. Go to Settings
-3. Generate API key
-4. Add to repository secrets as `I18N_PLATFORM_API_KEY`
+The client library uses OIDC tokens for authentication when used in GitHub Actions. The reusable actions handle this automatically.
 
 ## License
 
