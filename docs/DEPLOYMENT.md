@@ -128,10 +128,13 @@ wrangler d1 execute koro-i18n-db --command="SELECT * FROM users"
 
 ## Monitoring
 
-### View Logs
+### View Worker Logs
 
 ```bash
-# Filter errors
+# View real-time logs
+wrangler tail
+
+# Filter errors only
 wrangler tail --status error
 ```
 
@@ -177,20 +180,6 @@ wrangler d1 execute koro-i18n-db \
 - Check callback URL matches GitHub OAuth app
 - Verify secrets: `wrangler secret list`
 - Check CORS origins
-
-### Cron Not Running
-
-**Solution:**
-```bash
-# Check deployment
-wrangler deployments list
-
-# Check logs
-wrangler tail
-
-# Verify secrets
-wrangler secret list
-```
 
 ### Database Errors
 

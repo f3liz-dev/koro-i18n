@@ -13,15 +13,13 @@
     "type-check": "tsc --noEmit",
     "clean": "rimraf .wrangler dist",
     "deploy": "pnpm run build && wrangler deploy",
-    "deploy:pages": "npm run build && wrangler pages deploy dist/frontend --project-name=i18n-platform",
     "db:init": "wrangler d1 execute koro-i18n-db --file=schema.sql",
     "db:migrate": "wrangler d1 execute koro-i18n-db --file=docs/migrate-project-members.sql",
     "db:query": "wrangler d1 execute koro-i18n-db",
     "prisma:generate": "prisma generate",
     "prisma:migrate:local": "wrangler d1 migrations apply koro-i18n-db --local",
     "prisma:migrate:remote": "wrangler d1 migrations apply koro-i18n-db --remote",
-    "logs": "wrangler tail",
-    "logs:cron": "wrangler tail --config wrangler.cron.toml"
+    "logs": "wrangler tail"
   },
   "dependencies": {
     "@octokit/auth-oauth-app": "^9.0.3",
