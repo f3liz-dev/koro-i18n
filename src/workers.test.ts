@@ -123,6 +123,44 @@ describe('API Endpoints', () => {
     });
   });
 
+  describe('JWT Authentication', () => {
+    it('should create and verify JWT tokens correctly', async () => {
+      const user = { id: 'user-123', username: 'testuser', githubId: 12345 };
+      const secret = 'test-secret-key';
+      const accessToken = 'github-token-xyz';
+
+      // Create JWT
+      const token = await createJWT(user, accessToken, secret);
+      expect(typeof token).toBe('string');
+      expect(token.split('.').length).toBe(3); // JWT has 3 parts
+
+      // Import verifyJWT to test verification
+      const { verifyJWT } = await import('./lib/auth');
+      
+      // Verify JWT
+      const payload = await verifyJWT(token, secret);
+      expect(payload).not.toBeNull();
+      expect(payload?.userId).toBe(user.id);
+      expect(payload?.username).toBe(user.username);
+      expect(payload?.githubId).toBe(user.githubId);
+      expect(payload?.accessToken).toBe(accessToken);
+    });
+
+    it('should return null for invalid JWT', async () => {
+      const { verifyJWT } = await import('./lib/auth');
+      const payload = await verifyJWT('invalid-token', 'test-secret');
+      expect(payload).toBeNull();
+    });
+
+    it('should return null for JWT with wrong secret', async () => {
+      const { verifyJWT } = await import('./lib/auth');
+      const user = { id: 'user-123', username: 'testuser', githubId: 12345 };
+      const token = await createJWT(user, 'token', 'secret-1');
+      const payload = await verifyJWT(token, 'secret-2');
+      expect(payload).toBeNull();
+    });
+  });
+
   describe('JSON flattening', () => {
     it('should flatten nested objects correctly', () => {
       const flattenObject = (obj: any, prefix = ''): Record<string, string> => {

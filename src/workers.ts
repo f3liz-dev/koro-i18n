@@ -15,6 +15,7 @@ interface Env {
   GITHUB_CLIENT_SECRET: string;
   JWT_SECRET: string;
   ENVIRONMENT: string;
+  PLATFORM_URL?: string;
   ASSETS?: Fetcher;
 }
 
