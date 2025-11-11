@@ -10,7 +10,7 @@ inputs:
   platform-url:
     description: 'The URL of the i18n platform'
     required: false
-    default: 'https://i18n-platform.workers.dev'
+    default: 'https://koro.f3liz.workers.dev'
   project-name:
     description: 'Project name on the platform'
     required: true
