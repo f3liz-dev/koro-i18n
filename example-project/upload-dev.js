@@ -2,6 +2,11 @@
 
 /**
  * Development upload script - uploads files using JWT token
+ * 
+ * ⚠️ IMPORTANT: This script only works in DEVELOPMENT environment!
+ * JWT uploads are disabled in production for security reasons.
+ * For production deployments, use OIDC authentication via GitHub Actions.
+ * 
  * Usage: node upload-dev.js <jwt-token>
  */
 
