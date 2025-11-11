@@ -125,6 +125,12 @@ export default function DashboardPage() {
             </div>
             <div class="flex items-center gap-2">
               <button
+                onClick={() => navigate('/projects/create')}
+                class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+              >
+                Create Project
+              </button>
+              <button
                 onClick={() => navigate('/projects/join')}
                 class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
               >
@@ -152,10 +158,10 @@ export default function DashboardPage() {
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-2xl font-semibold text-gray-900">Projects</h2>
           <button
-            onClick={() => navigate('/projects/join')}
+            onClick={() => navigate('/projects/create')}
             class="px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800"
           >
-            Join Project
+            Create Project
           </button>
         </div>
         
