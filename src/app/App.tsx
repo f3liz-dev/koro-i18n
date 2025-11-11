@@ -4,6 +4,7 @@ import { Router, Route } from '@solidjs/router';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const CreateProjectPage = lazy(() => import('./pages/CreateProjectPage'));
 const ProjectPage = lazy(() => import('./pages/ProjectPage'));
 const ProjectSettingsPage = lazy(() => import('./pages/ProjectSettingsPage'));
 const TranslationEditorPage = lazy(() => import('./pages/TranslationEditorPage'));
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/" component={HomePage} />
         <Route path="/login" component={LoginPage} />
         <Route path="/dashboard" component={DashboardPage} />
+        <Route path="/projects/create" component={CreateProjectPage} />
         <Route path="/projects/join" component={JoinProjectPage} />
         <Route path="/projects/:id" component={ProjectPage} />
         <Route path="/projects/:id/settings" component={ProjectSettingsPage} />
