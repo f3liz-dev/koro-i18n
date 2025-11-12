@@ -121,6 +121,9 @@ Uses the client library to process files according to `.koro-i18n.repo.config.to
 **Requires `.koro-i18n.repo.config.toml` (mandatory):**
 
 ```toml
+# Optional: Project name (defaults to repository name)
+projectName = "my-project"
+
 sourceLanguage = "en"
 targetLanguages = ["ja", "es", "fr"]
 
@@ -152,6 +155,9 @@ Direct JSON file upload without additional processing:
 **Also requires `.koro-i18n.repo.config.toml`:**
 
 ```toml
+# Optional: Project name (defaults to repository name)
+projectName = "my-project"
+
 sourceLanguage = "en"
 targetLanguages = ["ja", "es", "fr"]
 
