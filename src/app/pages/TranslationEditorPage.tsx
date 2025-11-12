@@ -374,6 +374,10 @@ export default function TranslationEditorPage() {
           : str
       ));
       
+      // Refetch suggestions to update the UI with the new pending suggestion
+      refetchSuggestions();
+      refetchAllSuggestions();
+      
       alert('Translation saved! It will be reviewed and committed.');
     } catch (error) {
       console.error('Failed to save translation:', error);
