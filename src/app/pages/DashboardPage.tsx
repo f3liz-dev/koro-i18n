@@ -26,45 +26,16 @@ export default function DashboardPage() {
         console.log('Projects data:', data);
         console.log('Number of projects:', data.projects.length);
         
-        // Load languages for each project
-        const projectsWithLanguages = await Promise.all(
-          data.projects.map(async (p: any) => {
-            try {
-              // Use project name for file queries (API will look up repository)
-              const filesRes = await fetch(`/api/projects/${p.name}/files`, {
-                credentials: 'include'
-              });
-              console.log(`Files API response for ${p.name}:`, filesRes.status);
-              if (filesRes.ok) {
-                const filesData = await filesRes.json() as { files: any[] };
-                console.log(`Files for ${p.name}:`, filesData.files);
-                const languages = [...new Set(filesData.files.map((f: any) => f.lang))] as string[];
-                console.log(`Languages for ${p.name}:`, languages);
-                return {
-                  id: p.id,
-                  name: p.name,
-                  repository: p.repository,
-                  languages,
-                  progress: 0
-                };
-              } else {
-                const errorText = await filesRes.text();
-                console.error(`Failed to load files for ${p.name}:`, filesRes.status, errorText);
-              }
-            } catch (err) {
-              console.error(`Failed to load files for ${p.name}:`, err);
-            }
-            return {
-              id: p.id,
-              name: p.name,
-              repository: p.repository,
-              languages: [],
-              progress: 0
-            };
-          })
-        );
+        // Projects now include languages from the API
+        const projectsData = data.projects.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          repository: p.repository,
+          languages: p.languages || [],
+          progress: 0
+        }));
         
-        setProjects(projectsWithLanguages);
+        setProjects(projectsData);
       } else {
         const errorData = await res.json();
         console.error('Failed to load projects:', res.status, errorData);

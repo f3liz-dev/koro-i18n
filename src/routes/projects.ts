@@ -106,8 +106,37 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       members: undefined 
     }));
 
-    const projects = [...ownedWithRole, ...memberWithRole];
-    return c.json({ projects });
+    const allProjects = [...ownedWithRole, ...memberWithRole];
+    
+    // Fetch languages for each project efficiently
+    const projectsWithLanguages = await Promise.all(
+      allProjects.map(async (project) => {
+        try {
+          // Query distinct languages for this project's repository
+          const languages = await prisma.projectFile.findMany({
+            where: { 
+              projectId: project.repository,
+              branch: 'main'
+            },
+            select: { lang: true },
+            distinct: ['lang'],
+          });
+          
+          return {
+            ...project,
+            languages: languages.map(l => l.lang),
+          };
+        } catch (error) {
+          console.error(`Failed to load languages for project ${project.name}:`, error);
+          return {
+            ...project,
+            languages: [],
+          };
+        }
+      })
+    );
+
+    return c.json({ projects: projectsWithLanguages });
   });
 
   app.get('/all', async (c) => {
