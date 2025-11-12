@@ -55,8 +55,6 @@ export default function FileSelectionPage() {
       const sourceLanguage = project()?.sourceLanguage || 'en';
       const targetLanguage = language();
       
-      console.log(`Loading files for project ${params.id}, source: ${sourceLanguage}, target: ${targetLanguage}`);
-      
       // Fetch source and target files separately with language filter for better optimization
       const [sourceRes, targetRes] = await Promise.all([
         cachedFetch(`/api/projects/${params.id}/files/summary?lang=${sourceLanguage}`, {
@@ -76,17 +74,12 @@ export default function FileSelectionPage() {
         const sourceFiles = sourceData.files;
         const targetFiles = targetData.files;
         
-        console.log(`Source files (${sourceLanguage}): ${sourceFiles.length}`);
-        console.log(`Target files (${targetLanguage}): ${targetFiles.length}`);
-        
         const stats: FileStats[] = [];
         
         for (const sourceFile of sourceFiles) {
           const sourceStatus = sourceFile.translationStatus || {};
           const sourceKeys = Object.keys(sourceStatus);
           const totalKeys = sourceKeys.length;
-          
-          console.log(`File ${sourceFile.filename}: ${totalKeys} keys`);
           
           // Find corresponding target file
           const targetFile = targetFiles.find(f => f.filename === sourceFile.filename);
@@ -116,7 +109,6 @@ export default function FileSelectionPage() {
         // Sort by filename
         stats.sort((a, b) => a.filename.localeCompare(b.filename));
         
-        console.log(`Computed stats for ${stats.length} files`);
         setFileStats(stats);
       }
     } catch (error) {
