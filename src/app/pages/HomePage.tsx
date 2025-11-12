@@ -7,6 +7,13 @@ export default function HomePage() {
   return (
     <div class="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center px-6">
       <div class="text-center max-w-2xl mx-auto">
+        <div class="mb-8 flex justify-center">
+          <img 
+            src="/logo.png" 
+            alt="Koro i18n - Kawaii hermit crab mascot" 
+            class="w-32 h-32 object-contain"
+          />
+        </div>
         <h1 class="text-5xl font-bold text-gray-900 mb-4">koro-i18n</h1>
         <p class="text-lg text-gray-600 mb-12">Modern translation management platform</p>
         {user() ? (
