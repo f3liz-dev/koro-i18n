@@ -5,7 +5,6 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const CreateProjectPage = lazy(() => import('./pages/CreateProjectPage'));
-const ProjectPage = lazy(() => import('./pages/ProjectPage'));
 const LanguageSelectionPage = lazy(() => import('./pages/LanguageSelectionPage'));
 const FileSelectionPage = lazy(() => import('./pages/FileSelectionPage'));
 const ProjectSettingsPage = lazy(() => import('./pages/ProjectSettingsPage'));

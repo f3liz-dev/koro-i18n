@@ -206,6 +206,7 @@ wrangler d1 execute koro-i18n-db --file=schema.sql
 - `DEPLOYMENT.md` - Detailed deployment guide
 - `CLIENT_SETUP.md` - Client repository setup
 - `GITHUB_ACTIONS.md` - GitHub Actions integration guide
+- `GETTING_TRANSLATIONS.md` - Guide for getting translations in different languages
 - `migrate-project-members.sql` - Database migration
 
 ---
