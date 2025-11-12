@@ -147,10 +147,11 @@ This ensures the platform has the current configuration to process your translat
 ### JSON Mode
 
 Direct JSON file upload without additional processing:
-- Simple and fast
+- **Single API call**: Uploads all languages and files in one request
+- Fast and efficient for large projects (200+ files)
 - Automatically scans `locales/` directory for all language subdirectories
-- Uploads each language separately with all its files
 - Supports any language code format (e.g., `en`, `en-US`, `ja`, `zh-CN`)
+- Increased limits: 500 files per upload, 10MB payload size
 - Best for projects with many translation files across multiple languages
 
 **Also requires `.koro-i18n.repo.config.toml`:**
@@ -187,12 +188,16 @@ locales/
 **How It Works:**
 
 1. Scans the `locales/` directory for all language subdirectories
-2. For each language directory found:
-   - Collects all `.json` files in that directory
-   - Uploads them as a batch for that specific language
-3. Reports total files uploaded across all languages
+2. Collects all JSON files from all languages
+3. Uploads everything in a **single API call** with proper language labels
+4. Each file in the upload includes:
+   - `filename`: Name of the file
+   - `lang`: Language code (from directory name)
+   - `filetype`: "json"
+   - `contents`: Parsed JSON content
+   - `metadata`: Upload metadata
 
-This approach correctly handles projects with 200+ files across multiple languages by uploading each language separately.
+This approach efficiently handles projects with 200+ files across multiple languages in a single request.
 
 ## Checking Upload Status
 
