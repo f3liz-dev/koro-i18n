@@ -62,7 +62,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const projectName = c.req.param('projectName');
     const body = await c.req.json();
-    const { branch, commitSha, files } = body;
+    const { branch, commitSha, sourceLanguage, targetLanguages, files } = body;
 
     if (!files || !Array.isArray(files)) {
       return c.json({ error: 'Missing required field: files' }, 400);
@@ -78,7 +78,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const project = await prisma.project.findUnique({
       where: { name: projectName },
-      select: { id: true, userId: true, repository: true },
+      select: { id: true, userId: true, repository: true, sourceLanguage: true },
     });
 
     if (!project) {
@@ -89,6 +89,15 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       const authResult = await validateUploadAuth(token, project.id, project.repository, env.JWT_SECRET);
       if (!authResult.authorized) {
         return c.json({ error: 'Unauthorized to upload to this project' }, 403);
+      }
+
+      // Update project sourceLanguage if provided in the upload payload
+      if (sourceLanguage && sourceLanguage !== project.sourceLanguage) {
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { sourceLanguage },
+        });
+        console.log(`[upload] Updated project ${projectName} sourceLanguage to: ${sourceLanguage}`);
       }
 
       const projectId = project.repository;
