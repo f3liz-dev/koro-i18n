@@ -22,7 +22,7 @@ pnpm add -D prisma
 
 ### 2. Prisma Schema
 
-The Prisma schema is located at `prisma/schema.prisma` and mirrors the existing database schema defined in `schema.sql`. It includes all models:
+The Prisma schema is located at `prisma/schema.prisma` and defines all database models:
 - User
 - OauthState
 - ProjectFile

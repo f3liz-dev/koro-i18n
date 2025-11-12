@@ -41,8 +41,8 @@ The D1 database is already configured in `wrangler.toml`. If you need to create 
 # Create database
 wrangler d1 create koro-i18n-db
 
-# Initialize schema
-wrangler d1 execute koro-i18n-db --file=schema.sql
+# Apply Prisma migrations
+wrangler d1 migrations apply koro-i18n-db --remote
 ```
 
 ## Deploy
