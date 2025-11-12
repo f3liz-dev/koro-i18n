@@ -190,7 +190,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const project = await prisma.project.findUnique({
       where: { name: projectName },
-      select: { id: true, userId: true, repository: true },
+      select: { id: true, userId: true, repository: true, sourceLanguage: true },
     });
 
     if (!project) {
@@ -222,7 +222,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
               projectId,
               branch: branch || 'main',
               filename,
-              lang: language || 'en',
+              lang: language || project.sourceLanguage,
             },
           },
           update: {
@@ -242,7 +242,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
             commitSha: commitSha || '',
             filename,
             filetype: 'json',
-            lang: language || 'en',
+            lang: language || project.sourceLanguage,
             contents: JSON.stringify(flattened),
             metadata: JSON.stringify({
               keys: keyCount,
