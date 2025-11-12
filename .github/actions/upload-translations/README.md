@@ -115,7 +115,7 @@ Uses the client library to process files according to `.koro-i18n.repo.config.to
 - Flattens nested structures
 - Configurable file patterns and output
 
-Requires `.koro-i18n.repo.config.toml`:
+**Requires `.koro-i18n.repo.config.toml` (mandatory):**
 
 ```toml
 sourceLanguage = "en"
@@ -129,6 +129,14 @@ excludePatterns = [
   "**/node_modules/**"
 ]
 ```
+
+**Important:** The configuration file `.koro-i18n.repo.config.toml` is **required** for structured mode. Make sure to:
+1. Create this file in your repository root
+2. Include it in your Git commits
+3. Configure `includePatterns` to match all your translation JSON files
+4. Trigger workflows when the config file changes (see examples above)
+
+This ensures the platform has the current configuration to process your translation files correctly.
 
 ### JSON Mode
 
@@ -148,6 +156,52 @@ locales/
     common.json
     auth.json
 ```
+
+## Checking Upload Status
+
+After uploading translations, you can verify the current status:
+
+### 1. Check GitHub Actions Logs
+
+View the workflow run to see:
+- Number of files uploaded
+- Upload status
+- Any errors encountered
+
+```bash
+gh run list --workflow=i18n-upload.yml
+gh run view <run-id> --log
+```
+
+### 2. View on Platform Dashboard
+
+1. Sign in to the Koro i18n platform
+2. Navigate to your project
+3. View uploaded files and their status
+4. Check completion percentages by language
+
+### 3. Ensure All Sources Are Uploaded
+
+To verify all your translation files are being uploaded:
+
+**For Structured Mode:**
+1. Check `.koro-i18n.repo.config.toml` includes all source patterns
+2. Review `includePatterns` to ensure it matches all JSON files
+3. Test locally with the client library
+4. Check workflow triggers include config file changes
+
+**Example to catch all sources:**
+```toml
+includePatterns = [
+  "locales/**/*.json",      # All locale JSON files
+  "src/i18n/**/*.json",     # Alternative location
+  "translations/**/*.json"  # Another common pattern
+]
+```
+
+**For JSON Mode:**
+- All JSON files in `locales/` directory are automatically included
+- Check GitHub Actions logs to confirm file count matches expectations
 
 ## Getting Your API Key
 
