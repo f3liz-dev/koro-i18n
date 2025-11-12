@@ -1,4 +1,4 @@
-import { importJWK, jwtVerify, decodeProtectedHeader } from 'jose';
+import { jwtVerify, decodeProtectedHeader } from 'jose';
 import type { JWK } from 'jose';
 
 export interface GitHubOIDCToken {
@@ -76,9 +76,6 @@ export async function verifyGitHubOIDCToken(
     // Find the matching key from JWKS
     const jwk = await findMatchingKey(kid, alg);
     
-    // Import the JWK as a CryptoKey - this approach is compatible with Cloudflare Workers
-    const publicKey = await importJWK(jwk, alg);
-    
     const verifyOptions: any = {
       issuer: 'https://token.actions.githubusercontent.com',
     };
@@ -88,8 +85,9 @@ export async function verifyGitHubOIDCToken(
       verifyOptions.audience = expectedAudience;
     }
     
-    // Verify the JWT using the imported public key
-    const { payload } = await jwtVerify(token, publicKey, verifyOptions);
+    // Verify the JWT using the JWK directly (Cloudflare Workers compatible)
+    // Pass JWK directly instead of importing to CryptoKey to avoid Symbol.toStringTag issues in Workers
+    const { payload } = await jwtVerify(token, jwk, verifyOptions);
 
     const oidcPayload = payload as unknown as GitHubOIDCToken;
 
