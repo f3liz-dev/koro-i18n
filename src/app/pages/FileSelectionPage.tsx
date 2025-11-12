@@ -47,21 +47,27 @@ export default function FileSelectionPage() {
   const loadFiles = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`/api/projects/${params.id}/files/summary`, {
-        credentials: 'include'
-      });
+      const sourceLanguage = project()?.sourceLanguage || 'en';
+      const targetLanguage = language();
       
-      if (res.ok) {
-        const data = await res.json() as { files: any[] };
-        const sourceLanguage = project()?.sourceLanguage || 'en';
-        const targetLanguage = language();
+      console.log(`Loading files for project ${params.id}, source: ${sourceLanguage}, target: ${targetLanguage}`);
+      
+      // Fetch source and target files separately with language filter for better optimization
+      const [sourceRes, targetRes] = await Promise.all([
+        fetch(`/api/projects/${params.id}/files/summary?lang=${sourceLanguage}`, {
+          credentials: 'include'
+        }),
+        fetch(`/api/projects/${params.id}/files/summary?lang=${targetLanguage}`, {
+          credentials: 'include'
+        })
+      ]);
+      
+      if (sourceRes.ok) {
+        const sourceData = await sourceRes.json() as { files: any[] };
+        const targetData = targetRes.ok ? await targetRes.json() as { files: any[] } : { files: [] };
         
-        console.log(`Loading files for project ${params.id}, source: ${sourceLanguage}, target: ${targetLanguage}`);
-        console.log(`Total files received: ${data.files.length}`);
-        
-        // Get source files
-        const sourceFiles = data.files.filter(f => f.lang === sourceLanguage);
-        const targetFiles = data.files.filter(f => f.lang === targetLanguage);
+        const sourceFiles = sourceData.files;
+        const targetFiles = targetData.files;
         
         console.log(`Source files (${sourceLanguage}): ${sourceFiles.length}`);
         console.log(`Target files (${targetLanguage}): ${targetFiles.length}`);

@@ -337,6 +337,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     const projectIdOrName = c.req.param('projectId');
     const branch = c.req.query('branch') || 'main';
     const lang = c.req.query('lang');
+    const filename = c.req.query('filename');
 
     let actualProjectId = projectIdOrName;
     const project = await prisma.project.findUnique({
@@ -350,6 +351,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const where: any = { projectId: actualProjectId, branch };
     if (lang) where.lang = lang;
+    if (filename) where.filename = filename;
 
     const projectFiles = await prisma.projectFile.findMany({
       where,
@@ -404,6 +406,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     const projectIdOrName = c.req.param('projectId');
     const branch = c.req.query('branch') || 'main';
     const lang = c.req.query('lang');
+    const filename = c.req.query('filename');
 
     let actualProjectId = projectIdOrName;
     const project = await prisma.project.findUnique({
@@ -417,6 +420,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const where: any = { projectId: actualProjectId, branch };
     if (lang) where.lang = lang;
+    if (filename) where.filename = filename;
 
     const projectFiles = await prisma.projectFile.findMany({
       where,
