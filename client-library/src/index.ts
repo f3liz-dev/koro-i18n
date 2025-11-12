@@ -204,6 +204,8 @@ export async function uploadToPlatform(
   const payload = {
     branch: metadata.branch,
     commitSha: metadata.commit,
+    sourceLanguage: metadata.sourceLanguage,
+    targetLanguages: metadata.targetLanguages,
     files: metadata.files,
   };
 
