@@ -95,7 +95,10 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
       for (const file of files) {
         const { filetype, filename, lang, contents, metadata } = file;
-        const keyCount = Object.keys(contents || {}).length;
+        
+        // Flatten the contents if they are nested
+        const flattened = flattenObject(contents || {});
+        const keyCount = Object.keys(flattened).length;
         
         console.log(`[upload] Processing file: ${filename} (${lang}), keys: ${keyCount}`);
         
@@ -115,7 +118,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           update: {
             commitSha: commitSha || '',
             filetype,
-            contents: JSON.stringify(contents),
+            contents: JSON.stringify(flattened),
             metadata: JSON.stringify(metadata || {}),
             uploadedAt: new Date(),
           },
@@ -127,7 +130,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
             filename,
             filetype,
             lang,
-            contents: JSON.stringify(contents),
+            contents: JSON.stringify(flattened),
             metadata: JSON.stringify(metadata || {}),
           },
         });
@@ -137,7 +140,10 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         success: true,
         projectId,
         filesUploaded: files.length,
-        totalKeys: files.reduce((sum, f) => sum + Object.keys(f.contents || {}).length, 0),
+        totalKeys: files.reduce((sum, f) => {
+          const flattened = flattenObject(f.contents || {});
+          return sum + Object.keys(flattened).length;
+        }, 0),
         uploadedAt: new Date().toISOString()
       });
     } catch (error: any) {
