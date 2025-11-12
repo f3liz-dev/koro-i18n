@@ -16,6 +16,13 @@ export default function LoginPage() {
   return (
     <div class="min-h-screen bg-white flex items-center justify-center px-6">
       <div class="w-full max-w-sm">
+        <div class="mb-8 flex justify-center">
+          <img 
+            src="/logo.png" 
+            alt="Koro i18n - Kawaii hermit crab mascot" 
+            class="w-24 h-24 object-contain"
+          />
+        </div>
         <h1 class="text-2xl font-semibold text-center mb-8">Sign in</h1>
         <button
           onClick={handleLogin}
