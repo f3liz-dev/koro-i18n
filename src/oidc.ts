@@ -1,4 +1,5 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { importJWK, jwtVerify, decodeProtectedHeader } from 'jose';
+import type { JWK } from 'jose';
 
 export interface GitHubOIDCToken {
   repository: string;
@@ -10,32 +11,100 @@ export interface GitHubOIDCToken {
   run_id: string;
 }
 
+// Cache for JWKS to avoid repeated fetches
+let jwksCache: { keys: JWK[], timestamp: number } | null = null;
+const CACHE_TTL = 3600000; // 1 hour in milliseconds
+
+// Export function to clear cache (mainly for testing)
+export function clearJWKSCache() {
+  jwksCache = null;
+}
+
+async function fetchGitHubJWKS(): Promise<{ keys: JWK[] }> {
+  // Return cached JWKS if still valid
+  if (jwksCache && Date.now() - jwksCache.timestamp < CACHE_TTL) {
+    return jwksCache;
+  }
+
+  const response = await fetch('https://token.actions.githubusercontent.com/.well-known/jwks');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch JWKS: ${response.statusText}`);
+  }
+  
+  const jwks = await response.json() as { keys: JWK[] };
+  
+  // Cache the JWKS
+  jwksCache = {
+    keys: jwks.keys,
+    timestamp: Date.now()
+  };
+  
+  return jwks;
+}
+
+async function findMatchingKey(kid: string | undefined, alg: string): Promise<JWK> {
+  const jwks = await fetchGitHubJWKS();
+  
+  // Find key by kid (Key ID) and alg (Algorithm)
+  const key = jwks.keys.find(k => {
+    if (kid && k.kid !== kid) return false;
+    if (k.alg && k.alg !== alg) return false;
+    return true;
+  });
+  
+  if (!key) {
+    throw new Error(`No matching key found for kid: ${kid}, alg: ${alg}`);
+  }
+  
+  return key;
+}
+
 export async function verifyGitHubOIDCToken(
   token: string,
   expectedAudience?: string,
   expectedRepo?: string
 ): Promise<GitHubOIDCToken> {
-  // Create JWKS inside the function to ensure compatibility with Cloudflare Workers
-  const JWKS = createRemoteJWKSet(new URL('https://token.actions.githubusercontent.com/.well-known/jwks'));
-  
-  const verifyOptions: any = {
-    issuer: 'https://token.actions.githubusercontent.com',
-  };
-  
-  // Only add audience check if provided
-  if (expectedAudience) {
-    verifyOptions.audience = expectedAudience;
+  try {
+    // Decode the header to get kid and alg
+    const header = decodeProtectedHeader(token);
+    const { kid, alg } = header;
+    
+    if (!alg) {
+      throw new Error('Token header missing "alg" field');
+    }
+    
+    // Find the matching key from JWKS
+    const jwk = await findMatchingKey(kid, alg);
+    
+    // Import the JWK as a CryptoKey - this approach is compatible with Cloudflare Workers
+    const publicKey = await importJWK(jwk, alg);
+    
+    const verifyOptions: any = {
+      issuer: 'https://token.actions.githubusercontent.com',
+    };
+    
+    // Only add audience check if provided
+    if (expectedAudience) {
+      verifyOptions.audience = expectedAudience;
+    }
+    
+    // Verify the JWT using the imported public key
+    const { payload } = await jwtVerify(token, publicKey, verifyOptions);
+
+    const oidcPayload = payload as unknown as GitHubOIDCToken;
+
+    if (expectedRepo && oidcPayload.repository !== expectedRepo) {
+      throw new Error(`Repository mismatch: expected ${expectedRepo}, got ${oidcPayload.repository}`);
+    }
+
+    return oidcPayload;
+  } catch (error) {
+    // Provide more context in error messages
+    if (error instanceof Error) {
+      throw new Error(`GitHub OIDC token verification failed: ${error.message}`);
+    }
+    throw error;
   }
-  
-  const { payload } = await jwtVerify(token, JWKS, verifyOptions);
-
-  const oidcPayload = payload as unknown as GitHubOIDCToken;
-
-  if (expectedRepo && oidcPayload.repository !== expectedRepo) {
-    throw new Error(`Repository mismatch: expected ${expectedRepo}, got ${oidcPayload.repository}`);
-  }
-
-  return oidcPayload;
 }
 
 /**
