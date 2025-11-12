@@ -87,7 +87,7 @@ The `@i18n-platform/client` package is **not published to npm**. Instead, you ne
 
 ### 3. Create Configuration
 
-Create `.i18n-platform.toml` in repository root:
+Create `.koro-i18n.repo.config.toml` in repository root:
 
 ```toml
 sourceLanguage = "en"
@@ -117,7 +117,7 @@ outputPattern = "locales/{lang}/{file}"
 ### 5. Push and Test
 
 ```bash
-git add .i18n-platform.toml .github/workflows/i18n-sync.yml
+git add .koro-i18n.repo.config.toml .github/workflows/i18n-sync.yml
 git commit -m "feat: Add i18n platform integration"
 git push
 ```
@@ -236,7 +236,7 @@ i18n-upload
 
 1. Check upload succeeded in GitHub Actions
 2. Verify API key is correct
-3. Check file patterns in `.i18n-platform.toml`
+3. Check file patterns in `.koro-i18n.repo.config.toml`
 4. View platform logs: `wrangler tail`
 
 ### Commits Not Working

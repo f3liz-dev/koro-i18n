@@ -15,9 +15,9 @@ inputs:
     description: 'Project name on the platform'
     required: true
   config-path:
-    description: 'Path to .i18n-platform.toml configuration file'
-    required: false
-    default: '.i18n-platform.toml'
+    description: 'Path to .koro-i18n.repo.config.toml configuration file'
+    required: true
+    default: '.koro-i18n.repo.config.toml'
   mode:
     description: 'Upload mode: "structured" (default) or "json" for direct JSON upload'
     required: false

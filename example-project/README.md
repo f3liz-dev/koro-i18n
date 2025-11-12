@@ -14,7 +14,7 @@ example-project/
 │   │   └── common.json
 │   └── es/              # Spanish
 │       └── common.json
-├── .i18n-platform.toml  # Configuration
+├── .koro-i18n.repo.config.toml  # Configuration
 └── .github/
     └── workflows/
         └── i18n-upload.yml  # GitHub Actions workflow
@@ -202,7 +202,7 @@ i18n-upload
 
 1. Check upload succeeded
 2. Verify API key is correct
-3. Check file patterns in `.i18n-platform.toml`
+3. Check file patterns in `.koro-i18n.repo.config.toml`
 4. View platform logs: `wrangler tail`
 
 ### Commits Not Working

@@ -14,7 +14,7 @@ on:
     branches: [main]
     paths:
       - 'locales/**'
-      - '.i18n-platform.toml'
+      - '.koro-i18n.repo.config.toml'
 
 permissions:
   id-token: write  # Required for OIDC
@@ -75,7 +75,7 @@ jobs:
 |-------|-------------|----------|---------|
 | `platform-url` | URL of the i18n platform | No | `https://i18n-platform.workers.dev` |
 | `project-name` | Project name on the platform | Yes | - |
-| `config-path` | Path to configuration file | No | `.i18n-platform.toml` |
+| `config-path` | Path to configuration file | Yes | `.koro-i18n.repo.config.toml` |
 | `mode` | Upload mode: `structured` or `json` | No | `structured` |
 
 ## Outputs
@@ -110,12 +110,12 @@ permissions:
 
 ### Structured Mode (Default)
 
-Uses the client library to process files according to `.i18n-platform.toml` configuration:
+Uses the client library to process files according to `.koro-i18n.repo.config.toml` configuration:
 - Supports JSON and Markdown formats
 - Flattens nested structures
 - Configurable file patterns and output
 
-Requires `.i18n-platform.toml`:
+Requires `.koro-i18n.repo.config.toml`:
 
 ```toml
 sourceLanguage = "en"

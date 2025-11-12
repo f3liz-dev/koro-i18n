@@ -14,7 +14,7 @@ on:
     paths:
       - 'locales/**'
       - 'src/locales/**'
-      - '.i18n-platform.toml'
+      - '.koro-i18n.repo.config.toml'
   workflow_dispatch:
 
 jobs:

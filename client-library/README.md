@@ -74,7 +74,7 @@ await uploadToPlatform(
 
 ## Configuration
 
-Create `.i18n-platform.toml` in your repository root:
+Create `.koro-i18n.repo.config.toml` in your repository root:
 
 ```toml
 sourceLanguage = "en"

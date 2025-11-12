@@ -83,7 +83,7 @@ Currently, the source language defaults to `en`. To support other source languag
 To add support for a new target language:
 
 1. **Upload translation files** for the new language using GitHub Actions
-2. **Configure in `.i18n-platform.toml`:**
+2. **Configure in `.koro-i18n.repo.config.toml`:**
 
 ```toml
 sourceLanguage = "en"
@@ -117,7 +117,7 @@ locales/
 4. **Push your changes:**
 
 ```bash
-git add locales/ .i18n-platform.toml
+git add locales/ .koro-i18n.repo.config.toml
 git commit -m "feat: Add support for new languages"
 git push
 ```
