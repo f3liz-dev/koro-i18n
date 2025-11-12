@@ -53,6 +53,9 @@ export default function LanguageSelectionPage() {
         const data = await res.json() as { files: any[] };
         const sourceLanguage = project()?.sourceLanguage || 'en';
         
+        console.log(`Loading languages for project ${params.id}, source: ${sourceLanguage}`);
+        console.log(`Total files received: ${data.files.length}`);
+        
         // Get unique languages excluding source language
         const languages = new Set<string>();
         data.files.forEach(file => {
@@ -61,6 +64,8 @@ export default function LanguageSelectionPage() {
           }
         });
         
+        console.log(`Target languages found: ${Array.from(languages).join(', ')}`);
+        
         // Calculate stats for each language
         const stats: LanguageStats[] = [];
         
@@ -68,6 +73,8 @@ export default function LanguageSelectionPage() {
           // Get source files to count total keys
           const sourceFiles = data.files.filter(f => f.lang === sourceLanguage);
           const targetFiles = data.files.filter(f => f.lang === lang);
+          
+          console.log(`Language ${lang}: ${sourceFiles.length} source files, ${targetFiles.length} target files`);
           
           let totalKeys = 0;
           let translatedKeys = 0;
@@ -93,6 +100,8 @@ export default function LanguageSelectionPage() {
           
           const percentage = totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0;
           
+          console.log(`Language ${lang}: ${translatedKeys}/${totalKeys} keys (${percentage}%)`);
+          
           stats.push({
             language: lang,
             totalKeys,
@@ -104,6 +113,7 @@ export default function LanguageSelectionPage() {
         // Sort by language code
         stats.sort((a, b) => a.language.localeCompare(b.language));
         
+        console.log(`Computed stats for ${stats.length} languages`);
         setLanguageStats(stats);
       }
     } catch (error) {

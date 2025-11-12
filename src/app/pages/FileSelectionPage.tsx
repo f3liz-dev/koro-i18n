@@ -56,9 +56,15 @@ export default function FileSelectionPage() {
         const sourceLanguage = project()?.sourceLanguage || 'en';
         const targetLanguage = language();
         
+        console.log(`Loading files for project ${params.id}, source: ${sourceLanguage}, target: ${targetLanguage}`);
+        console.log(`Total files received: ${data.files.length}`);
+        
         // Get source files
         const sourceFiles = data.files.filter(f => f.lang === sourceLanguage);
         const targetFiles = data.files.filter(f => f.lang === targetLanguage);
+        
+        console.log(`Source files (${sourceLanguage}): ${sourceFiles.length}`);
+        console.log(`Target files (${targetLanguage}): ${targetFiles.length}`);
         
         const stats: FileStats[] = [];
         
@@ -66,6 +72,8 @@ export default function FileSelectionPage() {
           const sourceContents = sourceFile.contents || {};
           const sourceKeys = Object.keys(sourceContents);
           const totalKeys = sourceKeys.length;
+          
+          console.log(`File ${sourceFile.filename}: ${totalKeys} keys`);
           
           // Find corresponding target file
           const targetFile = targetFiles.find(f => f.filename === sourceFile.filename);
@@ -95,6 +103,7 @@ export default function FileSelectionPage() {
         // Sort by filename
         stats.sort((a, b) => a.filename.localeCompare(b.filename));
         
+        console.log(`Computed stats for ${stats.length} files`);
         setFileStats(stats);
       }
     } catch (error) {
