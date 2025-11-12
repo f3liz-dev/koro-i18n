@@ -106,8 +106,18 @@ export default function TranslationEditorPage() {
       
       const pid = projectId();
       const sourceLanguage = project()?.sourceLanguage || 'en';
+      const targetFilename = filename();
       
-      const sourceUrl = `/api/projects/${pid}/files?lang=${sourceLanguage}`;
+      // Build URLs with filters for optimized data fetching
+      let sourceUrl = `/api/projects/${pid}/files?lang=${sourceLanguage}`;
+      let targetUrl = `/api/projects/${pid}/files?lang=${language()}`;
+      
+      // Add filename filter if specified to reduce payload size
+      if (targetFilename) {
+        sourceUrl += `&filename=${encodeURIComponent(targetFilename)}`;
+        targetUrl += `&filename=${encodeURIComponent(targetFilename)}`;
+      }
+      
       const sourceRes = await fetch(sourceUrl, { credentials: 'include' });
       
       if (!sourceRes.ok) {
@@ -117,24 +127,12 @@ export default function TranslationEditorPage() {
       }
       
       const sourceData = await sourceRes.json() as { files: any[] };
-      let sourceFiles = sourceData.files || [];
+      const sourceFiles = sourceData.files || [];
       
-      // Filter by filename if specified
-      const targetFilename = filename();
-      if (targetFilename) {
-        sourceFiles = sourceFiles.filter(f => f.filename === targetFilename);
-      }
-      
-      const targetUrl = `/api/projects/${pid}/files?lang=${language()}`;
       const targetRes = await fetch(targetUrl, { credentials: 'include' });
       
       const targetData = targetRes.ok ? (await targetRes.json() as { files: any[] }) : { files: [] };
-      let targetFiles = targetData.files || [];
-      
-      // Filter by filename if specified
-      if (targetFilename) {
-        targetFiles = targetFiles.filter(f => f.filename === targetFilename);
-      }
+      const targetFiles = targetData.files || [];
       
       const strings: TranslationString[] = [];
       

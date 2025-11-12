@@ -329,13 +329,15 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     });
   });
 
-  app.get('/:projectId/files', async (c) => {
+  // Optimized endpoint for UI listing - returns only keys without values for statistics
+  app.get('/:projectId/files/summary', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
     const projectIdOrName = c.req.param('projectId');
     const branch = c.req.query('branch') || 'main';
     const lang = c.req.query('lang');
+    const filename = c.req.query('filename');
 
     let actualProjectId = projectIdOrName;
     const project = await prisma.project.findUnique({
@@ -349,6 +351,76 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const where: any = { projectId: actualProjectId, branch };
     if (lang) where.lang = lang;
+    if (filename) where.filename = filename;
+
+    const projectFiles = await prisma.projectFile.findMany({
+      where,
+      select: {
+        id: true,
+        projectId: true,
+        branch: true,
+        filename: true,
+        filetype: true,
+        lang: true,
+        commitSha: true,
+        uploadedAt: true,
+        contents: true,
+        metadata: true,
+      },
+      orderBy: { uploadedAt: 'desc' },
+    });
+
+    // Return summary with keys and translation status, but not full values
+    const filesSummary = projectFiles.map((row) => {
+      const contents = JSON.parse(row.contents);
+      const metadata = JSON.parse(row.metadata || '{}');
+      
+      // Create a map of key -> boolean (whether it has a non-empty value)
+      const translationStatus: Record<string, boolean> = {};
+      for (const [key, value] of Object.entries(contents)) {
+        translationStatus[key] = value !== null && value !== undefined && String(value).trim() !== '';
+      }
+      
+      return {
+        id: row.id,
+        projectId: row.projectId,
+        branch: row.branch,
+        filename: row.filename,
+        filetype: row.filetype,
+        lang: row.lang,
+        commitSha: row.commitSha,
+        uploadedAt: row.uploadedAt,
+        keyCount: Object.keys(contents).length,
+        translationStatus, // Map of key -> boolean instead of key -> full value
+        metadata,
+      };
+    });
+
+    return c.json({ files: filesSummary });
+  });
+
+  app.get('/:projectId/files', async (c) => {
+    const payload = await requireAuth(c, env.JWT_SECRET);
+    if (payload instanceof Response) return payload;
+
+    const projectIdOrName = c.req.param('projectId');
+    const branch = c.req.query('branch') || 'main';
+    const lang = c.req.query('lang');
+    const filename = c.req.query('filename');
+
+    let actualProjectId = projectIdOrName;
+    const project = await prisma.project.findUnique({
+      where: { name: projectIdOrName },
+      select: { repository: true },
+    });
+    
+    if (project) {
+      actualProjectId = project.repository;
+    }
+
+    const where: any = { projectId: actualProjectId, branch };
+    if (lang) where.lang = lang;
+    if (filename) where.filename = filename;
 
     const projectFiles = await prisma.projectFile.findMany({
       where,

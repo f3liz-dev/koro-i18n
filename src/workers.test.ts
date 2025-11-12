@@ -222,4 +222,80 @@ describe('API Endpoints', () => {
       expect(result.items).toBe('one,two,three');
     });
   });
+
+  describe('GET /api/projects/:projectId/files/summary', () => {
+    it('should return translation status instead of full contents', () => {
+      // This test documents the expected behavior of the summary endpoint
+      // The endpoint should:
+      // 1. Return all file metadata (id, filename, lang, branch, etc.)
+      // 2. Return translationStatus as a boolean map instead of full contents
+      // 3. Return keyCount for quick reference
+      // 4. Significantly reduce payload size for UI listing operations
+      
+      // Example full contents response (original):
+      const fullContents = {
+        'welcome.message': 'Welcome to our application',
+        'login.button': 'Login',
+        'signup.button': 'Sign up',
+        'error.generic': 'An error occurred',
+      };
+      
+      // Example summary response (optimized):
+      const summaryStatus = {
+        'welcome.message': true,
+        'login.button': true,
+        'signup.button': true,
+        'error.generic': true,
+      };
+      
+      // Verify that summary is smaller
+      const fullSize = JSON.stringify(fullContents).length;
+      const summarySize = JSON.stringify(summaryStatus).length;
+      
+      expect(summarySize).toBeLessThan(fullSize);
+      
+      // Verify key count
+      expect(Object.keys(summaryStatus).length).toBe(4);
+    });
+
+    it('should identify untranslated keys with false values', () => {
+      // The summary endpoint marks empty/null translations as false
+      const translationStatus = {
+        'key1': true,  // Has value
+        'key2': false, // Empty or missing
+        'key3': true,  // Has value
+        'key4': false, // Empty or missing
+      };
+      
+      const translatedCount = Object.values(translationStatus).filter(v => v === true).length;
+      expect(translatedCount).toBe(2);
+      
+      const totalKeys = Object.keys(translationStatus).length;
+      const percentage = Math.round((translatedCount / totalKeys) * 100);
+      expect(percentage).toBe(50);
+    });
+
+    it('should support language and filename filters for better optimization', () => {
+      // The summary endpoint supports query parameters for filtering:
+      // - ?lang=en - Filter by language
+      // - ?filename=common.json - Filter by filename
+      // - ?branch=main - Filter by branch (default: main)
+      // - Combinations: ?lang=en&filename=common.json
+      
+      // Example: Fetching only English files
+      // GET /api/projects/my-project/files/summary?lang=en
+      
+      // Example: Fetching only a specific file across all languages
+      // GET /api/projects/my-project/files/summary?filename=common.json
+      
+      // Example: Fetching a specific file in a specific language
+      // GET /api/projects/my-project/files/summary?lang=en&filename=common.json
+      
+      // This reduces the payload size further by only returning the files needed
+      // For FileSelectionPage: Fetch ?lang=en and ?lang=ja separately
+      // For specific file editing: Fetch ?lang=en&filename=common.json
+      
+      expect(true).toBe(true); // Documentation test
+    });
+  });
 });

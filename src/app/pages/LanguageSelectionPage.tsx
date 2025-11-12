@@ -45,7 +45,7 @@ export default function LanguageSelectionPage() {
   const loadLanguages = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`/api/projects/${params.id}/files`, {
+      const res = await fetch(`/api/projects/${params.id}/files/summary`, {
         credentials: 'include'
       });
       
@@ -80,18 +80,18 @@ export default function LanguageSelectionPage() {
           let translatedKeys = 0;
           
           for (const sourceFile of sourceFiles) {
-            const sourceContents = sourceFile.contents || {};
-            const sourceKeys = Object.keys(sourceContents);
+            const sourceStatus = sourceFile.translationStatus || {};
+            const sourceKeys = Object.keys(sourceStatus);
             totalKeys += sourceKeys.length;
             
             // Find corresponding target file
             const targetFile = targetFiles.find(f => f.filename === sourceFile.filename);
             if (targetFile) {
-              const targetContents = targetFile.contents || {};
+              const targetStatus = targetFile.translationStatus || {};
               
               // Count how many source keys have translations
               for (const key of sourceKeys) {
-                if (targetContents[key] && targetContents[key] !== '') {
+                if (targetStatus[key]) {
                   translatedKeys++;
                 }
               }
