@@ -93,6 +93,11 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
       // Update project sourceLanguage if provided in the upload payload
       if (sourceLanguage && sourceLanguage !== project.sourceLanguage) {
+        // Validate sourceLanguage format (e.g., "en", "en-US", "zh-CN")
+        if (!/^[a-z]{2,3}(-[A-Z]{2})?$/.test(sourceLanguage)) {
+          return c.json({ error: 'Invalid sourceLanguage format. Expected format: "en" or "en-US"' }, 400);
+        }
+        
         await prisma.project.update({
           where: { id: project.id },
           data: { sourceLanguage },
