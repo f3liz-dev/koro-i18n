@@ -67,7 +67,7 @@ jobs:
     mode: structured
 ```
 
-**JSON Mode:** Simple direct JSON upload
+**JSON Mode:** Simple direct JSON upload (also requires `.koro-i18n.repo.config.toml`)
 ```yaml
 - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
   with:
@@ -231,7 +231,7 @@ Create `.github/workflows/i18n.yml` with one of the examples above.
 
 ### Custom Configuration
 
-Create `.i18n-platform.toml` in your repository root:
+Create `.koro-i18n.repo.config.toml` in your repository root:
 
 ```toml
 sourceLanguage = "en"

@@ -68,7 +68,7 @@ The platform supports two primary deployment architectures to meet minimal serve
 
 ### Translation Configuration File
 
-The platform uses a `.i18n-platform.toml` configuration file in the repository root to define translation settings:
+The platform uses a `.koro-i18n.repo.config.toml` configuration file in the repository root to define translation settings:
 
 ```toml
 sourceLanguage = "en"
@@ -100,7 +100,7 @@ enabled = ["json-plugin", "markdown-plugin"]
 
 ### File Discovery and Management
 
-- Configuration-driven file discovery based on `.i18n-platform.toml`
+- Configuration-driven file discovery based on `.koro-i18n.repo.config.toml`
 - Server reads configuration from repository's latest branch revision
 - Pattern-based file inclusion/exclusion from configuration
 - Dynamic output path generation based on language and source file

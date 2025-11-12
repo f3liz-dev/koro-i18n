@@ -87,7 +87,7 @@ The `@i18n-platform/client` package is **not published to npm**. Instead, you ne
 
 ### 3. Create Configuration
 
-Create `.i18n-platform.toml` in repository root:
+Create `.koro-i18n.repo.config.toml` in repository root:
 
 ```toml
 sourceLanguage = "en"
@@ -106,6 +106,16 @@ excludePatterns = [
 outputPattern = "locales/{lang}/{file}"
 ```
 
+**Important:** This configuration file is **required** and must be:
+- ✅ Committed to your repository
+- ✅ Included in the workflow trigger paths (see step 1)
+- ✅ Updated whenever you change file locations or add new translation files
+
+**Ensure all JSON sources are included:**
+- Review your project structure
+- Add all translation file patterns to `includePatterns`
+- Test the patterns match all your files (use `git ls-files locales/` to verify)
+
 ### 4. Get Project Set Up
 
 1. Go to Koro i18n Platform
@@ -117,7 +127,7 @@ outputPattern = "locales/{lang}/{file}"
 ### 5. Push and Test
 
 ```bash
-git add .i18n-platform.toml .github/workflows/i18n-sync.yml
+git add .koro-i18n.repo.config.toml .github/workflows/i18n-sync.yml
 git commit -m "feat: Add i18n platform integration"
 git push
 ```
@@ -218,6 +228,61 @@ GET /api/projects/:projectId/files?branch=main&lang=en
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
+## Checking Current Status
+
+After setting up the integration, verify everything is working:
+
+### 1. Verify Upload Status
+
+Check GitHub Actions to confirm files were uploaded:
+
+```bash
+# List recent workflow runs
+gh run list --workflow=i18n-sync.yml
+
+# View detailed logs
+gh run view <run-id> --log
+```
+
+Look for:
+- ✅ Number of files processed
+- ✅ Upload success confirmation
+- ✅ No error messages
+
+### 2. View on Platform Dashboard
+
+1. Sign in to Koro i18n platform
+2. Navigate to your project
+3. Verify all languages appear
+4. Check file counts match your repository
+5. Review completion percentages
+
+### 3. Ensure All Sources Are Tracked
+
+To verify all JSON files are being uploaded:
+
+```bash
+# List all JSON files in your project
+find . -name "*.json" -path "*/locales/*" -not -path "*/node_modules/*"
+
+# Compare with includePatterns in .koro-i18n.repo.config.toml
+cat .koro-i18n.repo.config.toml | grep -A5 includePatterns
+```
+
+If files are missing:
+1. Update `includePatterns` in `.koro-i18n.repo.config.toml`
+2. Commit and push the config file
+3. Workflow will run automatically
+4. Verify files appear on platform
+
+### 4. Test Workflow Trigger
+
+The workflow should trigger when:
+- ✅ Translation JSON files change (`locales/**`)
+- ✅ Config file changes (`.koro-i18n.repo.config.toml`)
+
+Test by making a small change and pushing.
+
 ## Troubleshooting
 
 ### Upload Fails
@@ -236,7 +301,7 @@ i18n-upload
 
 1. Check upload succeeded in GitHub Actions
 2. Verify API key is correct
-3. Check file patterns in `.i18n-platform.toml`
+3. Check file patterns in `.koro-i18n.repo.config.toml`
 4. View platform logs: `wrangler tail`
 
 ### Commits Not Working

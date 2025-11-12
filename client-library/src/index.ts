@@ -143,9 +143,9 @@ export function processFile(filePath: string, format: string): TranslationFile |
 }
 
 /**
- * Load configuration from .i18n-platform.toml
+ * Load configuration from .koro-i18n.repo.config.toml
  */
-export function loadConfig(configPath = '.i18n-platform.toml'): Config {
+export function loadConfig(configPath = '.koro-i18n.repo.config.toml'): Config {
   const content = fs.readFileSync(configPath, 'utf-8');
   return toml.parse(content) as Config;
 }
@@ -157,7 +157,7 @@ export async function processProject(
   repository: string,
   branch: string,
   commit: string,
-  configPath = '.i18n-platform.toml'
+  configPath = '.koro-i18n.repo.config.toml'
 ): Promise<ProjectMetadata> {
   const config = loadConfig(configPath);
   const files: TranslationFile[] = [];

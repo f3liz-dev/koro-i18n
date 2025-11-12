@@ -63,7 +63,7 @@ This implementation adds native JSON file upload support and exports reusable Gi
 
 Features:
 - Two modes: `structured` (default) and `json`
-- Structured mode uses client library with `.i18n-platform.toml`
+- Structured mode uses client library with `.koro-i18n.repo.config.toml`
 - JSON mode for simple direct uploads
 - Outputs: `files-uploaded`, `upload-status`
 
