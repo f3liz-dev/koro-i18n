@@ -109,6 +109,7 @@ model Project {
   name          String   @unique
   repository    String   @unique
   accessControl String   @default("whitelist") // 'whitelist' or 'blacklist'
+  sourceLanguage String  @default("en") // Source language for translations
   createdAt     DateTime @default(now())
 
   // Relations

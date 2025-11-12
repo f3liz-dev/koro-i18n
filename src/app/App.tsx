@@ -5,7 +5,8 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const CreateProjectPage = lazy(() => import('./pages/CreateProjectPage'));
-const ProjectPage = lazy(() => import('./pages/ProjectPage'));
+const LanguageSelectionPage = lazy(() => import('./pages/LanguageSelectionPage'));
+const FileSelectionPage = lazy(() => import('./pages/FileSelectionPage'));
 const ProjectSettingsPage = lazy(() => import('./pages/ProjectSettingsPage'));
 const TranslationEditorPage = lazy(() => import('./pages/TranslationEditorPage'));
 const TranslationHistoryPage = lazy(() => import('./pages/TranslationHistoryPage'));
@@ -21,7 +22,8 @@ export default function App() {
         <Route path="/dashboard" component={DashboardPage} />
         <Route path="/projects/create" component={CreateProjectPage} />
         <Route path="/projects/join" component={JoinProjectPage} />
-        <Route path="/projects/:id" component={ProjectPage} />
+        <Route path="/projects/:id" component={LanguageSelectionPage} />
+        <Route path="/projects/:id/language/:language" component={FileSelectionPage} />
         <Route path="/projects/:id/settings" component={ProjectSettingsPage} />
         <Route path="/projects/:id/manage" component={ProjectSettingsPage} /> {/* Backward compatibility */}
         <Route path="/projects/:projectId/translate/:language/:filename" component={TranslationEditorPage} />

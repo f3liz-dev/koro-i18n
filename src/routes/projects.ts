@@ -71,6 +71,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
         repository: true,
         userId: true,
         accessControl: true,
+        sourceLanguage: true,
         createdAt: true,
       },
     });
@@ -91,6 +92,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
         repository: true,
         userId: true,
         accessControl: true,
+        sourceLanguage: true,
         createdAt: true,
         members: {
           where: { userId: payload.userId },
