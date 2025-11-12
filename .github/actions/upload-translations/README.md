@@ -148,9 +148,10 @@ This ensures the platform has the current configuration to process your translat
 
 Direct JSON file upload without additional processing:
 - Simple and fast
-- Uses config file for source language and patterns
-- Automatically detects language from directory structure
-- Best for basic JSON translation files
+- Automatically scans `locales/` directory for all language subdirectories
+- Uploads each language separately with all its files
+- Supports any language code format (e.g., `en`, `en-US`, `ja`, `zh-CN`)
+- Best for projects with many translation files across multiple languages
 
 **Also requires `.koro-i18n.repo.config.toml`:**
 
@@ -158,26 +159,40 @@ Direct JSON file upload without additional processing:
 # Optional: Project name (defaults to repository name)
 projectName = "my-project"
 
-sourceLanguage = "en"
-targetLanguages = ["ja", "es", "fr"]
+sourceLanguage = "en-US"
+targetLanguages = ["ja", "es", "fr", "de"]
 
 includePatterns = [
   "locales/**/*.json"
 ]
 ```
 
-Expects files in structure like:
+**Directory Structure:**
+
+JSON mode expects files organized in `locales/{language}/` directories:
+
 ```
 locales/
-  en/
-    common.json
+  en-US/              # Each language in its own directory
+    common.json       # Multiple JSON files per language
     auth.json
+    settings.json
   ja/
     common.json
     auth.json
+  es/
+    common.json
 ```
 
-**Note:** JSON mode now reads the config file to determine the source language and file patterns, ensuring consistency across all upload modes.
+**How It Works:**
+
+1. Scans the `locales/` directory for all language subdirectories
+2. For each language directory found:
+   - Collects all `.json` files in that directory
+   - Uploads them as a batch for that specific language
+3. Reports total files uploaded across all languages
+
+This approach correctly handles projects with 200+ files across multiple languages by uploading each language separately.
 
 ## Checking Upload Status
 
