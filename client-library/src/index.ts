@@ -27,6 +27,7 @@ export interface ProjectMetadata {
 }
 
 export interface Config {
+  projectName?: string;
   sourceLanguage: string;
   targetLanguages: string[];
   outputPattern: string;
@@ -192,25 +193,32 @@ export async function processProject(
 }
 
 /**
- * Upload metadata to I18n Platform
+ * Upload metadata to I18n Platform using structured format
  */
 export async function uploadToPlatform(
+  projectName: string,
   metadata: ProjectMetadata,
   platformUrl: string,
-  apiKey: string
+  token: string
 ): Promise<void> {
-  const response = await fetch(`${platformUrl}/api/projects/upload`, {
+  const payload = {
+    branch: metadata.branch,
+    commitSha: metadata.commit,
+    files: metadata.files,
+  };
+
+  const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${token}`,
     },
-    body: JSON.stringify(metadata),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Upload failed: ${error}`);
+    const errorText = await response.text();
+    throw new Error(`Upload failed (${response.status}): ${errorText}`);
   }
 
   const result = await response.json();
@@ -227,7 +235,7 @@ export async function uploadJSONDirectly(
   language: string,
   files: Record<string, any>,
   platformUrl: string,
-  apiKey: string
+  token: string
 ): Promise<void> {
   const payload = {
     branch,
@@ -240,14 +248,14 @@ export async function uploadJSONDirectly(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`JSON upload failed: ${error}`);
+    const errorText = await response.text();
+    throw new Error(`JSON upload failed (${response.status}): ${errorText}`);
   }
 
   const result = await response.json();
@@ -262,7 +270,7 @@ export async function downloadFromPlatform(
   branch: string,
   language: string | undefined,
   platformUrl: string,
-  apiKey: string
+  token: string
 ): Promise<any> {
   let url = `${platformUrl}/api/projects/${projectName}/download?branch=${branch}`;
   if (language) {
@@ -272,40 +280,113 @@ export async function downloadFromPlatform(
   const response = await fetch(url, {
     method: 'GET',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${token}`,
     },
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Download failed: ${error}`);
+    const errorText = await response.text();
+    throw new Error(`Download failed (${response.status}): ${errorText}`);
   }
 
   return await response.json();
 }
 
 /**
+ * Parse command-line arguments
+ */
+function parseArgs(): {
+  configPath: string;
+  oidcToken?: string;
+  apiKey?: string;
+  projectName?: string;
+  platformUrl: string;
+} {
+  const args = process.argv.slice(2);
+  const result: any = {
+    configPath: '.koro-i18n.repo.config.toml',
+    platformUrl: process.env.I18N_PLATFORM_URL || 'https://koro.f3liz.workers.dev',
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const nextArg = args[i + 1];
+
+    if (arg === '--config-path' && nextArg) {
+      result.configPath = nextArg;
+      i++;
+    } else if (arg === '--oidc-token' && nextArg) {
+      result.oidcToken = nextArg;
+      i++;
+    } else if (arg === '--api-key' && nextArg) {
+      result.apiKey = nextArg;
+      i++;
+    } else if (arg === '--project-name' && nextArg) {
+      result.projectName = nextArg;
+      i++;
+    } else if (arg === '--platform-url' && nextArg) {
+      result.platformUrl = nextArg;
+      i++;
+    }
+  }
+
+  // Fall back to environment variables
+  if (!result.oidcToken) {
+    result.oidcToken = process.env.OIDC_TOKEN;
+  }
+  if (!result.apiKey) {
+    result.apiKey = process.env.I18N_PLATFORM_API_KEY;
+  }
+  if (!result.projectName) {
+    result.projectName = process.env.PROJECT_NAME;
+  }
+
+  return result;
+}
+
+/**
  * Main function for CLI
  */
 export async function main() {
+  const args = parseArgs();
+  
+  const token = args.oidcToken || args.apiKey;
+  if (!token) {
+    throw new Error('Either OIDC_TOKEN or I18N_PLATFORM_API_KEY environment variable is required, or pass --oidc-token or --api-key');
+  }
+
   const repository = process.env.GITHUB_REPOSITORY || 'unknown/unknown';
   const branch = process.env.GITHUB_REF_NAME || 'main';
   const commit = process.env.GITHUB_SHA || 'unknown';
-  const platformUrl = process.env.I18N_PLATFORM_URL || 'https://i18n-platform.workers.dev';
-  const apiKey = process.env.I18N_PLATFORM_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('I18N_PLATFORM_API_KEY environment variable is required');
-  }
 
   console.log('Processing translation files...');
-  const metadata = await processProject(repository, branch, commit);
+  console.log(`Repository: ${repository}`);
+  console.log(`Branch: ${branch}`);
+  console.log(`Commit: ${commit}`);
+  console.log(`Config path: ${args.configPath}`);
+  
+  const metadata = await processProject(repository, branch, commit, args.configPath);
   
   console.log(`Found ${metadata.files.length} translation files`);
-  console.log(`Languages: ${metadata.targetLanguages.join(', ')}`);
+  console.log(`Source language: ${metadata.sourceLanguage}`);
+  console.log(`Target languages: ${metadata.targetLanguages.join(', ')}`);
   
-  console.log('Uploading to platform...');
-  await uploadToPlatform(metadata, platformUrl, apiKey);
+  // Determine project name
+  let projectName = args.projectName;
+  if (!projectName) {
+    // Try to load from config
+    const config = loadConfig(args.configPath);
+    projectName = config.projectName || repository.split('/')[1] || repository;
+  }
+  
+  if (!projectName) {
+    throw new Error('Project name is required. Set PROJECT_NAME environment variable, pass --project-name, or add projectName to config file');
+  }
+  
+  console.log(`Project name: ${projectName}`);
+  console.log(`Uploading to: ${args.platformUrl}`);
+  
+  await uploadToPlatform(projectName, metadata, args.platformUrl, token);
   
   console.log('Done!');
 }

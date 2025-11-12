@@ -72,11 +72,12 @@ runs:
       env:
         I18N_PLATFORM_URL: ${{ inputs.platform-url }}
         OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        PROJECT_NAME: ${{ inputs.project-name }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_REF_NAME: ${{ github.ref_name }}
         GITHUB_SHA: ${{ github.sha }}
       run: |
-        i18n-upload --oidc-token "$OIDC_TOKEN"
+        i18n-upload --oidc-token "$OIDC_TOKEN" --project-name "$PROJECT_NAME" --config-path "${{ inputs.config-path }}" --platform-url "$I18N_PLATFORM_URL"
         echo "files-uploaded=0" >> $GITHUB_OUTPUT
         echo "status=success" >> $GITHUB_OUTPUT
 

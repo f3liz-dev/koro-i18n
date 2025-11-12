@@ -1,6 +1,9 @@
 # I18n Platform Configuration
 # This file configures how translation files are processed and uploaded
 
+# Project name on the platform (optional, defaults to repository name)
+projectName = "example-project"
+
 # Source language (the language you write your app in)
 sourceLanguage = "en"
 
