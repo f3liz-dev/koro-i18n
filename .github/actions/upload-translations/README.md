@@ -33,7 +33,7 @@ jobs:
 
 ### Direct JSON Upload Mode
 
-For simpler setups where you just want to upload JSON files directly:
+For simpler setups where you want to upload JSON files directly without structured processing:
 
 ```yaml
 name: Upload Translations
@@ -43,6 +43,7 @@ on:
     branches: [main]
     paths:
       - 'locales/**'
+      - '.koro-i18n.repo.config.toml'
 
 permissions:
   id-token: write  # Required for OIDC
@@ -59,6 +60,8 @@ jobs:
           project-name: my-project
           mode: json
 ```
+
+**Note:** JSON mode still requires `.koro-i18n.repo.config.toml` to determine source language and file patterns.
 
 ### Custom Platform URL
 
@@ -142,9 +145,20 @@ This ensures the platform has the current configuration to process your translat
 
 Direct JSON file upload without additional processing:
 - Simple and fast
-- No configuration file needed
+- Uses config file for source language and patterns
 - Automatically detects language from directory structure
 - Best for basic JSON translation files
+
+**Also requires `.koro-i18n.repo.config.toml`:**
+
+```toml
+sourceLanguage = "en"
+targetLanguages = ["ja", "es", "fr"]
+
+includePatterns = [
+  "locales/**/*.json"
+]
+```
 
 Expects files in structure like:
 ```
@@ -156,6 +170,8 @@ locales/
     common.json
     auth.json
 ```
+
+**Note:** JSON mode now reads the config file to determine the source language and file patterns, ensuring consistency across all upload modes.
 
 ## Checking Upload Status
 

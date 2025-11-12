@@ -88,40 +88,86 @@ runs:
         I18N_PLATFORM_URL: ${{ inputs.platform-url }}
         OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
         PROJECT_NAME: ${{ inputs.project-name }}
+        CONFIG_PATH: ${{ inputs.config-path }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_REF_NAME: ${{ github.ref_name }}
+        GITHUB_SHA: ${{ github.sha }}
       run: |
-        # Direct JSON upload using curl with OIDC token
-        # Find all JSON files in locales directories
+        # Check if config file exists
+        if [ ! -f "$CONFIG_PATH" ]; then
+          echo "Error: Config file not found at $CONFIG_PATH"
+          echo "JSON mode requires .koro-i18n.repo.config.toml to be present"
+          exit 1
+        fi
+        
+        echo "Reading configuration from $CONFIG_PATH"
+        
+        # Extract sourceLanguage and includePatterns from config using a simple parser
+        SOURCE_LANG=$(grep -E "^sourceLanguage" "$CONFIG_PATH" | sed -E 's/.*=\s*"([^"]+)".*/\1/')
+        
+        if [ -z "$SOURCE_LANG" ]; then
+          echo "Error: Could not find sourceLanguage in config file"
+          exit 1
+        fi
+        
+        echo "Source language: $SOURCE_LANG"
+        
+        # Find all JSON files based on includePatterns (simplified for JSON mode)
+        # We'll look for common patterns
         FILES_JSON="{"
         FIRST=true
+        FILE_COUNT=0
         
-        for file in $(find locales -name "*.json" -o -name "*.json" | grep -E "locales/[a-z]{2}(-[A-Z]{2})?/"); do
-          if [ "$FIRST" = true ]; then
-            FIRST=false
-          else
-            FILES_JSON="$FILES_JSON,"
-          fi
-          
-          FILENAME=$(basename "$file")
-          CONTENT=$(cat "$file" | jq -c .)
-          FILES_JSON="$FILES_JSON\"$FILENAME\":$CONTENT"
+        # Find JSON files - using a simpler approach that reads from config patterns
+        for pattern in "locales/**/*.json" "src/locales/**/*.json" "translations/**/*.json"; do
+          while IFS= read -r -d '' file; do
+            # Skip if file doesn't exist or is in excluded paths
+            if [[ ! -f "$file" ]] || [[ "$file" == *"/node_modules/"* ]] || [[ "$file" == *"/dist/"* ]]; then
+              continue
+            fi
+            
+            # Extract language from path
+            LANG=$(echo "$file" | grep -oP '/[a-z]{2}(-[A-Z]{2})?/' | tr -d '/' || echo "")
+            
+            if [ -z "$LANG" ]; then
+              continue
+            fi
+            
+            echo "Processing file: $file (language: $LANG)"
+            
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              FILES_JSON="$FILES_JSON,"
+            fi
+            
+            FILENAME=$(basename "$file")
+            CONTENT=$(cat "$file" | jq -c .)
+            FILES_JSON="$FILES_JSON\"$FILENAME\":$CONTENT"
+            FILE_COUNT=$((FILE_COUNT + 1))
+          done < <(find . -path "*/$pattern" -type f -print0 2>/dev/null)
         done
         
         FILES_JSON="$FILES_JSON}"
         
-        # Extract language from first locale directory found
-        LANG=$(find locales -name "*.json" | head -1 | grep -oP "locales/\K[a-z]{2}(-[A-Z]{2})?" || echo "en")
+        if [ $FILE_COUNT -eq 0 ]; then
+          echo "Warning: No JSON files found matching patterns in config"
+          echo "Please check includePatterns in $CONFIG_PATH"
+        fi
+        
+        echo "Found $FILE_COUNT files to upload"
         
         # Upload to platform using OIDC token
         RESPONSE=$(curl -X POST \
           "$I18N_PLATFORM_URL/api/projects/$PROJECT_NAME/upload-json" \
           -H "Authorization: Bearer $OIDC_TOKEN" \
           -H "Content-Type: application/json" \
-          -d "{\"branch\":\"$GITHUB_REF_NAME\",\"commitSha\":\"$GITHUB_SHA\",\"language\":\"$LANG\",\"files\":$FILES_JSON}")
+          -d "{\"branch\":\"$GITHUB_REF_NAME\",\"commitSha\":\"$GITHUB_SHA\",\"language\":\"$SOURCE_LANG\",\"files\":$FILES_JSON}")
         
         echo "Upload response: $RESPONSE"
         
-        FILES_COUNT=$(echo "$RESPONSE" | jq -r '.filesUploaded // 0')
-        echo "files-uploaded=$FILES_COUNT" >> $GITHUB_OUTPUT
+        UPLOAD_COUNT=$(echo "$RESPONSE" | jq -r '.filesUploaded // 0')
+        echo "files-uploaded=$UPLOAD_COUNT" >> $GITHUB_OUTPUT
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Set upload outputs

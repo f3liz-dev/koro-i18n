@@ -62,7 +62,7 @@ jobs:
         uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
         with:
           project-name: ${{ env.PROJECT_NAME }}
-          mode: json  # Use 'structured' if you have .koro-i18n.repo.config.toml
+          mode: json  # Both modes require .koro-i18n.repo.config.toml
 
   # Download completed translations
   download-translations:

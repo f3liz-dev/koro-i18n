@@ -67,7 +67,7 @@ jobs:
     mode: structured
 ```
 
-**JSON Mode:** Simple direct JSON upload
+**JSON Mode:** Simple direct JSON upload (also requires `.koro-i18n.repo.config.toml`)
 ```yaml
 - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
   with:
