@@ -22,12 +22,24 @@ class FetchCache {
         }
       });
       
-      // Also clear cache on manual navigation reload with force
-      const originalReload = window.location.reload.bind(window.location);
-      window.location.reload = (...args: any[]) => {
+      // Check if page was reloaded (either normal or hard reload)
+      // Using performance.navigation API or performance.getEntriesByType
+      const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+      if (navigation && navigation.type === 'reload') {
+        // Clear cache on any reload
         this.clear();
-        return originalReload(...args);
-      };
+      }
+      
+      // Also detect page visibility changes after being hidden (could indicate reload)
+      let wasHidden = false;
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          wasHidden = true;
+        } else if (wasHidden) {
+          // Page became visible after being hidden - could be a reload scenario
+          wasHidden = false;
+        }
+      });
     }
   }
   

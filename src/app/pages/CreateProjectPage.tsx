@@ -34,8 +34,7 @@ export default function CreateProjectPage() {
       });
 
       if (res.ok) {
-        const data = await res.json();
-        console.log('Project created:', data);
+        await res.json();
         // Navigate to the project page
         navigate(`/projects/${projectName()}`);
       } else {
