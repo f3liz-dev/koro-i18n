@@ -2,6 +2,7 @@ import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { addPrefetchLink } from '../utils/prefetch';
+import { cachedFetch } from '../utils/cache';
 
 interface Project {
   id: string;
@@ -29,7 +30,10 @@ export default function LanguageSelectionPage() {
 
   const loadProject = async () => {
     try {
-      const res = await fetch('/api/projects', { credentials: 'include' });
+      const res = await cachedFetch('/api/projects', { 
+        credentials: 'include',
+        cacheTTL: 300000, // 5 minutes cache
+      });
       if (res.ok) {
         const data = await res.json() as { projects: Project[] };
         const proj = data.projects.find((p: any) => p.name === params.id);
@@ -46,8 +50,9 @@ export default function LanguageSelectionPage() {
   const loadLanguages = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`/api/projects/${params.id}/files/summary`, {
-        credentials: 'include'
+      const res = await cachedFetch(`/api/projects/${params.id}/files/summary`, {
+        credentials: 'include',
+        cacheTTL: 600000, // 10 minutes cache
       });
       
       if (res.ok) {

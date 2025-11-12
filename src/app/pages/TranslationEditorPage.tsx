@@ -5,6 +5,7 @@ import TranslationEditorHeader from '../components/TranslationEditorHeader';
 import TranslationEditorPanel from '../components/TranslationEditorPanel';
 import TranslationList from '../components/TranslationList';
 import MobileMenuOverlay from '../components/MobileMenuOverlay';
+import { cachedFetch, mutate } from '../utils/cache';
 
 interface Translation {
   id: string;
@@ -34,16 +35,16 @@ interface Project {
 }
 
 async function fetchProjectTranslations(projectId: string, language: string) {
-  const response = await fetch(
+  const response = await cachedFetch(
     `/api/translations?projectId=${encodeURIComponent(projectId)}&language=${language}&status=pending`,
-    { credentials: 'include' }
+    { credentials: 'include', cacheTTL: 60000 } // 1 minute cache
   );
   if (!response.ok) throw new Error('Failed to fetch translations');
   return response.json();
 }
 
 async function submitTranslation(projectId: string, language: string, key: string, value: string) {
-  const response = await fetch('/api/translations', {
+  const response = await mutate('/api/translations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -55,8 +56,9 @@ async function submitTranslation(projectId: string, language: string, key: strin
 
 async function fetchHistory(projectId: string, language: string, key: string) {
   const params = new URLSearchParams({ projectId, language, key });
-  const response = await fetch(`/api/translations/history?${params}`, {
+  const response = await cachedFetch(`/api/translations/history?${params}`, {
     credentials: 'include',
+    cacheTTL: 60000, // 1 minute cache
   });
   if (!response.ok) throw new Error('Failed to fetch history');
   return response.json();
@@ -86,7 +88,10 @@ export default function TranslationEditorPage() {
   // Load project to get source language
   const loadProject = async () => {
     try {
-      const res = await fetch('/api/projects', { credentials: 'include' });
+      const res = await cachedFetch('/api/projects', { 
+        credentials: 'include',
+        cacheTTL: 300000, // 5 minutes cache
+      });
       if (res.ok) {
         const data = await res.json() as { projects: Project[] };
         const proj = data.projects.find((p: any) => p.name === projectId());
@@ -118,7 +123,10 @@ export default function TranslationEditorPage() {
         targetUrl += `&filename=${encodeURIComponent(targetFilename)}`;
       }
       
-      const sourceRes = await fetch(sourceUrl, { credentials: 'include' });
+      const sourceRes = await cachedFetch(sourceUrl, { 
+        credentials: 'include',
+        cacheTTL: 600000, // 10 minutes cache
+      });
       
       if (!sourceRes.ok) {
         const errorText = await sourceRes.text();
@@ -129,7 +137,10 @@ export default function TranslationEditorPage() {
       const sourceData = await sourceRes.json() as { files: any[] };
       const sourceFiles = sourceData.files || [];
       
-      const targetRes = await fetch(targetUrl, { credentials: 'include' });
+      const targetRes = await cachedFetch(targetUrl, { 
+        credentials: 'include',
+        cacheTTL: 600000, // 10 minutes cache
+      });
       
       const targetData = targetRes.ok ? (await targetRes.json() as { files: any[] }) : { files: [] };
       const targetFiles = targetData.files || [];
