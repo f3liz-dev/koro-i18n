@@ -85,6 +85,7 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
 
     const projectId = c.req.query('projectId');
     const language = c.req.query('language');
+    const key = c.req.query('key');
 
     if (!projectId) {
       return c.json({ error: 'Missing projectId parameter' }, 400);
@@ -92,6 +93,7 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
 
     const where: any = { projectId, status: { not: 'deleted' } };
     if (language) where.language = language;
+    if (key) where.key = key;
 
     const suggestions = await prisma.translation.findMany({
       where,

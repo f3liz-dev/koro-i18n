@@ -54,13 +54,31 @@ async function submitTranslation(projectId: string, language: string, key: strin
   return response.json();
 }
 
-async function fetchHistory(projectId: string, language: string, key: string) {
+async function fetchSuggestions(projectId: string, language: string, key: string) {
   const params = new URLSearchParams({ projectId, language, key });
-  const response = await cachedFetch(`/api/translations/history?${params}`, {
+  const response = await cachedFetch(`/api/translations/suggestions?${params}`, {
     credentials: 'include',
     cacheTTL: 60000, // 1 minute cache
   });
-  if (!response.ok) throw new Error('Failed to fetch history');
+  if (!response.ok) throw new Error('Failed to fetch suggestions');
+  return response.json();
+}
+
+async function approveSuggestion(id: string) {
+  const response = await mutate(`/api/translations/${id}/approve`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!response.ok) throw new Error('Failed to approve suggestion');
+  return response.json();
+}
+
+async function rejectSuggestion(id: string) {
+  const response = await mutate(`/api/translations/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!response.ok) throw new Error('Failed to reject suggestion');
   return response.json();
 }
 
@@ -77,7 +95,7 @@ export default function TranslationEditorPage() {
   const [translationValue, setTranslationValue] = createSignal('');
   const [searchQuery, setSearchQuery] = createSignal('');
   const [filterStatus, setFilterStatus] = createSignal<'all' | 'pending' | 'approved' | 'committed'>('all');
-  const [showHistory, setShowHistory] = createSignal(true); // Show history by default
+  const [showSuggestions, setShowSuggestions] = createSignal(true); // Show suggestions by default
   const [autoSaveTimer, setAutoSaveTimer] = createSignal<number | null>(null);
   const [showMobileMenu, setShowMobileMenu] = createSignal(false);
 
@@ -209,13 +227,13 @@ export default function TranslationEditorPage() {
     (params) => fetchProjectTranslations(params.projectId, params.language)
   );
 
-  // Always fetch history when a key is selected
-  const [history, { refetch: refetchHistory }] = createResource(
+  // Always fetch suggestions when a key is selected
+  const [suggestions, { refetch: refetchSuggestions }] = createResource(
     () => {
       const key = selectedKey();
       return key ? { projectId: projectId(), language: language(), key } : null;
     },
-    (params) => params ? fetchHistory(params.projectId, params.language, params.key) : null
+    (params) => params ? fetchSuggestions(params.projectId, params.language, params.key) : null
   );
 
   const filteredStrings = () => {
@@ -253,15 +271,15 @@ export default function TranslationEditorPage() {
     // Release navigation lock immediately so user can navigate
     setTimeout(() => setIsNavigating(false), 100);
     
-    // Fetch history in the background to get the latest suggestion
+    // Fetch suggestions in the background to get the latest suggestion
     // This won't block navigation
-    fetchHistory(projectId(), language(), key)
-      .then((historyData: any) => {
-        const historyEntries = historyData?.history || [];
+    fetchSuggestions(projectId(), language(), key)
+      .then((suggestionsData: any) => {
+        const suggestionEntries = suggestionsData?.suggestions || [];
         
-        // Find the latest submitted or approved translation (not deleted/rejected)
-        const latestSuggestion = historyEntries.find((entry: any) => 
-          entry.action === 'submitted' || entry.action === 'approved'
+        // Find the latest approved or pending translation (not deleted/rejected)
+        const latestSuggestion = suggestionEntries.find((entry: any) => 
+          entry.status === 'approved' || entry.status === 'pending'
         );
         
         if (latestSuggestion) {
@@ -273,16 +291,42 @@ export default function TranslationEditorPage() {
         }
       })
       .catch((error) => {
-        console.error('Failed to fetch history:', error);
+        console.error('Failed to fetch suggestions:', error);
         // Already have fallback value set, so no action needed
       });
     
-    // Trigger history refetch for the panel
-    refetchHistory();
+    // Trigger suggestions refetch for the panel
+    refetchSuggestions();
   };
 
-  const handleToggleHistory = () => {
-    setShowHistory(!showHistory());
+  const handleToggleSuggestions = () => {
+    setShowSuggestions(!showSuggestions());
+  };
+
+  const handleApproveSuggestion = async (id: string) => {
+    try {
+      await approveSuggestion(id);
+      refetchSuggestions();
+      alert('Suggestion approved successfully!');
+    } catch (error) {
+      console.error('Failed to approve suggestion:', error);
+      alert('Failed to approve suggestion');
+    }
+  };
+
+  const handleRejectSuggestion = async (id: string) => {
+    if (!confirm('Are you sure you want to reject this suggestion?')) {
+      return;
+    }
+
+    try {
+      await rejectSuggestion(id);
+      refetchSuggestions();
+      alert('Suggestion rejected successfully!');
+    } catch (error) {
+      console.error('Failed to reject suggestion:', error);
+      alert('Failed to reject suggestion');
+    }
   };
 
   const handleSave = async () => {
@@ -386,14 +430,16 @@ export default function TranslationEditorPage() {
             translationStrings={translationStrings()}
             language={language()}
             translationValue={translationValue()}
-            showHistory={showHistory()}
-            history={(history() as any)?.history}
-            isLoadingHistory={history.loading}
+            showSuggestions={showSuggestions()}
+            suggestions={(suggestions() as any)?.suggestions}
+            isLoadingSuggestions={suggestions.loading}
             currentIndex={getCurrentIndex()}
             totalCount={filteredStrings().length}
             onTranslationChange={handleTranslationChange}
             onSave={handleSave}
-            onToggleHistory={handleToggleHistory}
+            onToggleSuggestions={handleToggleSuggestions}
+            onApproveSuggestion={handleApproveSuggestion}
+            onRejectSuggestion={handleRejectSuggestion}
             onPrevious={handlePrevious}
             onNext={handleNext}
           />

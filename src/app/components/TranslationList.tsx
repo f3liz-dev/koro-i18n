@@ -1,9 +1,10 @@
-import { For, Show } from 'solid-js';
+import { For, Show, createSignal } from 'solid-js';
 
 interface TranslationString {
   key: string;
   sourceValue: string;
   currentValue?: string;
+  suggestionStatus?: 'none' | 'pending' | 'approved';
 }
 
 interface TranslationListProps {
@@ -14,13 +15,91 @@ interface TranslationListProps {
   onSelectKey: (key: string) => void;
 }
 
+type SortOrder = 'default' | 'alphabetical' | 'completion';
+type FilterType = 'all' | 'noSuggestion' | 'pending' | 'approved';
+
 export default function TranslationList(props: TranslationListProps) {
+  const [sortOrder, setSortOrder] = createSignal<SortOrder>('default');
+  const [filterType, setFilterType] = createSignal<FilterType>('all');
+
+  const getSuggestionStatus = (str: TranslationString): 'none' | 'pending' | 'approved' => {
+    // This is a simplified check - in a real implementation, this would come from API data
+    // For now, we assume: currentValue = approved, no currentValue = none
+    // The parent component should ideally pass this information
+    return str.suggestionStatus || (str.currentValue ? 'approved' : 'none');
+  };
+
+  const sortedAndFilteredStrings = () => {
+    let filtered = props.translationStrings;
+    
+    // Apply filter
+    const filter = filterType();
+    if (filter !== 'all') {
+      filtered = filtered.filter(str => {
+        const status = getSuggestionStatus(str);
+        if (filter === 'noSuggestion') return status === 'none';
+        if (filter === 'pending') return status === 'pending';
+        if (filter === 'approved') return status === 'approved';
+        return true;
+      });
+    }
+    
+    // Apply sort
+    const sort = sortOrder();
+    const sorted = [...filtered];
+    
+    if (sort === 'default') {
+      // Default: not suggested first, pending second, approved third
+      sorted.sort((a, b) => {
+        const statusA = getSuggestionStatus(a);
+        const statusB = getSuggestionStatus(b);
+        const orderMap = { 'none': 0, 'pending': 1, 'approved': 2 };
+        return orderMap[statusA] - orderMap[statusB];
+      });
+    } else if (sort === 'alphabetical') {
+      sorted.sort((a, b) => a.key.localeCompare(b.key));
+    } else if (sort === 'completion') {
+      sorted.sort((a, b) => {
+        const aComplete = a.currentValue ? 1 : 0;
+        const bComplete = b.currentValue ? 1 : 0;
+        return aComplete - bComplete; // Incomplete first
+      });
+    }
+    
+    return sorted;
+  };
+
   return (
     <div class="bg-white rounded-lg shadow flex-1 lg:h-[calc(100vh-200px)] lg:sticky lg:top-20 flex flex-col overflow-hidden">
       <div class="p-2 lg:p-4 border-b flex-shrink-0">
-        <h2 class="text-base lg:text-lg font-semibold">Translation Strings</h2>
-        <p class="text-xs lg:text-sm text-gray-600">
-          {props.translationStrings.length} strings
+        <h2 class="text-base lg:text-lg font-semibold mb-2">Translation Strings</h2>
+        
+        {/* Filter and Sort Controls */}
+        <div class="space-y-2">
+          <select
+            value={sortOrder()}
+            onChange={(e) => setSortOrder(e.currentTarget.value as SortOrder)}
+            class="w-full px-2 py-1 text-xs lg:text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="default">Sort: Default (No suggestion first)</option>
+            <option value="alphabetical">Sort: Alphabetical</option>
+            <option value="completion">Sort: Completion status</option>
+          </select>
+          
+          <select
+            value={filterType()}
+            onChange={(e) => setFilterType(e.currentTarget.value as FilterType)}
+            class="w-full px-2 py-1 text-xs lg:text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="all">Filter: All</option>
+            <option value="noSuggestion">Filter: No suggestion</option>
+            <option value="pending">Filter: Pending suggestions</option>
+            <option value="approved">Filter: Approved</option>
+          </select>
+        </div>
+        
+        <p class="text-xs lg:text-sm text-gray-600 mt-2">
+          {sortedAndFilteredStrings().length} of {props.translationStrings.length} strings
         </p>
       </div>
       <div class="divide-y overflow-y-auto flex-1">
@@ -30,13 +109,13 @@ export default function TranslationList(props: TranslationListProps) {
             <p class="text-sm lg:text-base">Loading...</p>
           </div>
         </Show>
-        <Show when={!props.isLoading && props.translationStrings.length === 0}>
+        <Show when={!props.isLoading && sortedAndFilteredStrings().length === 0}>
           <div class="p-4 lg:p-8 text-center text-gray-500">
-            <p class="mb-1 lg:mb-2 text-sm lg:text-base">No translation files found</p>
-            <p class="text-xs lg:text-sm">Upload files first</p>
+            <p class="mb-1 lg:mb-2 text-sm lg:text-base">No translation strings match the filter</p>
+            <p class="text-xs lg:text-sm">Try changing the filter settings</p>
           </div>
         </Show>
-        <For each={props.translationStrings}>
+        <For each={sortedAndFilteredStrings()}>
           {(str) => (
             <div
               class={`p-3 lg:p-4 cursor-pointer hover:bg-gray-50 transition ${
