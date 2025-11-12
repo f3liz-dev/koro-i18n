@@ -47,7 +47,7 @@ export default function FileSelectionPage() {
   const loadFiles = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`/api/projects/${params.id}/files`, {
+      const res = await fetch(`/api/projects/${params.id}/files/summary`, {
         credentials: 'include'
       });
       
@@ -69,8 +69,8 @@ export default function FileSelectionPage() {
         const stats: FileStats[] = [];
         
         for (const sourceFile of sourceFiles) {
-          const sourceContents = sourceFile.contents || {};
-          const sourceKeys = Object.keys(sourceContents);
+          const sourceStatus = sourceFile.translationStatus || {};
+          const sourceKeys = Object.keys(sourceStatus);
           const totalKeys = sourceKeys.length;
           
           console.log(`File ${sourceFile.filename}: ${totalKeys} keys`);
@@ -80,11 +80,11 @@ export default function FileSelectionPage() {
           let translatedKeys = 0;
           
           if (targetFile) {
-            const targetContents = targetFile.contents || {};
+            const targetStatus = targetFile.translationStatus || {};
             
             // Count how many source keys have translations
             for (const key of sourceKeys) {
-              if (targetContents[key] && targetContents[key] !== '') {
+              if (targetStatus[key]) {
                 translatedKeys++;
               }
             }
