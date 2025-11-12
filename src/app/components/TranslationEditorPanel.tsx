@@ -1,5 +1,5 @@
 import { Show } from 'solid-js';
-import TranslationHistoryPanel from './TranslationHistoryPanel';
+import TranslationSuggestionsPanel from './TranslationSuggestionsPanel';
 
 interface TranslationString {
   key: string;
@@ -7,15 +7,18 @@ interface TranslationString {
   currentValue?: string;
 }
 
-interface HistoryEntry {
+interface SuggestionEntry {
   id: string;
+  projectId: string;
+  language: string;
+  key: string;
   value: string;
   userId: string;
   username?: string;
   avatarUrl?: string;
-  action: string;
-  commitSha?: string;
+  status: 'pending' | 'approved' | 'committed' | 'rejected' | 'deleted';
   createdAt: string;
+  updatedAt: string;
 }
 
 interface TranslationEditorPanelProps {
@@ -23,14 +26,16 @@ interface TranslationEditorPanelProps {
   translationStrings: TranslationString[];
   language: string;
   translationValue: string;
-  showHistory: boolean;
-  history: HistoryEntry[] | undefined;
-  isLoadingHistory: boolean;
+  showSuggestions: boolean;
+  suggestions: SuggestionEntry[] | undefined;
+  isLoadingSuggestions: boolean;
   currentIndex: number;
   totalCount: number;
   onTranslationChange: (value: string) => void;
   onSave: () => void;
-  onToggleHistory: () => void;
+  onToggleSuggestions: () => void;
+  onApproveSuggestion?: (id: string) => void;
+  onRejectSuggestion?: (id: string) => void;
   onPrevious: () => void;
   onNext: () => void;
 }
@@ -48,10 +53,10 @@ export default function TranslationEditorPanel(props: TranslationEditorPanelProp
             </code>
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 lg:gap-3">
               <button
-                onClick={props.onToggleHistory}
+                onClick={props.onToggleSuggestions}
                 class="text-xs lg:text-sm text-blue-600 hover:text-blue-800"
               >
-                {props.showHistory ? 'Hide' : 'Show'} History
+                {props.showSuggestions ? 'Hide' : 'Show'} Suggestions
               </button>
               <div class="flex items-center gap-2">
                 <button
@@ -131,11 +136,13 @@ export default function TranslationEditorPanel(props: TranslationEditorPanelProp
             </div>
           </div>
 
-          {/* History Panel */}
-          <TranslationHistoryPanel
-            show={props.showHistory}
-            history={props.history}
-            isLoading={props.isLoadingHistory}
+          {/* Suggestions Panel */}
+          <TranslationSuggestionsPanel
+            show={props.showSuggestions}
+            suggestions={props.suggestions}
+            isLoading={props.isLoadingSuggestions}
+            onApprove={props.onApproveSuggestion}
+            onReject={props.onRejectSuggestion}
           />
         </div>
       ) : (
