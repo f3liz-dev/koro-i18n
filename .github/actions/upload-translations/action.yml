@@ -200,7 +200,7 @@ runs:
         
         # Create a temporary file for the JSON payload
         TEMP_PAYLOAD=$(mktemp)
-        echo "{\"branch\":\"$GITHUB_REF_NAME\",\"commitSha\":\"$GITHUB_SHA\",\"files\":$FILES_JSON}" > "$TEMP_PAYLOAD"
+        echo "{\"branch\":\"$GITHUB_REF_NAME\",\"commitSha\":\"$GITHUB_SHA\",\"sourceLanguage\":\"$SOURCE_LANG\",\"files\":$FILES_JSON}" > "$TEMP_PAYLOAD"
         
         # Check payload size
         PAYLOAD_SIZE=$(stat -f%z "$TEMP_PAYLOAD" 2>/dev/null || stat -c%s "$TEMP_PAYLOAD" 2>/dev/null)
