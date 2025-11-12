@@ -9,9 +9,8 @@ Production-ready internationalization platform with GitHub OAuth, project manage
 wrangler d1 create koro-i18n-db
 # Update wrangler.toml with database_id
 
-# 2. Initialize schema
-npm run db:init
-npm run db:migrate
+# 2. Apply Prisma migrations
+pnpm run prisma:migrate:remote
 
 # 3. Set secrets
 wrangler secret put GITHUB_CLIENT_ID
@@ -187,7 +186,8 @@ wrangler tail --config wrangler.cron.toml
 
 ### Database Errors
 ```bash
-wrangler d1 execute koro-i18n-db --file=schema.sql
+# Apply Prisma migrations
+pnpm run prisma:migrate:remote
 ```
 
 ## Security
@@ -207,7 +207,7 @@ wrangler d1 execute koro-i18n-db --file=schema.sql
 - `CLIENT_SETUP.md` - Client repository setup
 - `GITHUB_ACTIONS.md` - GitHub Actions integration guide
 - `GETTING_TRANSLATIONS.md` - Guide for getting translations in different languages
-- `migrate-project-members.sql` - Database migration
+- `PRISMA.md` - Prisma ORM integration documentation
 
 ---
 

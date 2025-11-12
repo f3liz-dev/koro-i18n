@@ -15,11 +15,8 @@ The `example-project/` directory contains a complete example with:
 ### 1. Initialize Local Database
 
 ```bash
-# Initialize schema (if not done already)
-npx wrangler d1 execute koro-i18n-db --file=schema.sql --local
-
-# Run migration for project management
-npx wrangler d1 execute koro-i18n-db --file=docs/migrate-project-members.sql --local
+# Apply Prisma migrations (if not done already)
+npx wrangler d1 migrations apply koro-i18n-db --local
 ```
 
 ### 2. Start Platform Locally
@@ -154,19 +151,19 @@ wrangler dev --config wrangler.cron.toml
 
 ```bash
 # View all translations
-npm run db:query -- --command="SELECT * FROM translations" --local
+wrangler d1 execute koro-i18n-db --command="SELECT * FROM Translation" --local
 
 # View by status
-npm run db:query -- --command="SELECT status, COUNT(*) FROM translations GROUP BY status" --local
+wrangler d1 execute koro-i18n-db --command="SELECT status, COUNT(*) FROM Translation GROUP BY status" --local
 
 # View history
-npm run db:query -- --command="SELECT * FROM translation_history ORDER BY createdAt DESC LIMIT 10" --local
+wrangler d1 execute koro-i18n-db --command="SELECT * FROM TranslationHistory ORDER BY createdAt DESC LIMIT 10" --local
 
 # View projects
-npm run db:query -- --command="SELECT * FROM projects" --local
+wrangler d1 execute koro-i18n-db --command="SELECT * FROM Project" --local
 
 # View project members
-npm run db:query -- --command="SELECT * FROM project_members" --local
+wrangler d1 execute koro-i18n-db --command="SELECT * FROM ProjectMember" --local
 ```
 
 ## Test Project Management
@@ -228,14 +225,14 @@ npm run db:query -- --command="SELECT * FROM project_members" --local
 wrangler tail
 
 # Verify project exists
-npm run db:query -- --command="SELECT * FROM projects WHERE name='example-project'" --local
+wrangler d1 execute koro-i18n-db --command="SELECT * FROM Project WHERE name='example-project'" --local
 ```
 
 ### Files Not Showing
 
 ```bash
 # Check project_files table
-npm run db:query -- --command="SELECT * FROM project_files WHERE projectId='example-project'" --local
+wrangler d1 execute koro-i18n-db --command="SELECT * FROM ProjectFile WHERE projectId='example-project'" --local
 ```
 
 ### Cron Not Running
@@ -245,7 +242,7 @@ npm run db:query -- --command="SELECT * FROM project_files WHERE projectId='exam
 wrangler tail --config wrangler.cron.toml
 
 # Verify approved translations exist
-npm run db:query -- --command="SELECT * FROM translations WHERE status='approved'" --local
+wrangler d1 execute koro-i18n-db --command="SELECT * FROM Translation WHERE status='approved'" --local
 ```
 
 ## Performance Testing
@@ -262,29 +259,29 @@ for i in {1..100}; do
 done
 
 # Check database
-npm run db:query -- --command="SELECT COUNT(*) FROM translations" --local
+wrangler d1 execute koro-i18n-db --command="SELECT COUNT(*) FROM Translation" --local
 ```
 
 ### Batch Commit Test
 
 ```bash
 # Approve all pending
-npm run db:query -- --command="UPDATE translations SET status='approved' WHERE status='pending'" --local
+wrangler d1 execute koro-i18n-db --command="UPDATE Translation SET status='approved' WHERE status='pending'" --local
 
 # Trigger cron
 curl http://localhost:8787/cron/commit-translations
 
 # Verify all committed
-npm run db:query -- --command="SELECT status, COUNT(*) FROM translations GROUP BY status" --local
+wrangler d1 execute koro-i18n-db --command="SELECT status, COUNT(*) FROM Translation GROUP BY status" --local
 ```
 
 ## Clean Up
 
 ```bash
 # Delete test data
-npm run db:query -- --command="DELETE FROM translations WHERE projectId='example-project'" --local
-npm run db:query -- --command="DELETE FROM project_files WHERE projectId='example-project'" --local
-npm run db:query -- --command="DELETE FROM projects WHERE name='example-project'" --local
+wrangler d1 execute koro-i18n-db --command="DELETE FROM Translation WHERE projectId='example-project'" --local
+wrangler d1 execute koro-i18n-db --command="DELETE FROM ProjectFile WHERE projectId='example-project'" --local
+wrangler d1 execute koro-i18n-db --command="DELETE FROM Project WHERE name='example-project'" --local
 ```
 
 ---

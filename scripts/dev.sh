@@ -26,7 +26,7 @@ read -p "Enter choice [1-2]: " choice
 case $choice in
     1)
         echo "🔧 Starting Cloudflare Workers..."
-        echo "📝 Make sure you've run: wrangler d1 execute i18n-platform-db-dev --file=schema.sql --local"
+        echo "📝 Make sure you've run: wrangler d1 migrations apply koro-i18n-db --local"
         echo ""
         echo "Starting worker on http://localhost:8787"
         echo "Frontend will be on http://localhost:5173"
