@@ -82,7 +82,12 @@ async function serveStatic(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   let path = url.pathname;
   
-  if (path === '/' || (!path.startsWith('/api') && !path.includes('.'))) {
+  // Check if this is a request for a static asset (files with extensions in /assets or root-level static files)
+  const isStaticAsset = path.startsWith('/assets/') || 
+                        /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(path);
+  
+  // For SPA routes (non-static assets), serve index.html
+  if (path === '/' || (!path.startsWith('/api') && !isStaticAsset)) {
     path = '/index.html';
   }
 

@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Lightweight internationalization platform with GitHub integration" />
     <title>Koro i18n :3</title>
+    
+    <!-- Prefetch common API endpoints -->
+    <link rel="prefetch" href="/api/auth/me" as="fetch" crossorigin="use-credentials" />
+    <link rel="prefetch" href="/api/projects" as="fetch" crossorigin="use-credentials" />
   </head>
   <body>
     <div id="app"></div>

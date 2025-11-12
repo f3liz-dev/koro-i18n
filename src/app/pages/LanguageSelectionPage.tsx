@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
+import { addPrefetchLink } from '../utils/prefetch';
 
 interface Project {
   id: string;
@@ -126,6 +127,12 @@ export default function LanguageSelectionPage() {
   onMount(() => {
     auth.refresh();
     loadProject();
+    
+    // Prefetch summary endpoint for this project
+    const projectId = params.id;
+    if (projectId) {
+      addPrefetchLink(`/api/projects/${projectId}/files/summary`, 'fetch');
+    }
   });
 
   // Load languages after project is loaded

@@ -298,4 +298,117 @@ describe('API Endpoints', () => {
       expect(true).toBe(true); // Documentation test
     });
   });
+
+  describe('SPA Routing', () => {
+    it('should serve index.html for SPA routes with file extensions in path', async () => {
+      // This test verifies the fix for the 404 issue when reloading URLs like:
+      // /projects/floorp-i18n-unofficial/translate/ko-KR/main-browser-chrome.json
+      
+      const mockEnv = {
+        ...createMockEnv(),
+        ASSETS: {
+          fetch: async (request: Request | URL) => {
+            const url = typeof request === 'string' ? new URL(request) : request instanceof URL ? request : new URL(request.url);
+            if (url.pathname === '/index.html') {
+              return new Response('<html><body>SPA</body></html>', {
+                status: 200,
+                headers: { 'Content-Type': 'text/html' },
+              });
+            }
+            throw new Error('Not found: ' + url.pathname);
+          },
+        } as unknown as Fetcher,
+      };
+
+      const workerModule = await import('./workers');
+      
+      // Test SPA route with .json in the path (the reported bug)
+      const req1 = new Request('http://localhost/projects/floorp-i18n-unofficial/translate/ko-KR/main-browser-chrome.json');
+      const res1 = await workerModule.default.fetch(req1, mockEnv as any, {} as ExecutionContext);
+      expect(res1.status).toBe(200);
+      const text1 = await res1.text();
+      expect(text1).toContain('SPA');
+
+      // Test another SPA route with .json
+      const req2 = new Request('http://localhost/projects/test-project/translate/en-US/auth.json');
+      const res2 = await workerModule.default.fetch(req2, mockEnv as any, {} as ExecutionContext);
+      expect(res2.status).toBe(200);
+      const text2 = await res2.text();
+      expect(text2).toContain('SPA');
+    });
+
+    it('should serve index.html for SPA routes without file extensions', async () => {
+      const mockEnv = {
+        ...createMockEnv(),
+        ASSETS: {
+          fetch: async (request: Request | URL) => {
+            const url = typeof request === 'string' ? new URL(request) : request instanceof URL ? request : new URL(request.url);
+            if (url.pathname === '/index.html') {
+              return new Response('<html><body>SPA</body></html>', {
+                status: 200,
+                headers: { 'Content-Type': 'text/html' },
+              });
+            }
+            throw new Error('Not found');
+          },
+        } as unknown as Fetcher,
+      };
+
+      const workerModule = await import('./workers');
+      
+      // Test regular SPA routes
+      const req1 = new Request('http://localhost/projects/test-project');
+      const res1 = await workerModule.default.fetch(req1, mockEnv as any, {} as ExecutionContext);
+      expect(res1.status).toBe(200);
+
+      const req2 = new Request('http://localhost/dashboard');
+      const res2 = await workerModule.default.fetch(req2, mockEnv as any, {} as ExecutionContext);
+      expect(res2.status).toBe(200);
+    });
+
+    it('should try to serve actual static assets', async () => {
+      const mockEnv = {
+        ...createMockEnv(),
+        ASSETS: {
+          fetch: async (request: Request | URL) => {
+            const url = typeof request === 'string' ? new URL(request) : request instanceof URL ? request : new URL(request.url);
+            if (url.pathname === '/assets/app.js') {
+              return new Response('console.log("app")', {
+                status: 200,
+                headers: { 'Content-Type': 'application/javascript' },
+              });
+            }
+            if (url.pathname === '/index.html') {
+              return new Response('<html><body>SPA</body></html>', {
+                status: 200,
+                headers: { 'Content-Type': 'text/html' },
+              });
+            }
+            throw new Error('Not found');
+          },
+        } as unknown as Fetcher,
+      };
+
+      const workerModule = await import('./workers');
+      
+      // Test that actual static assets are served
+      const req = new Request('http://localhost/assets/app.js');
+      const res = await workerModule.default.fetch(req, mockEnv as any, {} as ExecutionContext);
+      expect(res.status).toBe(200);
+      const text = await res.text();
+      expect(text).toContain('console.log');
+    });
+
+    it('should not serve index.html for API routes', async () => {
+      const env = createMockEnv();
+      const workerModule = await import('./workers');
+      
+      // API routes should go through the API handler, not serveStatic
+      const req = new Request('http://localhost/api/projects');
+      const res = await workerModule.default.fetch(req, env, {} as ExecutionContext);
+      
+      // Should get 401 (unauthorized) not 404 or index.html
+      expect(res.status).toBe(401);
+    });
+  });
 });
