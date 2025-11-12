@@ -4,6 +4,7 @@ import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { Octokit } from '@octokit/rest';
 import { PrismaClient } from '../generated/prisma/';
 import { createJWT, verifyJWT, extractToken, requireAuth } from '../lib/auth';
+import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 
 interface Env {
   DB: D1Database;
@@ -111,13 +112,15 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
     
-    return c.json({ 
+    const response = c.json({ 
       user: { 
         id: payload.userId, 
         username: payload.username, 
         githubId: payload.githubId 
       } 
     });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.user));
+    return response;
   });
 
   app.post('/logout', async (c) => {

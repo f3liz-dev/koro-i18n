@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { PrismaClient } from '../generated/prisma/';
 import { requireAuth } from '../lib/auth';
 import { logTranslationHistory } from '../lib/database';
+import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 
 interface Env {
   JWT_SECRET: string;
@@ -48,7 +49,9 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       take: 100,
     });
 
-    return c.json({ translations });
+    const response = c.json({ translations });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translations));
+    return response;
   });
 
   app.get('/history', async (c) => {
@@ -71,7 +74,9 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return c.json({ history });
+    const response = c.json({ history });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translations));
+    return response;
   });
 
   app.get('/suggestions', async (c) => {
@@ -97,7 +102,9 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       take: 500,
     });
 
-    return c.json({ suggestions });
+    const response = c.json({ suggestions });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translations));
+    return response;
   });
 
   app.post('/:id/approve', async (c) => {
