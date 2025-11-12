@@ -72,11 +72,12 @@ runs:
       env:
         I18N_PLATFORM_URL: ${{ inputs.platform-url }}
         OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        PROJECT_NAME: ${{ inputs.project-name }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_REF_NAME: ${{ github.ref_name }}
         GITHUB_SHA: ${{ github.sha }}
       run: |
-        i18n-upload --oidc-token "$OIDC_TOKEN"
+        i18n-upload --oidc-token "$OIDC_TOKEN" --project-name "$PROJECT_NAME" --config-path "${{ inputs.config-path }}" --platform-url "$I18N_PLATFORM_URL"
         echo "files-uploaded=0" >> $GITHUB_OUTPUT
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -102,7 +103,7 @@ runs:
         
         echo "Reading configuration from $CONFIG_PATH"
         
-        # Extract sourceLanguage and includePatterns from config using a simple parser
+        # Extract sourceLanguage from config
         SOURCE_LANG=$(grep -E "^sourceLanguage" "$CONFIG_PATH" | sed -E 's/.*=\s*"([^"]+)".*/\1/')
         
         if [ -z "$SOURCE_LANG" ]; then
@@ -112,70 +113,143 @@ runs:
         
         echo "Source language: $SOURCE_LANG"
         
-        # Find all JSON files based on includePatterns (simplified for JSON mode)
-        # We'll look for common patterns
-        FILES_JSON="{"
-        FIRST=true
-        FILE_COUNT=0
-        
-        # Find JSON files - using a simpler approach that reads from config patterns
-        for pattern in "locales/**/*.json" "src/locales/**/*.json" "translations/**/*.json"; do
-          while IFS= read -r -d '' file; do
-            # Skip if file doesn't exist or is in excluded paths
-            if [[ ! -f "$file" ]] || [[ "$file" == *"/node_modules/"* ]] || [[ "$file" == *"/dist/"* ]]; then
-              continue
+        # Find all language directories in locales/
+        echo "Scanning for languages in locales/ directory..."
+        LANGUAGES=()
+        if [ -d "locales" ]; then
+          for lang_dir in locales/*/; do
+            if [ -d "$lang_dir" ]; then
+              lang=$(basename "$lang_dir")
+              LANGUAGES+=("$lang")
+              echo "  Found language: $lang"
             fi
-            
-            # Extract language from path
-            LANG=$(echo "$file" | grep -oP '/[a-z]{2}(-[A-Z]{2})?/' | tr -d '/' || echo "")
-            
-            if [ -z "$LANG" ]; then
-              continue
-            fi
-            
-            echo "Processing file: $file (language: $LANG)"
-            
-            if [ "$FIRST" = true ]; then
-              FIRST=false
-            else
-              FILES_JSON="$FILES_JSON,"
-            fi
-            
-            FILENAME=$(basename "$file")
-            CONTENT=$(cat "$file" | jq -c .)
-            FILES_JSON="$FILES_JSON\"$FILENAME\":$CONTENT"
-            FILE_COUNT=$((FILE_COUNT + 1))
-          done < <(find . -path "*/$pattern" -type f -print0 2>/dev/null)
-        done
-        
-        FILES_JSON="$FILES_JSON}"
-        
-        if [ $FILE_COUNT -eq 0 ]; then
-          echo "Warning: No JSON files found matching patterns in config"
-          echo "Please check includePatterns in $CONFIG_PATH"
+          done
         fi
         
-        echo "Found $FILE_COUNT files to upload"
+        if [ ${#LANGUAGES[@]} -eq 0 ]; then
+          echo "Error: No language directories found in locales/"
+          exit 1
+        fi
         
-        # Create a temporary file for the JSON payload to avoid "Argument list too long" error
+        echo "Total languages found: ${#LANGUAGES[@]}"
+        
+        # Collect all files from all languages into a single array
+        FILES_JSON="["
+        FIRST=true
+        TOTAL_FILES=0
+        
+        # Process all languages
+        for lang in "${LANGUAGES[@]}"; do
+          echo ""
+          echo "Processing language: $lang"
+          
+          FILE_COUNT=0
+          
+          # Find all JSON files in the language directory
+          if [ -d "locales/$lang" ]; then
+            while IFS= read -r -d '' file; do
+              if [ -f "$file" ]; then
+                echo "  Processing file: $file"
+                
+                if [ "$FIRST" = true ]; then
+                  FIRST=false
+                else
+                  FILES_JSON="$FILES_JSON,"
+                fi
+                
+                FILENAME=$(basename "$file")
+                CONTENT=$(cat "$file" | jq -c .)
+                
+                # Create a file object with all required fields
+                FILE_OBJECT=$(jq -n \
+                  --arg filetype "json" \
+                  --arg filename "$FILENAME" \
+                  --arg lang "$lang" \
+                  --argjson contents "$CONTENT" \
+                  '{
+                    filetype: $filetype,
+                    filename: $filename,
+                    lang: $lang,
+                    contents: $contents,
+                    metadata: {
+                      uploadMethod: "json-batch"
+                    }
+                  }')
+                
+                FILES_JSON="$FILES_JSON$FILE_OBJECT"
+                FILE_COUNT=$((FILE_COUNT + 1))
+                TOTAL_FILES=$((TOTAL_FILES + 1))
+              fi
+            done < <(find "locales/$lang" -name "*.json" -type f -print0 2>/dev/null)
+          fi
+          
+          echo "  Found $FILE_COUNT files for language $lang"
+        done
+        
+        FILES_JSON="$FILES_JSON]"
+        
+        if [ $TOTAL_FILES -eq 0 ]; then
+          echo "Error: No JSON files found in any language directory"
+          exit 1
+        fi
+        
+        echo ""
+        echo "========================================="
+        echo "Total files collected: $TOTAL_FILES across ${#LANGUAGES[@]} languages"
+        echo "========================================="
+        
+        # Create a temporary file for the JSON payload
         TEMP_PAYLOAD=$(mktemp)
-        echo "{\"branch\":\"$GITHUB_REF_NAME\",\"commitSha\":\"$GITHUB_SHA\",\"language\":\"$SOURCE_LANG\",\"files\":$FILES_JSON}" > "$TEMP_PAYLOAD"
+        echo "{\"branch\":\"$GITHUB_REF_NAME\",\"commitSha\":\"$GITHUB_SHA\",\"files\":$FILES_JSON}" > "$TEMP_PAYLOAD"
+        
+        # Check payload size
+        PAYLOAD_SIZE=$(stat -f%z "$TEMP_PAYLOAD" 2>/dev/null || stat -c%s "$TEMP_PAYLOAD" 2>/dev/null)
+        PAYLOAD_SIZE_MB=$((PAYLOAD_SIZE / 1024 / 1024))
+        echo "Payload size: ${PAYLOAD_SIZE_MB}MB"
+        
+        if [ $PAYLOAD_SIZE_MB -gt 10 ]; then
+          echo "Warning: Payload size exceeds 10MB, upload may fail"
+        fi
         
         # Upload to platform using OIDC token
-        RESPONSE=$(curl -X POST \
-          "$I18N_PLATFORM_URL/api/projects/$PROJECT_NAME/upload-json" \
+        echo "Uploading all files in a single request..."
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+          "$I18N_PLATFORM_URL/api/projects/$PROJECT_NAME/upload" \
           -H "Authorization: Bearer $OIDC_TOKEN" \
           -H "Content-Type: application/json" \
           --data-binary "@$TEMP_PAYLOAD")
         
+        # Extract HTTP status code and response body
+        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+        RESPONSE_BODY=$(echo "$RESPONSE" | head -n-1)
+        
         # Clean up temporary file
         rm -f "$TEMP_PAYLOAD"
         
-        echo "Upload response: $RESPONSE"
+        echo "HTTP Status: $HTTP_CODE"
+        echo "Response: $RESPONSE_BODY"
         
-        UPLOAD_COUNT=$(echo "$RESPONSE" | jq -r '.filesUploaded // 0')
-        echo "files-uploaded=$UPLOAD_COUNT" >> $GITHUB_OUTPUT
-        echo "status=success" >> $GITHUB_OUTPUT
+        # Check if upload was successful
+        if [ "$HTTP_CODE" = "200" ] && echo "$RESPONSE_BODY" | jq -e '.success' > /dev/null 2>&1; then
+          UPLOADED=$(echo "$RESPONSE_BODY" | jq -r '.filesUploaded // 0')
+          echo ""
+          echo "========================================="
+          echo "✅ Successfully uploaded $UPLOADED files!"
+          echo "Languages: ${#LANGUAGES[@]}"
+          echo "========================================="
+          echo "files-uploaded=$UPLOADED" >> $GITHUB_OUTPUT
+          echo "status=success" >> $GITHUB_OUTPUT
+        else
+          echo ""
+          echo "========================================="
+          echo "❌ Upload failed"
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $RESPONSE_BODY"
+          echo "========================================="
+          echo "files-uploaded=0" >> $GITHUB_OUTPUT
+          echo "status=failed" >> $GITHUB_OUTPUT
+          exit 1
+        fi
 
     - name: Set upload outputs
       id: upload

@@ -121,6 +121,9 @@ Uses the client library to process files according to `.koro-i18n.repo.config.to
 **Requires `.koro-i18n.repo.config.toml` (mandatory):**
 
 ```toml
+# Optional: Project name (defaults to repository name)
+projectName = "my-project"
+
 sourceLanguage = "en"
 targetLanguages = ["ja", "es", "fr"]
 
@@ -144,34 +147,57 @@ This ensures the platform has the current configuration to process your translat
 ### JSON Mode
 
 Direct JSON file upload without additional processing:
-- Simple and fast
-- Uses config file for source language and patterns
-- Automatically detects language from directory structure
-- Best for basic JSON translation files
+- **Single API call**: Uploads all languages and files in one request
+- Fast and efficient for large projects (200+ files)
+- Automatically scans `locales/` directory for all language subdirectories
+- Supports any language code format (e.g., `en`, `en-US`, `ja`, `zh-CN`)
+- Increased limits: 500 files per upload, 10MB payload size
+- Best for projects with many translation files across multiple languages
 
 **Also requires `.koro-i18n.repo.config.toml`:**
 
 ```toml
-sourceLanguage = "en"
-targetLanguages = ["ja", "es", "fr"]
+# Optional: Project name (defaults to repository name)
+projectName = "my-project"
+
+sourceLanguage = "en-US"
+targetLanguages = ["ja", "es", "fr", "de"]
 
 includePatterns = [
   "locales/**/*.json"
 ]
 ```
 
-Expects files in structure like:
+**Directory Structure:**
+
+JSON mode expects files organized in `locales/{language}/` directories:
+
 ```
 locales/
-  en/
-    common.json
+  en-US/              # Each language in its own directory
+    common.json       # Multiple JSON files per language
     auth.json
+    settings.json
   ja/
     common.json
     auth.json
+  es/
+    common.json
 ```
 
-**Note:** JSON mode now reads the config file to determine the source language and file patterns, ensuring consistency across all upload modes.
+**How It Works:**
+
+1. Scans the `locales/` directory for all language subdirectories
+2. Collects all JSON files from all languages
+3. Uploads everything in a **single API call** with proper language labels
+4. Each file in the upload includes:
+   - `filename`: Name of the file
+   - `lang`: Language code (from directory name)
+   - `filetype`: "json"
+   - `contents`: Parsed JSON content
+   - `metadata`: Upload metadata
+
+This approach efficiently handles projects with 200+ files across multiple languages in a single request.
 
 ## Checking Upload Status
 

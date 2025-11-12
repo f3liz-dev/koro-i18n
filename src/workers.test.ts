@@ -80,7 +80,7 @@ describe('API Endpoints', () => {
       const app = createWorkerApp(env);
 
       const files: Record<string, any> = {};
-      for (let i = 0; i < 101; i++) {
+      for (let i = 0; i < 501; i++) {
         files[`file${i}.json`] = { key: 'value' };
       }
 

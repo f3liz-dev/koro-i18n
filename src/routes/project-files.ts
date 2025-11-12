@@ -10,8 +10,8 @@ interface Env {
   PLATFORM_URL?: string;
 }
 
-const MAX_FILES = 100;
-const MAX_PAYLOAD_SIZE = 5 * 1024 * 1024;
+const MAX_FILES = 500;
+const MAX_PAYLOAD_SIZE = 10 * 1024 * 1024; // 10MB
 
 export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
