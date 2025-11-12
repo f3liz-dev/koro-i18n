@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS projects (
   name TEXT UNIQUE NOT NULL, -- Project name (globally unique, used in API)
   repository TEXT UNIQUE NOT NULL, -- GitHub repository (globally unique, owner/repo)
   accessControl TEXT DEFAULT 'whitelist', -- 'whitelist' or 'blacklist'
+  sourceLanguage TEXT DEFAULT 'en' NOT NULL, -- Source language for translations
   createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
 );

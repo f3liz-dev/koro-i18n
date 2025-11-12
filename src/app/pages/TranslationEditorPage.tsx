@@ -25,6 +25,14 @@ interface TranslationString {
   translations: Translation[];
 }
 
+interface Project {
+  id: string;
+  name: string;
+  repository: string;
+  userId: string;
+  sourceLanguage: string;
+}
+
 async function fetchProjectTranslations(projectId: string, language: string) {
   const response = await fetch(
     `/api/translations?projectId=${encodeURIComponent(projectId)}&language=${language}&status=pending`,
@@ -62,6 +70,7 @@ export default function TranslationEditorPage() {
   const language = () => params.language || 'en';
   const filename = () => params.filename ? decodeURIComponent(params.filename) : null;
 
+  const [project, setProject] = createSignal<Project | null>(null);
   const [selectedKey, setSelectedKey] = createSignal<string | null>(null);
   const [translationValue, setTranslationValue] = createSignal('');
   const [searchQuery, setSearchQuery] = createSignal('');
@@ -74,14 +83,31 @@ export default function TranslationEditorPage() {
   const [isLoadingFiles, setIsLoadingFiles] = createSignal(true);
   const [isNavigating, setIsNavigating] = createSignal(false);
 
+  // Load project to get source language
+  const loadProject = async () => {
+    try {
+      const res = await fetch('/api/projects', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json() as { projects: Project[] };
+        const proj = data.projects.find((p: any) => p.name === projectId());
+        if (proj) {
+          setProject(proj);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load project:', error);
+    }
+  };
+
   // Load translation files from uploaded data
   const loadTranslationFiles = async () => {
     try {
       setIsLoadingFiles(true);
       
       const pid = projectId();
+      const sourceLanguage = project()?.sourceLanguage || 'en';
       
-      const sourceUrl = `/api/projects/${pid}/files?lang=en`;
+      const sourceUrl = `/api/projects/${pid}/files?lang=${sourceLanguage}`;
       const sourceRes = await fetch(sourceUrl, { credentials: 'include' });
       
       if (!sourceRes.ok) {
@@ -140,11 +166,16 @@ export default function TranslationEditorPage() {
     }
   };
 
-  onMount(() => {
+  onMount(async () => {
     if (!user()) {
       navigate('/login');
       return;
     }
+    
+    // Load project first to get source language
+    await loadProject();
+    
+    // Then load translation files
     loadTranslationFiles();
 
     const handleKeyDown = (e: KeyboardEvent) => {
