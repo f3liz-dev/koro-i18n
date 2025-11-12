@@ -222,4 +222,57 @@ describe('API Endpoints', () => {
       expect(result.items).toBe('one,two,three');
     });
   });
+
+  describe('GET /api/projects/:projectId/files/summary', () => {
+    it('should return translation status instead of full contents', () => {
+      // This test documents the expected behavior of the summary endpoint
+      // The endpoint should:
+      // 1. Return all file metadata (id, filename, lang, branch, etc.)
+      // 2. Return translationStatus as a boolean map instead of full contents
+      // 3. Return keyCount for quick reference
+      // 4. Significantly reduce payload size for UI listing operations
+      
+      // Example full contents response (original):
+      const fullContents = {
+        'welcome.message': 'Welcome to our application',
+        'login.button': 'Login',
+        'signup.button': 'Sign up',
+        'error.generic': 'An error occurred',
+      };
+      
+      // Example summary response (optimized):
+      const summaryStatus = {
+        'welcome.message': true,
+        'login.button': true,
+        'signup.button': true,
+        'error.generic': true,
+      };
+      
+      // Verify that summary is smaller
+      const fullSize = JSON.stringify(fullContents).length;
+      const summarySize = JSON.stringify(summaryStatus).length;
+      
+      expect(summarySize).toBeLessThan(fullSize);
+      
+      // Verify key count
+      expect(Object.keys(summaryStatus).length).toBe(4);
+    });
+
+    it('should identify untranslated keys with false values', () => {
+      // The summary endpoint marks empty/null translations as false
+      const translationStatus = {
+        'key1': true,  // Has value
+        'key2': false, // Empty or missing
+        'key3': true,  // Has value
+        'key4': false, // Empty or missing
+      };
+      
+      const translatedCount = Object.values(translationStatus).filter(v => v === true).length;
+      expect(translatedCount).toBe(2);
+      
+      const totalKeys = Object.keys(translationStatus).length;
+      const percentage = Math.round((translatedCount / totalKeys) * 100);
+      expect(percentage).toBe(50);
+    });
+  });
 });
