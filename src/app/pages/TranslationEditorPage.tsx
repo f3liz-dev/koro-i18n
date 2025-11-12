@@ -24,6 +24,7 @@ interface TranslationString {
   sourceValue: string;
   currentValue?: string;
   translations: Translation[];
+  suggestionStatus?: 'none' | 'pending' | 'approved';
 }
 
 interface Project {
@@ -54,8 +55,9 @@ async function submitTranslation(projectId: string, language: string, key: strin
   return response.json();
 }
 
-async function fetchSuggestions(projectId: string, language: string, key: string) {
-  const params = new URLSearchParams({ projectId, language, key });
+async function fetchSuggestions(projectId: string, language: string, key?: string) {
+  const params = new URLSearchParams({ projectId, language });
+  if (key) params.append('key', key);
   const response = await cachedFetch(`/api/translations/suggestions?${params}`, {
     credentials: 'include',
     cacheTTL: 60000, // 1 minute cache
@@ -227,6 +229,34 @@ export default function TranslationEditorPage() {
     (params) => fetchProjectTranslations(params.projectId, params.language)
   );
 
+  // Fetch all suggestions for the project/language to enrich translation strings
+  const [allSuggestions, { refetch: refetchAllSuggestions }] = createResource(
+    () => ({ projectId: projectId(), language: language() }),
+    (params) => fetchSuggestions(params.projectId, params.language)
+  );
+
+  // Enrich translation strings with suggestion status
+  const enrichedTranslationStrings = () => {
+    const strings = translationStrings();
+    const suggestionsData = (allSuggestions() as any)?.suggestions || [];
+    
+    // Create a map of key -> suggestion status
+    const suggestionMap = new Map<string, 'pending' | 'approved'>();
+    suggestionsData.forEach((s: any) => {
+      if (s.status === 'approved') {
+        suggestionMap.set(s.key, 'approved');
+      } else if (s.status === 'pending' && !suggestionMap.has(s.key)) {
+        suggestionMap.set(s.key, 'pending');
+      }
+    });
+    
+    // Enrich strings with suggestion status
+    return strings.map(str => ({
+      ...str,
+      suggestionStatus: suggestionMap.get(str.key) || 'none' as 'none' | 'pending' | 'approved'
+    }));
+  };
+
   // Always fetch suggestions when a key is selected
   const [suggestions, { refetch: refetchSuggestions }] = createResource(
     () => {
@@ -240,7 +270,7 @@ export default function TranslationEditorPage() {
     const query = searchQuery().toLowerCase();
     const status = filterStatus();
     
-    return translationStrings().filter(str => {
+    return enrichedTranslationStrings().filter(str => {
       const matchesSearch = !query || 
         str.key.toLowerCase().includes(query) ||
         str.sourceValue.toLowerCase().includes(query) ||
@@ -263,7 +293,7 @@ export default function TranslationEditorPage() {
     setSelectedKey(key);
     
     // Immediately set the current file value as a fallback
-    const str = translationStrings().find(s => s.key === key);
+    const str = enrichedTranslationStrings().find(s => s.key === key);
     if (str) {
       setTranslationValue(str.currentValue || '');
     }
@@ -307,6 +337,7 @@ export default function TranslationEditorPage() {
     try {
       await approveSuggestion(id);
       refetchSuggestions();
+      refetchAllSuggestions();
       alert('Suggestion approved successfully!');
     } catch (error) {
       console.error('Failed to approve suggestion:', error);
@@ -322,6 +353,7 @@ export default function TranslationEditorPage() {
     try {
       await rejectSuggestion(id);
       refetchSuggestions();
+      refetchAllSuggestions();
       alert('Suggestion rejected successfully!');
     } catch (error) {
       console.error('Failed to reject suggestion:', error);
@@ -361,8 +393,8 @@ export default function TranslationEditorPage() {
   };
 
   const getCompletionPercentage = () => {
-    const total = translationStrings().length;
-    const completed = translationStrings().filter(s => s.currentValue).length;
+    const total = enrichedTranslationStrings().length;
+    const completed = enrichedTranslationStrings().filter(s => s.currentValue).length;
     return total > 0 ? Math.round((completed / total) * 100) : 0;
   };
 
@@ -427,7 +459,7 @@ export default function TranslationEditorPage() {
           {/* Editor Panel - First on Mobile, Right on PC */}
           <TranslationEditorPanel
             selectedKey={selectedKey()}
-            translationStrings={translationStrings()}
+            translationStrings={enrichedTranslationStrings()}
             language={language()}
             translationValue={translationValue()}
             showSuggestions={showSuggestions()}
