@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { PrismaClient } from '../generated/prisma/';
 import { requireAuth, verifyJWT } from '../lib/auth';
 import { checkProjectAccess, flattenObject } from '../lib/database';
+import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 
 interface Env {
   JWT_SECRET: string;
@@ -136,7 +137,9 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       })
     );
 
-    return c.json({ projects: projectsWithLanguages });
+    const response = c.json({ projects: projectsWithLanguages });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projects));
+    return response;
   });
 
   app.get('/all', async (c) => {
@@ -154,7 +157,9 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return c.json({ projects });
+    const response = c.json({ projects });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projects));
+    return response;
   });
 
   app.delete('/:id', async (c) => {

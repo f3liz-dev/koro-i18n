@@ -3,6 +3,7 @@ import { getCookie } from 'hono/cookie';
 import { PrismaClient } from '../generated/prisma/';
 import { verifyJWT, requireAuth } from '../lib/auth';
 import { checkProjectAccess, flattenObject } from '../lib/database';
+import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 
 interface Env {
   JWT_SECRET: string;
@@ -396,7 +397,9 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       };
     });
 
-    return c.json({ files: filesSummary });
+    const response = c.json({ files: filesSummary });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+    return response;
   });
 
   app.get('/:projectId/files', async (c) => {
@@ -433,7 +436,9 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       metadata: JSON.parse(row.metadata || '{}')
     }));
 
-    return c.json({ files });
+    const response = c.json({ files });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+    return response;
   });
 
   return app;
