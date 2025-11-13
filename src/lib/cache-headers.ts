@@ -21,6 +21,9 @@ export const CACHE_CONFIGS = {
   // Translation data may change more frequently
   translations: { maxAge: 60, swr: 30 }, // 1 min cache, 30 sec SWR
   
+  // Translation suggestions need fresh data
+  translationSuggestions: { maxAge: 0 }, // Always fresh
+  
   // User data changes very infrequently
   user: { maxAge: 3600 }, // 1 hour cache
   
