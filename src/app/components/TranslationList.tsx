@@ -1,11 +1,11 @@
-import { For, Show, createSignal } from 'solid-js';
-import { SkeletonListItem } from './Skeleton';
+import { For, Show, createSignal } from "solid-js";
+import { SkeletonListItem } from "./Skeleton";
 
 interface TranslationString {
   key: string;
   sourceValue: string;
   currentValue?: string;
-  suggestionStatus?: 'none' | 'pending' | 'approved';
+  suggestionStatus?: "none" | "pending" | "approved";
 }
 
 interface TranslationListProps {
@@ -16,65 +16,69 @@ interface TranslationListProps {
   onSelectKey: (key: string) => void;
 }
 
-type SortOrder = 'default' | 'alphabetical' | 'completion';
-type FilterType = 'all' | 'noSuggestion' | 'pending' | 'approved';
+type SortOrder = "default" | "alphabetical" | "completion";
+type FilterType = "all" | "noSuggestion" | "pending" | "approved";
 
 export default function TranslationList(props: TranslationListProps) {
-  const [sortOrder, setSortOrder] = createSignal<SortOrder>('default');
-  const [filterType, setFilterType] = createSignal<FilterType>('all');
+  const [sortOrder, setSortOrder] = createSignal<SortOrder>("default");
+  const [filterType, setFilterType] = createSignal<FilterType>("all");
 
-  const getSuggestionStatus = (str: TranslationString): 'none' | 'pending' | 'approved' => {
+  const getSuggestionStatus = (
+    str: TranslationString,
+  ): "none" | "pending" | "approved" => {
     // This is a simplified check - in a real implementation, this would come from API data
     // For now, we assume: currentValue = approved, no currentValue = none
     // The parent component should ideally pass this information
-    return str.suggestionStatus || (str.currentValue ? 'approved' : 'none');
+    return str.suggestionStatus || (str.currentValue ? "approved" : "none");
   };
 
   const sortedAndFilteredStrings = () => {
     let filtered = props.translationStrings;
-    
+
     // Apply filter
     const filter = filterType();
-    if (filter !== 'all') {
-      filtered = filtered.filter(str => {
+    if (filter !== "all") {
+      filtered = filtered.filter((str) => {
         const status = getSuggestionStatus(str);
-        if (filter === 'noSuggestion') return status === 'none';
-        if (filter === 'pending') return status === 'pending';
-        if (filter === 'approved') return status === 'approved';
+        if (filter === "noSuggestion") return status === "none";
+        if (filter === "pending") return status === "pending";
+        if (filter === "approved") return status === "approved";
         return true;
       });
     }
-    
+
     // Apply sort
     const sort = sortOrder();
     const sorted = [...filtered];
-    
-    if (sort === 'default') {
+
+    if (sort === "default") {
       // Default: not suggested first, pending second, approved third
       sorted.sort((a, b) => {
         const statusA = getSuggestionStatus(a);
         const statusB = getSuggestionStatus(b);
-        const orderMap = { 'none': 0, 'pending': 1, 'approved': 2 };
+        const orderMap = { none: 0, pending: 1, approved: 2 };
         return orderMap[statusA] - orderMap[statusB];
       });
-    } else if (sort === 'alphabetical') {
+    } else if (sort === "alphabetical") {
       sorted.sort((a, b) => a.key.localeCompare(b.key));
-    } else if (sort === 'completion') {
+    } else if (sort === "completion") {
       sorted.sort((a, b) => {
         const aComplete = a.currentValue ? 1 : 0;
         const bComplete = b.currentValue ? 1 : 0;
         return aComplete - bComplete; // Incomplete first
       });
     }
-    
+
     return sorted;
   };
 
   return (
     <div class="bg-white rounded-lg shadow flex-1 lg:h-[calc(100vh-200px)] lg:sticky lg:top-20 flex flex-col overflow-hidden">
       <div class="p-2 lg:p-4 border-b flex-shrink-0">
-        <h2 class="text-base lg:text-lg font-semibold mb-2">Translation Strings</h2>
-        
+        <h2 class="text-base lg:text-lg font-semibold mb-2">
+          Translation Strings
+        </h2>
+
         {/* Filter and Sort Controls */}
         <div class="space-y-2">
           <select
@@ -86,7 +90,7 @@ export default function TranslationList(props: TranslationListProps) {
             <option value="alphabetical">Sort: Alphabetical</option>
             <option value="completion">Sort: Completion status</option>
           </select>
-          
+
           <select
             value={filterType()}
             onChange={(e) => setFilterType(e.currentTarget.value as FilterType)}
@@ -98,9 +102,10 @@ export default function TranslationList(props: TranslationListProps) {
             <option value="approved">Filter: Approved</option>
           </select>
         </div>
-        
+
         <p class="text-xs lg:text-sm text-gray-600 mt-2">
-          {sortedAndFilteredStrings().length} of {props.translationStrings.length} strings
+          {sortedAndFilteredStrings().length} of{" "}
+          {props.translationStrings.length} strings
         </p>
       </div>
       <div class="divide-y overflow-y-auto flex-1">
@@ -111,9 +116,13 @@ export default function TranslationList(props: TranslationListProps) {
           <SkeletonListItem />
           <SkeletonListItem />
         </Show>
-        <Show when={!props.isLoading && sortedAndFilteredStrings().length === 0}>
+        <Show
+          when={!props.isLoading && sortedAndFilteredStrings().length === 0}
+        >
           <div class="p-4 lg:p-8 text-center text-gray-500">
-            <p class="mb-1 lg:mb-2 text-sm lg:text-base">No translation strings match the filter</p>
+            <p class="mb-1 lg:mb-2 text-sm lg:text-base">
+              No translation strings match the filter
+            </p>
             <p class="text-xs lg:text-sm">Try changing the filter settings</p>
           </div>
         </Show>
@@ -121,24 +130,31 @@ export default function TranslationList(props: TranslationListProps) {
           {(str) => (
             <div
               class={`p-3 lg:p-4 cursor-pointer hover:bg-gray-50 transition ${
-                props.selectedKey === str.key ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                props.selectedKey === str.key
+                  ? "bg-blue-50 border-l-4 border-blue-500"
+                  : ""
               }`}
               onClick={() => props.onSelectKey(str.key)}
             >
               <div class="flex items-start justify-between mb-1 lg:mb-2">
-                <code class="text-xs lg:text-sm font-mono text-gray-700 truncate pr-2">{str.key}</code>
                 <Show when={str.currentValue}>
                   <span class="text-xs bg-green-100 text-green-800 px-1.5 lg:px-2 py-0.5 lg:py-1 rounded whitespace-nowrap">
                     ✓
                   </span>
                 </Show>
+                <code class="text-xs lg:text-sm font-mono text-gray-700 truncate pr-2">
+                  {str.key}
+                </code>
               </div>
               <div class="text-xs lg:text-sm text-gray-600 mb-0.5 lg:mb-1 truncate">
                 <span class="font-medium">EN:</span> {str.sourceValue}
               </div>
               <Show when={str.currentValue}>
                 <div class="text-xs lg:text-sm text-gray-900 truncate">
-                  <span class="font-medium">{props.language.toUpperCase()}:</span> {str.currentValue}
+                  <span class="font-medium">
+                    {props.language.toUpperCase()}:
+                  </span>{" "}
+                  {str.currentValue}
                 </div>
               </Show>
               <Show when={!str.currentValue}>
