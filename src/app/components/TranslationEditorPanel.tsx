@@ -17,6 +17,7 @@ interface SuggestionEntry {
   username?: string;
   avatarUrl?: string;
   status: "pending" | "approved" | "committed" | "rejected" | "deleted";
+  isImported?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,6 +26,7 @@ interface TranslationEditorPanelProps {
   selectedKey: string | null;
   translationStrings: TranslationString[];
   language: string;
+  sourceLanguage: string;
   translationValue: string;
   showSuggestions: boolean;
   suggestions: SuggestionEntry[] | undefined;
@@ -45,6 +47,20 @@ export default function TranslationEditorPanel(
 ) {
   const str = () =>
     props.translationStrings.find((s) => s.key === props.selectedKey);
+
+  // Get the current translation status (approved or imported)
+  const getCurrentStatus = () => {
+    if (!props.selectedKey || !props.suggestions) return null;
+    
+    // Find the approved suggestion for this key
+    const approvedSuggestion = props.suggestions.find(
+      s => s.key === props.selectedKey && s.status === 'approved'
+    );
+    
+    if (!approvedSuggestion) return null;
+    
+    return approvedSuggestion.isImported ? 'imported' : 'approved';
+  };
 
   return (
     <div class="order-1 lg:order-2 bg-white rounded-lg shadow flex-shrink-0 flex flex-col overflow-hidden max-h-[calc(100vh-100px)]">
@@ -114,9 +130,24 @@ export default function TranslationEditorPanel(
           <div class="p-2 lg:p-4 space-y-2 lg:space-y-4 flex-shrink-0 overflow-y-auto">
             {/* Source Text */}
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">
-                Source (English)
-              </label>
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-sm font-medium text-gray-700">
+                  Source ({props.sourceLanguage.toUpperCase()})
+                </label>
+                <Show when={getCurrentStatus()}>
+                  {(status) => (
+                    <span
+                      class={
+                        status() === 'imported'
+                          ? 'text-xs px-2 py-1 rounded text-gray-300 bg-black'
+                          : 'text-xs px-2 py-1 rounded text-green-700 bg-green-100'
+                      }
+                    >
+                      {status() === 'imported' ? 'imported' : 'approved'}
+                    </span>
+                  )}
+                </Show>
+              </div>
               <div class="p-3 bg-gray-50 rounded border text-gray-900 text-base">
                 {str()!.sourceValue}
               </div>

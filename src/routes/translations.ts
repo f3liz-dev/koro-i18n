@@ -99,6 +99,11 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       where,
       include: {
         user: { select: { username: true, avatarUrl: true } },
+        history: { 
+          select: { action: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        }
       },
       orderBy: { createdAt: 'desc' },
       take: 500,
@@ -115,6 +120,7 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       username: s.user?.username,
       avatarUrl: s.user?.avatarUrl,
       status: s.status,
+      isImported: s.history.length > 0 && s.history[0].action === 'imported',
       createdAt: s.createdAt.toISOString(),
       updatedAt: s.updatedAt.toISOString(),
     }));

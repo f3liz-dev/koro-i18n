@@ -425,6 +425,7 @@ export default function TranslationEditorPage() {
             selectedKey={selectedKey()}
             translationStrings={enrichedTranslationStrings()}
             language={language()}
+            sourceLanguage={sourceLanguage()}
             translationValue={translationValue()}
             showSuggestions={showSuggestions()}
             suggestions={suggestions()}
