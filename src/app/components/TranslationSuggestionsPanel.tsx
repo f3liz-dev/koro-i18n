@@ -153,7 +153,7 @@ export default function TranslationSuggestionsPanel(props: TranslationSuggestion
 
                         {/* Right side: Action buttons for pending suggestions */}
                         <Show when={entry.status === 'pending' && props.onApprove && props.onReject}>
-                          <div class="flex flex-col gap-2 flex-shrink-0">
+                          <div class="flex gap-2 flex-shrink-0">
                             <button
                               onClick={() => props.onApprove?.(entry.id)}
                               class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition whitespace-nowrap"

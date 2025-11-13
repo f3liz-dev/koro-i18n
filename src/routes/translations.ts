@@ -104,7 +104,22 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       take: 500,
     });
 
-    const response = c.json({ suggestions });
+    // Flatten user data for frontend compatibility
+    const flattenedSuggestions = suggestions.map(s => ({
+      id: s.id,
+      projectId: s.projectId,
+      language: s.language,
+      key: s.key,
+      value: s.value,
+      userId: s.userId,
+      username: s.user?.username,
+      avatarUrl: s.user?.avatarUrl,
+      status: s.status,
+      createdAt: s.createdAt.toISOString(),
+      updatedAt: s.updatedAt.toISOString(),
+    }));
+
+    const response = c.json({ suggestions: flattenedSuggestions });
     response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translations));
     return response;
   });
