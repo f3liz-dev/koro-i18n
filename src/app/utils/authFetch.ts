@@ -36,17 +36,20 @@ export async function authFetch(
 
   // Check for 401 Unauthorized - token is invalid or expired
   if (response.status === 401) {
+    // Clear all caches to prevent stale data from being used
+    console.log("[AuthFetch] 401 Unauthorized - clearing caches");
+    clearAllCaches(); // Clear dataStore caches
+    await clearBrowserCache(); // Clear browser HTTP cache
+
+    // If already on public pages, just return the response without redirecting
     if (
       window.location.pathname === "/" ||
       window.location.pathname === "/login"
-    )
+    ) {
       return response;
-    console.log("[AuthFetch] 401 Unauthorized - logging out");
+    }
 
-    // Clear all caches to prevent stale data from being used
-    console.log("[AuthFetch] Clearing all caches");
-    clearAllCaches(); // Clear dataStore caches
-    await clearBrowserCache(); // Clear browser HTTP cache
+    console.log("[AuthFetch] Logging out and redirecting");
 
     // Clear auth state and redirect to login
     try {
