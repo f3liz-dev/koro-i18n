@@ -3,14 +3,15 @@ import { Router, Route } from '@solidjs/router';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
 
+// All pages use lazy loading for optimal initial bundle size
 const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
-const CreateProjectPage = lazy(() => import('./pages/CreateProjectPage'));
 const LanguageSelectionPage = lazy(() => import('./pages/LanguageSelectionPage'));
 const FileSelectionPage = lazy(() => import('./pages/FileSelectionPage'));
-const ProjectSettingsPage = lazy(() => import('./pages/ProjectSettingsPage'));
 const TranslationEditorPage = lazy(() => import('./pages/TranslationEditorPage'));
+const CreateProjectPage = lazy(() => import('./pages/CreateProjectPage'));
+const ProjectSettingsPage = lazy(() => import('./pages/ProjectSettingsPage'));
 const TranslationHistoryPage = lazy(() => import('./pages/TranslationHistoryPage'));
 const TranslationSuggestionsPage = lazy(() => import('./pages/TranslationSuggestionsPage'));
 const JoinProjectPage = lazy(() => import('./pages/JoinProjectPage'));
