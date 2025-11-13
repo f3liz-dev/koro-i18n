@@ -1,7 +1,13 @@
 import { useNavigate } from '@solidjs/router';
+import { useForesight } from '../utils/useForesight';
 
 export default function NotFoundPage() {
   const navigate = useNavigate();
+
+  const homeButtonRef = useForesight({
+    prefetchUrls: ['/api/user'],
+    debugName: 'home-button',
+  });
 
   return (
     <div class="min-h-screen bg-gray-50 flex items-center justify-center px-6">
@@ -13,6 +19,7 @@ export default function NotFoundPage() {
         </p>
         <div class="flex flex-col sm:flex-row gap-3 justify-center">
           <button
+            ref={homeButtonRef}
             onClick={() => navigate('/')}
             class="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition"
           >

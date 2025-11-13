@@ -1,6 +1,7 @@
 import { useNavigate } from '@solidjs/router';
 import { createSignal, onMount } from 'solid-js';
 import { user } from '../auth';
+import { useForesight } from '../utils/useForesight';
 
 export default function CreateProjectPage() {
   const navigate = useNavigate();
@@ -8,6 +9,12 @@ export default function CreateProjectPage() {
   const [projectRepo, setProjectRepo] = createSignal('');
   const [isSubmitting, setIsSubmitting] = createSignal(false);
   const [error, setError] = createSignal('');
+
+  // ForesightJS refs
+  const backButtonRef = useForesight({
+    prefetchUrls: ['/api/projects'],
+    debugName: 'back-to-dashboard',
+  });
 
   onMount(() => {
     if (!user()) {
@@ -58,6 +65,7 @@ export default function CreateProjectPage() {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div class="flex items-center gap-3">
             <button
+              ref={backButtonRef}
               onClick={() => navigate('/dashboard')}
               class="text-gray-400 hover:text-gray-600"
             >
@@ -124,6 +132,7 @@ export default function CreateProjectPage() {
               </button>
               <button
                 type="button"
+                ref={backButtonRef}
                 onClick={() => navigate('/dashboard')}
                 class="px-4 py-2.5 border rounded-lg hover:bg-gray-50 text-sm font-medium"
               >
