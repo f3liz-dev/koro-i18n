@@ -34,23 +34,32 @@ export default function LanguageSelectionPage() {
   const projectsStore = projectsCache.get();
   const project = () => projectsStore.projects.find((p: any) => p.name === params.id) || null;
   
-  const sourceLanguage = () => project()?.sourceLanguage || 'en';
+  // Get the actual source language files using the special query parameter
+  const sourceFilesStore = () => filesSummaryCache.get(params.id || '', 'source-language');
+  const sourceFilesData = () => sourceFilesStore()?.data;
   
-  const filesStore = () => filesSummaryCache.get(params.id || '');
-  const filesData = () => filesStore()?.data;
+  // Get all files to determine available languages
+  const allFilesStore = () => filesSummaryCache.get(params.id || '');
+  const allFilesData = () => allFilesStore()?.data;
   
   // Show loading only if we don't have cached data
-  const isLoadingFiles = () => !filesStore()?.lastFetch;
+  const isLoadingFiles = () => !sourceFilesStore()?.lastFetch || !allFilesStore()?.lastFetch;
   
   // Compute language stats from the resource
   const languageStats = createMemo(() => {
-    const data = filesData();
-    if (!data) return [];
+    const sourceData = sourceFilesData();
+    const allData = allFilesData();
     
-    const source = sourceLanguage();
+    if (!sourceData || !allData) return [];
+    
+    // Get the actual source language from the fetched source files
+    const sourceFiles = sourceData.files;
+    const actualSourceLang = sourceFiles.length > 0 ? sourceFiles[0].lang : '';
+    
+    // Get all languages except the source language
     const languages = new Set<string>();
-    data.files.forEach(file => {
-      if (file.lang !== source) {
+    allData.files.forEach(file => {
+      if (file.lang !== actualSourceLang) {
         languages.add(file.lang);
       }
     });
@@ -58,8 +67,7 @@ export default function LanguageSelectionPage() {
     const stats: LanguageStats[] = [];
     
     for (const lang of Array.from(languages)) {
-      const sourceFiles = data.files.filter(f => f.lang === source);
-      const targetFiles = data.files.filter(f => f.lang === lang);
+      const targetFiles = allData.files.filter(f => f.lang === lang);
       
       let totalKeys = 0;
       let translatedKeys = 0;
@@ -119,6 +127,9 @@ export default function LanguageSelectionPage() {
     
     const projectId = params.id;
     if (projectId) {
+      // Fetch source language files using the special query parameter
+      filesSummaryCache.fetch(projectId, 'source-language');
+      // Also fetch all files to get all available languages
       filesSummaryCache.fetch(projectId);
       
       // Use smart prefetch for project-languages route

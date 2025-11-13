@@ -439,17 +439,63 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const projectIdOrName = c.req.param('projectId');
     const branch = c.req.query('branch') || 'main';
-    const lang = c.req.query('lang');
+    let lang = c.req.query('lang');
     const filename = c.req.query('filename');
 
     let actualProjectId = projectIdOrName;
+    let configuredSourceLanguage = 'en';
+    
     const project = await prisma.project.findUnique({
       where: { name: projectIdOrName },
-      select: { repository: true },
+      select: { repository: true, sourceLanguage: true },
     });
     
     if (project) {
       actualProjectId = project.repository;
+      configuredSourceLanguage = project.sourceLanguage;
+    }
+
+    // Detect actual source language from uploaded files if lang is 'source-language'
+    if (lang === 'source-language') {
+      // Get all distinct languages from uploaded files
+      const languages = await prisma.projectFile.findMany({
+        where: { 
+          projectId: actualProjectId,
+          branch 
+        },
+        select: { lang: true },
+        distinct: ['lang'],
+      });
+
+      // Find the actual source language
+      // Priority: 
+      // 1. Exact match with configured sourceLanguage
+      // 2. Language that starts with configured sourceLanguage (e.g., en-US for en)
+      // 3. First language alphabetically (fallback)
+      let actualSourceLanguage = configuredSourceLanguage;
+      
+      if (languages.length > 0) {
+        const languageCodes = languages.map(l => l.lang);
+        
+        // Check for exact match
+        if (languageCodes.includes(configuredSourceLanguage)) {
+          actualSourceLanguage = configuredSourceLanguage;
+        } else {
+          // Check for languages that start with the configured source language
+          const matching = languageCodes.find(l => 
+            l.toLowerCase().startsWith(configuredSourceLanguage.toLowerCase() + '-')
+          );
+          
+          if (matching) {
+            actualSourceLanguage = matching;
+          } else {
+            // Use the first language alphabetically as fallback
+            actualSourceLanguage = languageCodes.sort()[0];
+          }
+        }
+      }
+      
+      lang = actualSourceLanguage;
     }
 
     const where: any = { projectId: actualProjectId, branch };

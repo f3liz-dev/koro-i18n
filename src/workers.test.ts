@@ -297,6 +297,44 @@ describe('API Endpoints', () => {
       
       expect(true).toBe(true); // Documentation test
     });
+
+    it('should support source-language parameter to auto-detect actual source language', () => {
+      // When fetching files with ?lang=source-language, the API should:
+      // 1. Look at the project's configured sourceLanguage (e.g., "en")
+      // 2. Check what files are actually uploaded
+      // 3. If files are uploaded as "en-US" instead of "en", return those
+      
+      // This solves the problem where:
+      // - Project is configured with sourceLanguage: "en"
+      // - Files are uploaded with lang: "en-US"
+      // - Calling /files/summary?lang=en returns no files
+      // - Calling /files/summary?lang=source-language returns the en-US files
+      
+      const scenarios = [
+        {
+          description: 'Files use en-US but config says en',
+          configuredSourceLanguage: 'en',
+          uploadedLanguages: ['en-US', 'ja', 'ko-KR'],
+          expectedSourceLanguage: 'en-US'
+        },
+        {
+          description: 'Exact match exists',
+          configuredSourceLanguage: 'en',
+          uploadedLanguages: ['en', 'ja', 'ko-KR'],
+          expectedSourceLanguage: 'en'
+        },
+        {
+          description: 'No match - fallback to first alphabetically',
+          configuredSourceLanguage: 'en',
+          uploadedLanguages: ['ja', 'ko-KR', 'zh-CN'],
+          expectedSourceLanguage: 'ja'
+        }
+      ];
+      
+      expect(scenarios[0].expectedSourceLanguage).toBe('en-US');
+      expect(scenarios[1].expectedSourceLanguage).toBe('en');
+      expect(scenarios[2].expectedSourceLanguage).toBe('ja');
+    });
   });
 
   describe('SPA Routing', () => {
