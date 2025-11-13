@@ -2,6 +2,7 @@ import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchData } from '../utils/prefetch';
+import { useForesight } from '../utils/useForesight';
 
 interface Project {
   id: string;
@@ -28,6 +29,22 @@ export default function FileSelectionPage() {
   const [isOwner, setIsOwner] = createSignal(false);
 
   const language = () => params.language || '';
+
+  // ForesightJS refs for navigation buttons
+  const backButtonRef = useForesight({
+    prefetchUrls: [`/api/projects/${params.id}/files/summary`],
+    debugName: 'back-to-languages',
+  });
+
+  const settingsButtonRef = useForesight({
+    prefetchUrls: [],
+    debugName: 'project-settings',
+  });
+
+  const suggestionsButtonRef = useForesight({
+    prefetchUrls: [`/api/projects/${params.id}/suggestions`],
+    debugName: 'suggestions-button',
+  });
 
   const loadProject = async () => {
     try {
@@ -165,6 +182,7 @@ export default function FileSelectionPage() {
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
               <button
+                ref={backButtonRef}
                 onClick={() => navigate(`/projects/${params.id}`)}
                 class="text-gray-400 hover:text-gray-600"
               >
@@ -184,6 +202,7 @@ export default function FileSelectionPage() {
             <div class="flex items-center gap-2">
               <Show when={isOwner()}>
                 <button
+                  ref={settingsButtonRef}
                   onClick={() => navigate(`/projects/${params.id}/settings`)}
                   class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
                 >
@@ -191,6 +210,7 @@ export default function FileSelectionPage() {
                 </button>
               </Show>
               <button
+                ref={suggestionsButtonRef}
                 onClick={() => navigate(`/projects/${params.id}/suggestions`)}
                 class="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 rounded-lg hover:bg-blue-50"
               >
@@ -230,30 +250,39 @@ export default function FileSelectionPage() {
         <Show when={!isLoading() && fileStats().length > 0}>
           <div class="space-y-3">
             <For each={fileStats()}>
-              {(fileStat) => (
-                <button
-                  onClick={() => navigate(`/projects/${params.id}/translate/${language()}/${encodeURIComponent(fileStat.filename)}`)}
-                  class="w-full bg-white rounded-lg border p-6 hover:border-blue-500 hover:shadow-md transition text-left"
-                >
-                  <div class="flex items-center justify-between mb-4">
-                    <div class="flex-1">
-                      <h3 class="font-medium text-gray-900 mb-1">{fileStat.filename}</h3>
-                      <div class="text-sm text-gray-600">
-                        {fileStat.translatedKeys} / {fileStat.totalKeys} keys translated
+              {(fileStat) => {
+                const fileCardRef = useForesight({
+                  prefetchUrls: [`/api/translations?projectId=${params.id}&language=${language()}&filename=${encodeURIComponent(fileStat.filename)}`],
+                  debugName: `file-card-${fileStat.filename}`,
+                  hitSlop: 10,
+                });
+
+                return (
+                  <button
+                    ref={fileCardRef}
+                    onClick={() => navigate(`/projects/${params.id}/translate/${language()}/${encodeURIComponent(fileStat.filename)}`)}
+                    class="w-full bg-white rounded-lg border p-6 hover:border-blue-500 hover:shadow-md transition text-left"
+                  >
+                    <div class="flex items-center justify-between mb-4">
+                      <div class="flex-1">
+                        <h3 class="font-medium text-gray-900 mb-1">{fileStat.filename}</h3>
+                        <div class="text-sm text-gray-600">
+                          {fileStat.translatedKeys} / {fileStat.totalKeys} keys translated
+                        </div>
+                      </div>
+                      <div class={`px-3 py-1 rounded-full text-sm font-medium ${getPercentageColor(fileStat.percentage)}`}>
+                        {fileStat.percentage}%
                       </div>
                     </div>
-                    <div class={`px-3 py-1 rounded-full text-sm font-medium ${getPercentageColor(fileStat.percentage)}`}>
-                      {fileStat.percentage}%
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        class="bg-blue-600 h-2 rounded-full transition-all"
+                        style={`width: ${fileStat.percentage}%`}
+                      />
                     </div>
-                  </div>
-                  <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      class="bg-blue-600 h-2 rounded-full transition-all"
-                      style={`width: ${fileStat.percentage}%`}
-                    />
-                  </div>
-                </button>
-              )}
+                  </button>
+                );
+              }}
             </For>
           </div>
         </Show>

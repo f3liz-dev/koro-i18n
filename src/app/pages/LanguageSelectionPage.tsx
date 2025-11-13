@@ -2,6 +2,7 @@ import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchForRoute } from '../utils/prefetch';
+import { useForesight } from '../utils/useForesight';
 
 interface Project {
   id: string;
@@ -26,6 +27,22 @@ export default function LanguageSelectionPage() {
   const [languageStats, setLanguageStats] = createSignal<LanguageStats[]>([]);
   const [isLoading, setIsLoading] = createSignal(true);
   const [isOwner, setIsOwner] = createSignal(false);
+
+  // ForesightJS refs for navigation buttons
+  const backButtonRef = useForesight({
+    prefetchUrls: ['/api/projects'],
+    debugName: 'back-to-dashboard',
+  });
+
+  const settingsButtonRef = useForesight({
+    prefetchUrls: [],
+    debugName: 'project-settings',
+  });
+
+  const suggestionsButtonRef = useForesight({
+    prefetchUrls: [`/api/projects/${params.id}/suggestions`],
+    debugName: 'suggestions-button',
+  });
 
   const loadProject = async () => {
     try {
@@ -165,6 +182,7 @@ export default function LanguageSelectionPage() {
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
               <button
+                ref={backButtonRef}
                 onClick={() => navigate('/dashboard')}
                 class="text-gray-400 hover:text-gray-600"
               >
@@ -180,6 +198,7 @@ export default function LanguageSelectionPage() {
             <div class="flex items-center gap-2">
               <Show when={isOwner()}>
                 <button
+                  ref={settingsButtonRef}
                   onClick={() => navigate(`/projects/${params.id}/settings`)}
                   class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
                 >
@@ -187,6 +206,7 @@ export default function LanguageSelectionPage() {
                 </button>
               </Show>
               <button
+                ref={suggestionsButtonRef}
                 onClick={() => navigate(`/projects/${params.id}/suggestions`)}
                 class="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 rounded-lg hover:bg-blue-50"
               >
@@ -226,30 +246,39 @@ export default function LanguageSelectionPage() {
         <Show when={!isLoading() && languageStats().length > 0}>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <For each={languageStats()}>
-              {(langStat) => (
-                <button
-                  onClick={() => navigate(`/projects/${params.id}/language/${langStat.language}`)}
-                  class="bg-white rounded-lg border p-6 hover:border-blue-500 hover:shadow-md transition text-left"
-                >
-                  <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xl font-semibold text-gray-900">{langStat.language.toUpperCase()}</h3>
-                    <div class={`px-3 py-1 rounded-full text-sm font-medium ${getPercentageColor(langStat.percentage)}`}>
-                      {langStat.percentage}%
+              {(langStat) => {
+                const langCardRef = useForesight({
+                  prefetchUrls: [`/api/projects/${params.id}/files/summary?lang=${langStat.language}`],
+                  debugName: `language-card-${langStat.language}`,
+                  hitSlop: 10,
+                });
+
+                return (
+                  <button
+                    ref={langCardRef}
+                    onClick={() => navigate(`/projects/${params.id}/language/${langStat.language}`)}
+                    class="bg-white rounded-lg border p-6 hover:border-blue-500 hover:shadow-md transition text-left"
+                  >
+                    <div class="flex items-center justify-between mb-4">
+                      <h3 class="text-xl font-semibold text-gray-900">{langStat.language.toUpperCase()}</h3>
+                      <div class={`px-3 py-1 rounded-full text-sm font-medium ${getPercentageColor(langStat.percentage)}`}>
+                        {langStat.percentage}%
+                      </div>
                     </div>
-                  </div>
-                  <div class="space-y-2">
-                    <div class="text-sm text-gray-600">
-                      {langStat.translatedKeys} / {langStat.totalKeys} keys translated
+                    <div class="space-y-2">
+                      <div class="text-sm text-gray-600">
+                        {langStat.translatedKeys} / {langStat.totalKeys} keys translated
+                      </div>
+                      <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          class="bg-blue-600 h-2 rounded-full transition-all"
+                          style={`width: ${langStat.percentage}%`}
+                        />
+                      </div>
                     </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        class="bg-blue-600 h-2 rounded-full transition-all"
-                        style={`width: ${langStat.percentage}%`}
-                      />
-                    </div>
-                  </div>
-                </button>
-              )}
+                  </button>
+                );
+              }}
             </For>
           </div>
         </Show>
