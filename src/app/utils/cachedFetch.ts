@@ -1,22 +1,29 @@
 /**
- * Enhanced fetch utility that checks for cached responses before making network requests.
+ * Enhanced fetch utility that leverages browser HTTP cache for instant loading.
  * This works with ForesightJS prefetching to provide instant data when available.
  * 
- * The browser's HTTP cache is checked using cache: 'force-cache' first.
+ * When tryCache is true, the browser's HTTP cache is checked first.
  * If cached data exists (from ForesightJS or previous requests), it's returned immediately.
- * Otherwise, falls back to normal fetch behavior.
+ * Otherwise, a normal network request is made.
  */
 
 export interface CachedFetchOptions extends RequestInit {
   /**
    * If true, tries to get data from cache first before making a network request.
    * This provides instant loading when ForesightJS has prefetched the data.
+   * Default: false
    */
   tryCache?: boolean;
 }
 
 /**
- * Fetch data with cache-first strategy when enabled.
+ * Fetch data with optional cache-first strategy.
+ * 
+ * When tryCache is enabled, this will:
+ * 1. First try to get data from browser's HTTP cache (instant if available)
+ * 2. Fall back to normal fetch if cache miss
+ * 
+ * This reduces loading time when ForesightJS has prefetched the data.
  * 
  * @param url - The URL to fetch
  * @param options - Fetch options with optional tryCache flag
@@ -24,13 +31,13 @@ export interface CachedFetchOptions extends RequestInit {
  * 
  * @example
  * ```typescript
- * // Try cache first (instant if prefetched)
+ * // Try cache first (instant if prefetched by ForesightJS)
  * const res = await cachedFetch('/api/projects', { 
  *   credentials: 'include',
  *   tryCache: true 
  * });
  * 
- * // Normal fetch (always network)
+ * // Normal fetch (always network, but browser cache still works)
  * const res = await cachedFetch('/api/projects', { 
  *   credentials: 'include' 
  * });
@@ -44,47 +51,16 @@ export async function cachedFetch(url: string, options: CachedFetchOptions = {})
     return fetch(url, fetchOptions);
   }
   
-  // If tryCache is enabled, try to get from cache first
+  // When tryCache is true, use 'force-cache' mode to prefer cached responses
+  // This will return cached data instantly if available (from ForesightJS prefetch)
+  // and only make a network request if cache miss
   if (tryCache) {
-    try {
-      // Try to get cached response using force-cache mode
-      const cachedResponse = await fetch(url, {
-        ...fetchOptions,
-        cache: 'force-cache',
-      });
-      
-      // If we got a response and it's successful, return it
-      if (cachedResponse.ok) {
-        console.log(`[CachedFetch] Cache HIT: ${url}`);
-        return cachedResponse;
-      }
-    } catch (error) {
-      // If cache fetch fails, continue to normal fetch
-      console.log(`[CachedFetch] Cache MISS: ${url}`, error);
-    }
+    return fetch(url, {
+      ...fetchOptions,
+      cache: 'force-cache', // Prefer cache over network
+    });
   }
   
-  // Fall back to normal fetch (which will still use HTTP cache if available)
-  console.log(`[CachedFetch] Network fetch: ${url}`);
+  // Default behavior: normal fetch (browser will still use cache based on Cache-Control headers)
   return fetch(url, fetchOptions);
-}
-
-/**
- * Utility to check if a URL might be cached.
- * This is a best-effort check and doesn't guarantee cache availability.
- * 
- * @param url - The URL to check
- * @returns Promise resolving to true if data appears to be cached
- */
-export async function isCached(url: string): Promise<boolean> {
-  try {
-    const response = await fetch(url, {
-      method: 'HEAD',
-      cache: 'only-if-cached',
-      mode: 'same-origin',
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 }
