@@ -3,7 +3,7 @@ import { useParams, useNavigate } from '@solidjs/router';
 import { user } from '../auth';
 import { useForesight } from '../utils/useForesight';
 import { SkeletonListItem } from '../components/Skeleton';
-import { tryGetCached, createCachedFetcher } from '../utils/cachedFetch';
+import { suggestionsCache } from '../utils/dataStore';
 
 interface TranslationSuggestion {
   id: string;
@@ -25,24 +25,6 @@ interface GroupedSuggestion {
   suggestions: TranslationSuggestion[];
 }
 
-async function fetchTranslationSuggestions(projectId: string, language?: string) {
-  const params = new URLSearchParams({ projectId });
-  if (language) params.append('language', language);
-  
-  const url = `/api/translations/suggestions?${params}`;
-  
-  // Try to get cached data first
-  const cached = await tryGetCached(url, { credentials: 'include' });
-  if (cached) {
-    return cached.json();
-  }
-  
-  // Fallback to network fetch
-  const response = await fetch(url, { credentials: 'include' });
-  if (!response.ok) throw new Error('Failed to fetch suggestions');
-  return response.json();
-}
-
 async function deleteTranslation(id: string) {
   const response = await fetch(`/api/translations/${id}`, {
     method: 'DELETE',
@@ -62,9 +44,15 @@ export default function TranslationSuggestionsPage() {
   const [filterStatus, setFilterStatus] = createSignal<'all' | 'pending' | 'approved'>('pending');
   const [searchQuery, setSearchQuery] = createSignal('');
   const [viewMode, setViewMode] = createSignal<'grouped' | 'flat'>('grouped');
-  const [suggestions, setSuggestions] = createSignal<any>(null);
-  const [isLoading, setIsLoading] = createSignal(true);
   const [error, setError] = createSignal<boolean>(false);
+
+  // Get suggestions from store
+  const suggestionsStore = () => {
+    const lang = selectedLanguage() === 'all' ? '' : selectedLanguage();
+    return suggestionsCache.get(projectId(), lang);
+  };
+  const suggestions = () => suggestionsStore()?.suggestions;
+  const isLoading = () => !suggestionsStore()?.lastFetch;
 
   // ForesightJS ref
   const backButtonRef = useForesight({
@@ -72,36 +60,20 @@ export default function TranslationSuggestionsPage() {
     debugName: 'back-to-dashboard',
   });
 
-  const loadSuggestions = async () => {
-    try {
-      setIsLoading(true);
-      setError(false);
-      const data = await fetchTranslationSuggestions(
-        projectId(), 
-        selectedLanguage() === 'all' ? undefined : selectedLanguage()
-      );
-      setSuggestions(data);
-    } catch (err) {
-      console.error('Failed to fetch suggestions:', err);
-      setError(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const refetch = () => {
-    loadSuggestions();
+    const lang = selectedLanguage() === 'all' ? '' : selectedLanguage();
+    suggestionsCache.fetch(projectId(), lang);
   };
 
   // Load suggestions on mount and when language filter changes
   onMount(() => {
-    loadSuggestions();
+    refetch();
   });
 
   createEffect(() => {
     // Reload when selected language changes
     selectedLanguage();
-    loadSuggestions();
+    refetch();
   });
 
   const handleDelete = async (id: string) => {
@@ -120,7 +92,7 @@ export default function TranslationSuggestionsPage() {
 
   // Group suggestions by key and language
   const groupedSuggestions = (): GroupedSuggestion[] => {
-    const data = (suggestions() as any)?.suggestions || [];
+    const data = suggestions() || [];
     const query = searchQuery().toLowerCase();
     const status = filterStatus();
 

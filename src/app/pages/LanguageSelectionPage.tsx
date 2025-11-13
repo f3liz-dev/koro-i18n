@@ -3,7 +3,7 @@ import { createSignal, createMemo, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchForRoute } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
-import { createCachedFetcher, tryGetCached } from '../utils/cachedFetch';
+import { projectsCache, filesSummaryCache } from '../utils/dataStore';
 
 interface Project {
   id: string;
@@ -28,48 +28,19 @@ export default function LanguageSelectionPage() {
   const navigate = useNavigate();
   const params = useParams();
   
-  const [project, setProject] = createSignal<Project | null>(null);
   const [isOwner, setIsOwner] = createSignal(false);
-  const [filesData, setFilesData] = createSignal<FilesResponse | undefined>(undefined);
-  const [isLoadingFiles, setIsLoadingFiles] = createSignal(true);
 
+  // Access stores directly - returns cached data immediately
+  const projectsStore = projectsCache.get();
+  const project = () => projectsStore.projects.find((p: any) => p.name === params.id) || null;
+  
   const sourceLanguage = () => project()?.sourceLanguage || 'en';
   
-  // Load files with cache check
-  const loadFiles = async () => {
-    const projectId = params.id;
-    
-    if (!projectId) return;
-    
-    const url = `/api/projects/${projectId}/files/summary`;
-    
-    // Try to get cached data first for instant display
-    const cached = await tryGetCached(url, { credentials: 'include' });
-    
-    // If we have cached data, use it immediately without showing loading
-    if (cached) {
-      try {
-        const data = await cached.json() as FilesResponse;
-        setFilesData(data);
-        setIsLoadingFiles(false);
-        return; // Exit early since we have cached data
-      } catch (error) {
-        console.log('Failed to use cached data, falling back to network fetch', error);
-      }
-    }
-    
-    // Fallback: show loading and fetch from network
-    try {
-      setIsLoadingFiles(true);
-      const fetcher = createCachedFetcher<FilesResponse>({ credentials: 'include' });
-      const data = await fetcher(url);
-      setFilesData(data);
-    } catch (error) {
-      console.error('Failed to load files:', error);
-    } finally {
-      setIsLoadingFiles(false);
-    }
-  };
+  const filesStore = () => filesSummaryCache.get(params.id || '');
+  const filesData = () => filesStore()?.data;
+  
+  // Show loading only if we don't have cached data
+  const isLoadingFiles = () => !filesStore()?.lastFetch;
   
   // Compute language stats from the resource
   const languageStats = createMemo(() => {
@@ -122,7 +93,6 @@ export default function LanguageSelectionPage() {
     return stats;
   });
   
-  // isLoading is now manually managed
   const isLoading = () => isLoadingFiles();
 
   // ForesightJS refs for navigation buttons
@@ -141,29 +111,24 @@ export default function LanguageSelectionPage() {
     debugName: 'suggestions-button',
   });
 
-  const loadProject = async () => {
-    try {
-      const fetcher = createCachedFetcher<{ projects: Project[] }>({ credentials: 'include' });
-      const data = await fetcher('/api/projects');
-      const proj = data.projects.find((p: any) => p.name === params.id);
-      if (proj) {
-        setProject(proj);
-        setIsOwner(proj.userId === user()?.id);
-      }
-    } catch (error) {
-      console.error('Failed to load project:', error);
-    }
-  };
-
-  onMount(async () => {
+  onMount(() => {
     auth.refresh();
-    await loadProject();
-    await loadFiles();
     
-    // Use smart prefetch for project-languages route
+    // Fetch data in background - will update stores when data arrives
+    projectsCache.fetch();
+    
     const projectId = params.id;
     if (projectId) {
+      filesSummaryCache.fetch(projectId);
+      
+      // Use smart prefetch for project-languages route
       void prefetchForRoute('project-languages', projectId);
+    }
+    
+    // Set isOwner based on project data
+    const proj = project();
+    if (proj) {
+      setIsOwner(proj.userId === user()?.id);
     }
   });
 

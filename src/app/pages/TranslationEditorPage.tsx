@@ -5,7 +5,7 @@ import TranslationEditorHeader from '../components/TranslationEditorHeader';
 import TranslationEditorPanel from '../components/TranslationEditorPanel';
 import TranslationList from '../components/TranslationList';
 import MobileMenuOverlay from '../components/MobileMenuOverlay';
-import { cachedFetch, tryGetCached } from '../utils/cachedFetch';
+import { projectsCache, filesCache, suggestionsCache } from '../utils/dataStore';
 
 interface Translation {
   id: string;
@@ -91,7 +91,10 @@ export default function TranslationEditorPage() {
   const language = () => params.language || 'en';
   const filename = () => params.filename ? decodeURIComponent(params.filename) : null;
 
-  const [project, setProject] = createSignal<Project | null>(null);
+  // Access stores directly - returns cached data immediately
+  const projectsStore = projectsCache.get();
+  const project = () => projectsStore.projects.find((p: any) => p.name === projectId()) || null;
+  
   const [selectedKey, setSelectedKey] = createSignal<string | null>(null);
   const [translationValue, setTranslationValue] = createSignal('');
   const [searchQuery, setSearchQuery] = createSignal('');
@@ -101,166 +104,60 @@ export default function TranslationEditorPage() {
   const [showMobileMenu, setShowMobileMenu] = createSignal(false);
 
   const [translationStrings, setTranslationStrings] = createSignal<TranslationString[]>([]);
-  const [isLoadingFiles, setIsLoadingFiles] = createSignal(true);
   const [isNavigating, setIsNavigating] = createSignal(false);
   const [suggestionRefetchToken, setSuggestionRefetchToken] = createSignal(0);
 
-  // Load project to get source language
-  const loadProject = async () => {
-    try {
-      // Try cache first for instant loading
-      const res = await cachedFetch('/api/projects', { 
-        credentials: 'include',
-        tryCache: true,
-      });
-      if (res.ok) {
-        const data = await res.json() as { projects: Project[] };
-        const proj = data.projects.find((p: any) => p.name === projectId());
-        if (proj) {
-          setProject(proj);
-        }
+  // Get files from store - returns cached data immediately
+  const sourceLanguage = () => project()?.sourceLanguage || 'en';
+  const targetFilename = () => filename();
+  
+  const sourceFilesStore = () => filesCache.get(projectId(), sourceLanguage());
+  const targetFilesStore = () => filesCache.get(projectId(), language());
+  
+  // Compute translation strings from store data
+  const computeTranslationStrings = () => {
+    const sourceFiles = sourceFilesStore()?.files || [];
+    const targetFiles = targetFilesStore()?.files || [];
+    
+    if (sourceFiles.length === 0) return [];
+    
+    const strings: TranslationString[] = [];
+    
+    for (const sourceFile of sourceFiles) {
+      const targetFile = targetFiles.find((f: any) => f.filename === sourceFile.filename);
+      const sourceContents = sourceFile.contents || {};
+      const targetContents = targetFile?.contents || {};
+      
+      for (const [key, sourceValue] of Object.entries(sourceContents)) {
+        strings.push({
+          key: `${sourceFile.filename}:${key}`,
+          sourceValue: String(sourceValue),
+          currentValue: targetContents[key] ? String(targetContents[key]) : '',
+          translations: []
+        });
       }
-    } catch (error) {
-      console.error('Failed to load project:', error);
     }
+    
+    return strings;
   };
-
-  // Load translation files from uploaded data
-  const loadTranslationFiles = async () => {
-    const pid = projectId();
-    const sourceLanguage = project()?.sourceLanguage || 'en';
-    const targetFilename = filename();
-    
-    // Build URLs with filters for optimized data fetching
-    let sourceUrl = `/api/projects/${pid}/files?lang=${sourceLanguage}`;
-    let targetUrl = `/api/projects/${pid}/files?lang=${language()}`;
-    
-    // Add filename filter if specified to reduce payload size
-    if (targetFilename) {
-      sourceUrl += `&filename=${encodeURIComponent(targetFilename)}`;
-      targetUrl += `&filename=${encodeURIComponent(targetFilename)}`;
-    }
-    
-    // Try to get data from cache first before showing loading state
-    const cachedSource = await tryGetCached(sourceUrl, {
-      credentials: 'include',
-    });
-    const cachedTarget = await tryGetCached(targetUrl, {
-      credentials: 'include',
-    });
-    
-    // If we have cached data, use it immediately without showing loading
-    if (cachedSource && cachedTarget) {
-      try {
-        const sourceData = await cachedSource.json() as { files: any[] };
-        const targetData = await cachedTarget.json() as { files: any[] };
-        
-        const sourceFiles = sourceData.files || [];
-        const targetFiles = targetData.files || [];
-        
-        const strings: TranslationString[] = [];
-        
-        for (const sourceFile of sourceFiles) {
-          const targetFile = targetFiles.find((f: any) => f.filename === sourceFile.filename);
-          const sourceContents = sourceFile.contents || {};
-          const targetContents = targetFile?.contents || {};
-          
-          for (const [key, sourceValue] of Object.entries(sourceContents)) {
-            strings.push({
-              key: `${sourceFile.filename}:${key}`,
-              sourceValue: String(sourceValue),
-              currentValue: targetContents[key] ? String(targetContents[key]) : '',
-              translations: []
-            });
-          }
-        }
-        
-        setTranslationStrings(strings);
-        
-        // Auto-select the first key if available
-        if (strings.length > 0 && !selectedKey()) {
-          handleSelectKey(strings[0].key);
-        }
-        
-        setIsLoadingFiles(false);
-        return; // Exit early since we have cached data
-      } catch (error) {
-        console.log('Failed to use cached data, falling back to network fetch', error);
-      }
-    }
-    
-    // Fallback: show loading and fetch from network
-    try {
-      setIsLoadingFiles(true);
-      
-      const pid = projectId();
-      const sourceLanguage = project()?.sourceLanguage || 'en';
-      const targetFilename = filename();
-      
-      // Build URLs with filters for optimized data fetching
-      let sourceUrl = `/api/projects/${pid}/files?lang=${sourceLanguage}`;
-      let targetUrl = `/api/projects/${pid}/files?lang=${language()}`;
-      
-      // Add filename filter if specified to reduce payload size
-      if (targetFilename) {
-        sourceUrl += `&filename=${encodeURIComponent(targetFilename)}`;
-        targetUrl += `&filename=${encodeURIComponent(targetFilename)}`;
-      }
-      
-      // Try cache first (ForesightJS may have prefetched these)
-      const sourceRes = await cachedFetch(sourceUrl, { 
-        credentials: 'include',
-        tryCache: true,
-      });
-      
-      if (!sourceRes.ok) {
-        const errorText = await sourceRes.text();
-        console.error('Failed to load source files:', sourceRes.status, errorText);
-        return;
-      }
-      
-      const sourceData = await sourceRes.json() as { files: any[] };
-      const sourceFiles = sourceData.files || [];
-      
-      const targetRes = await cachedFetch(targetUrl, { 
-        credentials: 'include',
-        tryCache: true,
-      });
-      
-      const targetData = targetRes.ok ? (await targetRes.json() as { files: any[] }) : { files: [] };
-      const targetFiles = targetData.files || [];
-      
-      const strings: TranslationString[] = [];
-      
-      for (const sourceFile of sourceFiles) {
-        const targetFile = targetFiles.find((f: any) => f.filename === sourceFile.filename);
-        const sourceContents = sourceFile.contents || {};
-        const targetContents = targetFile?.contents || {};
-        
-        for (const [key, sourceValue] of Object.entries(sourceContents)) {
-          strings.push({
-            key: `${sourceFile.filename}:${key}`,
-            sourceValue: String(sourceValue),
-            currentValue: targetContents[key] ? String(targetContents[key]) : '',
-            translations: []
-          });
-        }
-      }
-      
+  
+  // Update translationStrings when store data changes
+  createEffect(() => {
+    const strings = computeTranslationStrings();
+    if (strings.length > 0) {
       setTranslationStrings(strings);
       
-      // Auto-select the first key if available
-      if (strings.length > 0 && !selectedKey()) {
+      // Auto-select the first key if available and no key is selected
+      if (!selectedKey()) {
         handleSelectKey(strings[0].key);
       }
-    } catch (error) {
-      console.error('Failed to load translation files:', error);
-    } finally {
-      setIsLoadingFiles(false);
     }
-  };
+  });
+  
+  // Show loading only if we don't have cached data
+  const isLoadingFiles = () => !sourceFilesStore()?.lastFetch || !targetFilesStore()?.lastFetch;
 
-  onMount(async () => {
+  onMount(() => {
     if (!user()) {
       // Save the current URL to sessionStorage before redirecting to login
       sessionStorage.setItem('redirectAfterLogin', window.location.pathname + window.location.search);
@@ -268,15 +165,22 @@ export default function TranslationEditorPage() {
       return;
     }
     
-    // Load project first to get source language
-    await loadProject();
+    // Fetch data in background - will update stores when data arrives
+    projectsCache.fetch();
     
-    // Then load translation files
-    loadTranslationFiles();
+    const pid = projectId();
+    const lang = language();
+    const srcLang = sourceLanguage();
+    const targetFilename = filename();
     
-    // Load translations and suggestions
-    loadTranslations();
-    loadAllSuggestions();
+    if (pid && lang) {
+      // Fetch files
+      filesCache.fetch(pid, srcLang, targetFilename || undefined);
+      filesCache.fetch(pid, lang, targetFilename || undefined);
+      
+      // Fetch suggestions for all keys
+      suggestionsCache.fetch(pid, lang);
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key === 'ArrowLeft') {
@@ -295,85 +199,14 @@ export default function TranslationEditorPage() {
     onCleanup(() => window.removeEventListener('keydown', handleKeyDown));
   });
 
-  const [translations, setTranslations] = createSignal<any>(null);
-  const [isLoadingTranslations, setIsLoadingTranslations] = createSignal(false);
-
-  const loadTranslations = async () => {
-    const pid = projectId();
-    const lang = language();
-    
-    if (!pid || !lang) return;
-    
-    const url = `/api/translations?projectId=${encodeURIComponent(pid)}&language=${lang}&status=pending`;
-    
-    // Try to get cached data first
-    const cached = await tryGetCached(url, { credentials: 'include' });
-    if (cached) {
-      try {
-        const data = await cached.json();
-        setTranslations(data);
-        return;
-      } catch (error) {
-        console.log('Failed to use cached translations, falling back to network', error);
-      }
-    }
-    
-    // Fallback to network fetch
-    try {
-      setIsLoadingTranslations(true);
-      const data = await fetchProjectTranslations(pid, lang);
-      setTranslations(data);
-    } catch (error) {
-      console.error('Failed to load translations:', error);
-    } finally {
-      setIsLoadingTranslations(false);
-    }
-  };
-
-  const [allSuggestions, setAllSuggestions] = createSignal<any>(null);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = createSignal(false);
-
-  const loadAllSuggestions = async () => {
-    const pid = projectId();
-    const lang = language();
-    
-    if (!pid || !lang) return;
-    
-    const params = new URLSearchParams({ projectId: pid, language: lang });
-    const url = `/api/translations/suggestions?${params}`;
-    
-    // Try to get cached data first
-    const cached = await tryGetCached(url, { credentials: 'include' });
-    if (cached) {
-      try {
-        const data = await cached.json();
-        setAllSuggestions(data);
-        return;
-      } catch (error) {
-        console.log('Failed to use cached suggestions, falling back to network', error);
-      }
-    }
-    
-    // Fallback to network fetch
-    try {
-      setIsLoadingSuggestions(true);
-      const data = await fetchSuggestions(pid, lang);
-      setAllSuggestions(data);
-    } catch (error) {
-      console.error('Failed to load all suggestions:', error);
-    } finally {
-      setIsLoadingSuggestions(false);
-    }
-  };
-
-  const refetchAllSuggestions = () => {
-    loadAllSuggestions();
-  };
+  // Get suggestions from store
+  const allSuggestionsStore = () => suggestionsCache.get(projectId(), language());
+  const allSuggestions = () => allSuggestionsStore()?.suggestions || [];
 
   // Enrich translation strings with suggestion status
   const enrichedTranslationStrings = () => {
     const strings = translationStrings();
-    const suggestionsData = (allSuggestions() as any)?.suggestions || [];
+    const suggestionsData = allSuggestions();
     
     // Create a map of key -> suggestion status
     const suggestionMap = new Map<string, 'pending' | 'approved'>();
@@ -392,54 +225,17 @@ export default function TranslationEditorPage() {
     }));
   };
 
-  // Always fetch suggestions when a key is selected
-  const [suggestions, setSuggestions] = createSignal<any>(null);
-  const [isLoadingKeySuggestions, setIsLoadingKeySuggestions] = createSignal(false);
+  // Get suggestions for selected key from store
+  const keySuggestionsStore = () => suggestionsCache.get(projectId(), language(), selectedKey() || undefined);
+  const suggestions = () => keySuggestionsStore()?.suggestions || [];
+  const isLoadingKeySuggestions = () => !keySuggestionsStore()?.lastFetch;
 
-  const loadKeySuggestions = async (key: string | null) => {
-    if (!key) {
-      setSuggestions(null);
-      return;
-    }
-    
-    const pid = projectId();
-    const lang = language();
-    
-    const params = new URLSearchParams({ projectId: pid, language: lang, key });
-    const url = `/api/translations/suggestions?${params}`;
-    
-    // Try to get cached data first
-    const cached = await tryGetCached(url, { credentials: 'include' });
-    if (cached) {
-      try {
-        const data = await cached.json();
-        setSuggestions(data);
-        return;
-      } catch (error) {
-        console.log('Failed to use cached key suggestions, falling back to network', error);
-      }
-    }
-    
-    // Fallback to network fetch
-    try {
-      setIsLoadingKeySuggestions(true);
-      const data = await fetchSuggestions(pid, lang, key);
-      setSuggestions(data);
-    } catch (error) {
-      console.error('Failed to load key suggestions:', error);
-    } finally {
-      setIsLoadingKeySuggestions(false);
-    }
-  };
-
-  const refetchSuggestions = () => {
-    loadKeySuggestions(selectedKey());
-  };
-
-  // Watch for selected key changes to load suggestions
+  // Watch for selected key changes to fetch suggestions
   createEffect(() => {
     const key = selectedKey();
-    loadKeySuggestions(key);
+    if (key) {
+      suggestionsCache.fetch(projectId(), language(), key);
+    }
   });
 
   const filteredStrings = () => {
@@ -468,41 +264,26 @@ export default function TranslationEditorPage() {
     setIsNavigating(true);
     setSelectedKey(key);
     
-    // Immediately set the current file value as a fallback
+    // Immediately set the current file value or latest suggestion from cache
     const str = enrichedTranslationStrings().find(s => s.key === key);
     if (str) {
-      setTranslationValue(str.currentValue || '');
+      // Check if we have suggestions in cache
+      const cachedSuggestions = suggestionsCache.get(projectId(), language(), key);
+      const suggestionEntries = cachedSuggestions?.suggestions || [];
+      
+      // Find the latest approved or pending translation (not deleted/rejected)
+      const latestSuggestion = suggestionEntries.find((entry: any) => 
+        entry.status === 'approved' || entry.status === 'pending'
+      );
+      
+      // Use suggestion if available, otherwise use current value
+      setTranslationValue(latestSuggestion?.value || str.currentValue || '');
     }
     
     // Release navigation lock immediately so user can navigate
     setTimeout(() => setIsNavigating(false), 100);
     
-    // Fetch suggestions in the background to get the latest suggestion
-    // This won't block navigation
-    fetchSuggestions(projectId(), language(), key)
-      .then((suggestionsData: any) => {
-        const suggestionEntries = suggestionsData?.suggestions || [];
-        
-        // Find the latest approved or pending translation (not deleted/rejected)
-        const latestSuggestion = suggestionEntries.find((entry: any) => 
-          entry.status === 'approved' || entry.status === 'pending'
-        );
-        
-        if (latestSuggestion) {
-          // Update with the latest suggestion if found
-          // Only update if we're still on the same key
-          if (selectedKey() === key) {
-            setTranslationValue(latestSuggestion.value);
-          }
-        }
-      })
-      .catch((error) => {
-        console.error('Failed to fetch suggestions:', error);
-        // Already have fallback value set, so no action needed
-      });
-    
-    // Trigger suggestions refetch for the panel
-    refetchSuggestions();
+    // Fetch suggestions in background to update cache (already handled by createEffect)
   };
 
   const handleToggleSuggestions = () => {
@@ -512,8 +293,9 @@ export default function TranslationEditorPage() {
   const handleApproveSuggestion = async (id: string) => {
     try {
       await approveSuggestion(id);
-      // Increment token to force refetch
-      setSuggestionRefetchToken(prev => prev + 1);
+      // Refetch suggestions to update cache
+      suggestionsCache.fetch(projectId(), language());
+      suggestionsCache.fetch(projectId(), language(), selectedKey() || undefined);
       alert('Suggestion approved successfully!');
     } catch (error) {
       console.error('Failed to approve suggestion:', error);
@@ -528,8 +310,9 @@ export default function TranslationEditorPage() {
 
     try {
       await rejectSuggestion(id);
-      // Increment token to force refetch
-      setSuggestionRefetchToken(prev => prev + 1);
+      // Refetch suggestions to update cache
+      suggestionsCache.fetch(projectId(), language());
+      suggestionsCache.fetch(projectId(), language(), selectedKey() || undefined);
       alert('Suggestion rejected successfully!');
     } catch (error) {
       console.error('Failed to reject suggestion:', error);
@@ -550,8 +333,9 @@ export default function TranslationEditorPage() {
           : str
       ));
       
-      // Increment token to force refetch of suggestions
-      setSuggestionRefetchToken(prev => prev + 1);
+      // Refetch suggestions to update cache
+      suggestionsCache.fetch(projectId(), language());
+      suggestionsCache.fetch(projectId(), language(), selectedKey() || undefined);
       
       alert('Translation saved! It will be reviewed and committed.');
     } catch (error) {
@@ -642,7 +426,7 @@ export default function TranslationEditorPage() {
             language={language()}
             translationValue={translationValue()}
             showSuggestions={showSuggestions()}
-            suggestions={(suggestions() as any)?.suggestions}
+            suggestions={suggestions()}
             isLoadingSuggestions={isLoadingKeySuggestions()}
             currentIndex={getCurrentIndex()}
             totalCount={filteredStrings().length}

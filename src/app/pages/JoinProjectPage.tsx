@@ -2,6 +2,7 @@ import { useNavigate } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user } from '../auth';
 import { useForesight } from '../utils/useForesight';
+import { projectsCache } from '../utils/dataStore';
 
 interface Project {
   id: string;
@@ -13,9 +14,12 @@ interface Project {
 
 export default function JoinProjectPage() {
   const navigate = useNavigate();
-  const [projects, setProjects] = createSignal<Project[]>([]);
-  const [myProjects, setMyProjects] = createSignal<string[]>([]);
+  const [allProjects, setAllProjects] = createSignal<Project[]>([]);
   const [requestedProjects, setRequestedProjects] = createSignal<Set<string>>(new Set());
+
+  // Get my projects from store
+  const projectsStore = projectsCache.get();
+  const myProjects = () => projectsStore.projects.map(p => p.id);
 
   // ForesightJS refs
   const backButtonRef = useForesight({
@@ -23,22 +27,15 @@ export default function JoinProjectPage() {
     debugName: 'back-to-dashboard',
   });
 
-  const loadProjects = async () => {
+  const loadAllProjects = async () => {
     try {
-      const [allRes, myRes] = await Promise.all([
-        fetch('/api/projects/all', { credentials: 'include' }),
-        fetch('/api/projects', { credentials: 'include' })
-      ]);
-
-      if (allRes.ok && myRes.ok) {
-        const allData = await allRes.json() as { projects: Project[] };
-        const myData = await myRes.json() as { projects: any[] };
-        
-        setProjects(allData.projects);
-        setMyProjects(myData.projects.map((p: any) => p.id));
+      const res = await fetch('/api/projects/all', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json() as { projects: Project[] };
+        setAllProjects(data.projects);
       }
     } catch (error) {
-      console.error('Failed to load projects:', error);
+      console.error('Failed to load all projects:', error);
     }
   };
 
@@ -62,10 +59,13 @@ export default function JoinProjectPage() {
   };
 
   onMount(() => {
-    loadProjects();
+    // Fetch my projects in background
+    projectsCache.fetch();
+    // Fetch all available projects
+    loadAllProjects();
   });
 
-  const availableProjects = () => projects().filter(p => 
+  const availableProjects = () => allProjects().filter(p => 
     !myProjects().includes(p.id) && p.userId !== user()?.id
   );
 

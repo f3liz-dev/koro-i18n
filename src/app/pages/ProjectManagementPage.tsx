@@ -1,8 +1,8 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user } from '../auth';
-import { cachedFetch } from '../utils/cachedFetch';
 import { SkeletonTableRow } from '../components/Skeleton';
+import { projectsCache, membersCache } from '../utils/dataStore';
 
 interface Member {
   id: string;
@@ -25,46 +25,16 @@ interface Project {
 export default function ProjectManagementPage() {
   const navigate = useNavigate();
   const params = useParams();
-  const [project, setProject] = createSignal<Project | null>(null);
-  const [members, setMembers] = createSignal<Member[]>([]);
+  
+  // Access stores directly - returns cached data immediately
+  const projectsStore = projectsCache.get();
+  const project = () => projectsStore.projects.find((p: any) => p.id === params.id) || null;
+  
+  const membersStore = () => membersCache.get(params.id || '');
+  const members = () => membersStore()?.members || [];
+  const isLoadingMembers = () => !membersStore()?.lastFetch;
+  
   const [activeTab, setActiveTab] = createSignal<'approved' | 'pending' | 'rejected'>('approved');
-  const [isLoadingMembers, setIsLoadingMembers] = createSignal(true);
-
-  const loadProject = async () => {
-    try {
-      // Try cache first for instant loading
-      const res = await cachedFetch(`/api/projects`, { 
-        credentials: 'include',
-        tryCache: true,
-      });
-      if (res.ok) {
-        const data = await res.json() as { projects: Project[] };
-        const proj = data.projects.find((p: any) => p.id === params.id);
-        if (proj) setProject(proj);
-      }
-    } catch (error) {
-      console.error('Failed to load project:', error);
-    }
-  };
-
-  const loadMembers = async () => {
-    setIsLoadingMembers(true);
-    try {
-      // Try cache first (may be prefetched)
-      const res = await cachedFetch(`/api/projects/${params.id}/members`, { 
-        credentials: 'include',
-        tryCache: true,
-      });
-      if (res.ok) {
-        const data = await res.json() as { members: Member[] };
-        setMembers(data.members);
-      }
-    } catch (error) {
-      console.error('Failed to load members:', error);
-    } finally {
-      setIsLoadingMembers(false);
-    }
-  };
 
   const handleApprove = async (memberId: string, status: 'approved' | 'rejected') => {
     try {
@@ -76,7 +46,8 @@ export default function ProjectManagementPage() {
       });
 
       if (res.ok) {
-        loadMembers();
+        // Refetch members to update the store
+        membersCache.fetch(params.id || '');
       }
     } catch (error) {
       console.error('Failed to update member:', error);
@@ -93,7 +64,8 @@ export default function ProjectManagementPage() {
       });
 
       if (res.ok) {
-        loadMembers();
+        // Refetch members to update the store
+        membersCache.fetch(params.id || '');
       }
     } catch (error) {
       console.error('Failed to remove member:', error);
@@ -110,7 +82,8 @@ export default function ProjectManagementPage() {
       });
 
       if (res.ok) {
-        loadProject();
+        // Refetch projects to update the store
+        projectsCache.fetch();
       }
     } catch (error) {
       console.error('Failed to update access control:', error);
@@ -118,8 +91,9 @@ export default function ProjectManagementPage() {
   };
 
   onMount(() => {
-    loadProject();
-    loadMembers();
+    // Fetch data in background - will update stores when data arrives
+    projectsCache.fetch();
+    membersCache.fetch(params.id || '');
   });
 
   const filteredMembers = () => members().filter(m => m.status === activeTab());

@@ -2,6 +2,7 @@ import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user } from '../auth';
 import { useForesight } from '../utils/useForesight';
+import { projectsCache, membersCache } from '../utils/dataStore';
 
 interface Member {
   id: string;
@@ -24,8 +25,15 @@ interface Project {
 export default function ProjectSettingsPage() {
   const navigate = useNavigate();
   const params = useParams();
-  const [project, setProject] = createSignal<Project | null>(null);
-  const [members, setMembers] = createSignal<Member[]>([]);
+  
+  // Access stores directly - returns cached data immediately
+  const projectsStore = projectsCache.get();
+  const project = () => projectsStore.projects.find((p: any) => p.name === params.id) || null;
+  
+  const projectId = () => project()?.id || params.id || '';
+  const membersStore = () => membersCache.get(projectId());
+  const members = () => membersStore()?.members || [];
+  
   const [activeTab, setActiveTab] = createSignal<'approved' | 'pending' | 'rejected'>('approved');
 
   // ForesightJS ref
@@ -34,38 +42,12 @@ export default function ProjectSettingsPage() {
     debugName: 'back-to-project',
   });
 
-  const loadProject = async () => {
-    try {
-      const res = await fetch(`/api/projects`, { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json() as { projects: Project[] };
-        const proj = data.projects.find((p: any) => p.name === params.id);
-        if (proj) setProject(proj);
-      }
-    } catch (error) {
-      console.error('Failed to load project:', error);
-    }
-  };
-
-  const loadMembers = async () => {
-    if (!project()) return;
-    
-    try {
-      const res = await fetch(`/api/projects/${project()!.id}/members`, { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json() as { members: Member[] };
-        setMembers(data.members);
-      }
-    } catch (error) {
-      console.error('Failed to load members:', error);
-    }
-  };
-
   const handleApprove = async (memberId: string, status: 'approved' | 'rejected') => {
-    if (!project()) return;
+    const pid = projectId();
+    if (!pid) return;
     
     try {
-      const res = await fetch(`/api/projects/${project()!.id}/members/${memberId}/approve`, {
+      const res = await fetch(`/api/projects/${pid}/members/${memberId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -73,7 +55,8 @@ export default function ProjectSettingsPage() {
       });
 
       if (res.ok) {
-        loadMembers();
+        // Refetch members to update cache
+        membersCache.fetch(pid);
       }
     } catch (error) {
       console.error('Failed to update member:', error);
@@ -82,16 +65,18 @@ export default function ProjectSettingsPage() {
 
   const handleRemove = async (memberId: string) => {
     if (!confirm('Remove this member?')) return;
-    if (!project()) return;
+    const pid = projectId();
+    if (!pid) return;
 
     try {
-      const res = await fetch(`/api/projects/${project()!.id}/members/${memberId}`, {
+      const res = await fetch(`/api/projects/${pid}/members/${memberId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
 
       if (res.ok) {
-        loadMembers();
+        // Refetch members to update cache
+        membersCache.fetch(pid);
       }
     } catch (error) {
       console.error('Failed to remove member:', error);
@@ -99,10 +84,11 @@ export default function ProjectSettingsPage() {
   };
 
   const handleAccessControlChange = async (accessControl: 'whitelist' | 'blacklist') => {
-    if (!project()) return;
+    const pid = projectId();
+    if (!pid) return;
     
     try {
-      const res = await fetch(`/api/projects/${project()!.id}`, {
+      const res = await fetch(`/api/projects/${pid}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -110,7 +96,8 @@ export default function ProjectSettingsPage() {
       });
 
       if (res.ok) {
-        loadProject();
+        // Refetch projects to update cache
+        projectsCache.fetch();
       }
     } catch (error) {
       console.error('Failed to update access control:', error);
@@ -118,11 +105,12 @@ export default function ProjectSettingsPage() {
   };
 
   const handleDeleteProject = async () => {
-    if (!project()) return;
+    const pid = projectId();
+    if (!pid) return;
     if (!confirm('Delete this project? This cannot be undone.')) return;
 
     try {
-      const res = await fetch(`/api/projects/${project()!.id}`, {
+      const res = await fetch(`/api/projects/${pid}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -140,17 +128,9 @@ export default function ProjectSettingsPage() {
   };
 
   onMount(() => {
-    loadProject();
-  });
-
-  // Load members when project is loaded
-  onMount(() => {
-    const checkProject = setInterval(() => {
-      if (project()) {
-        loadMembers();
-        clearInterval(checkProject);
-      }
-    }, 100);
+    // Fetch data in background - will update stores when data arrives
+    projectsCache.fetch();
+    membersCache.fetch(projectId());
   });
 
   const filteredMembers = () => members().filter(m => m.status === activeTab());
