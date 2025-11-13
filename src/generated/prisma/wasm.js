@@ -196,7 +196,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "C:\\Users\\user\\Downloads\\koro-i18n\\src\\generated\\prisma",
+      "value": "/home/runner/work/koro-i18n/koro-i18n/src/generated/prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -205,12 +205,12 @@ const config = {
     "binaryTargets": [
       {
         "fromEnvVar": null,
-        "value": "windows",
+        "value": "debian-openssl-3.0.x",
         "native": true
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "C:\\Users\\user\\Downloads\\koro-i18n\\prisma\\schema.prisma",
+    "sourceFilePath": "/home/runner/work/koro-i18n/koro-i18n/prisma/schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
@@ -223,7 +223,8 @@ const config = {
     "db"
   ],
   "activeProvider": "sqlite",
-  "postinstall": false,
+  "postinstall": true,
+  "ciName": "GitHub Actions",
   "inlineDatasources": {
     "db": {
       "url": {

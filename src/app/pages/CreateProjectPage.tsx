@@ -11,6 +11,8 @@ export default function CreateProjectPage() {
 
   onMount(() => {
     if (!user()) {
+      // Save the current URL to sessionStorage before redirecting to login
+      sessionStorage.setItem('redirectAfterLogin', window.location.pathname + window.location.search);
       navigate('/login', { replace: true });
     }
   });
