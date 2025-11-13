@@ -1,5 +1,6 @@
-import { createSignal, createResource, For, Show } from 'solid-js';
+import { createSignal, For, Show } from 'solid-js';
 import { SkeletonListItem } from '../components/Skeleton';
+import { tryGetCached, createCachedFetcher } from '../utils/cachedFetch';
 
 interface HistoryEntry {
   id: string;
@@ -12,9 +13,17 @@ interface HistoryEntry {
 
 async function fetchHistory(projectId: string, language: string, key: string) {
   const params = new URLSearchParams({ projectId, language, key });
-  const response = await fetch(`/api/translations/history?${params}`, {
-    credentials: 'include',
-  });
+  const url = `/api/translations/history?${params}`;
+  
+  // Try to get cached data first
+  const cached = await tryGetCached(url, { credentials: 'include' });
+  if (cached) {
+    const data = await cached.json() as { history: HistoryEntry[] };
+    return data.history;
+  }
+  
+  // Fallback to network fetch
+  const response = await fetch(url, { credentials: 'include' });
   if (!response.ok) throw new Error('Failed to fetch history');
   const data = await response.json() as { history: HistoryEntry[] };
   return data.history;
@@ -24,16 +33,21 @@ export default function TranslationHistoryPage() {
   const [projectId, setProjectId] = createSignal('');
   const [language, setLanguage] = createSignal('');
   const [key, setKey] = createSignal('');
-  const [searchParams, setSearchParams] = createSignal<{ projectId: string; language: string; key: string } | null>(null);
+  const [history, setHistory] = createSignal<HistoryEntry[] | null>(null);
+  const [isLoading, setIsLoading] = createSignal(false);
 
-  const [history] = createResource(
-    searchParams,
-    (params) => fetchHistory(params.projectId, params.language, params.key)
-  );
-
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (projectId() && language() && key()) {
-      setSearchParams({ projectId: projectId(), language: language(), key: key() });
+      try {
+        setIsLoading(true);
+        const data = await fetchHistory(projectId(), language(), key());
+        setHistory(data);
+      } catch (error) {
+        console.error('Failed to fetch history:', error);
+        setHistory([]);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -114,7 +128,7 @@ export default function TranslationHistoryPage() {
         </div>
 
         <div class="border rounded-lg">
-          <Show when={!history.loading} fallback={
+          <Show when={!isLoading()} fallback={
             <div class="divide-y">
               <SkeletonListItem />
               <SkeletonListItem />

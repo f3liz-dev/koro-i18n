@@ -1,4 +1,5 @@
 import { createSignal, createResource, onMount } from 'solid-js';
+import { tryGetCached } from './utils/cachedFetch';
 
 interface User {
   id: string;
@@ -11,6 +12,20 @@ const API = '/api';
 
 const [userSignal, setUser] = createSignal<User | null>(null);
 const [error, setError] = createSignal<string | null>(null);
+
+// Check for cached user data at module load time
+const cachedUserPromise = (async () => {
+  try {
+    const cached = await tryGetCached(`${API}/auth/me`, { credentials: 'include' });
+    if (cached) {
+      const data: any = await cached.json();
+      return data.user;
+    }
+  } catch {
+    // Cache miss is expected, continue with normal flow
+  }
+  return null;
+})();
 
 const fetchUser = async () => {
   try {
@@ -28,7 +43,14 @@ const fetchUser = async () => {
   }
 };
 
-const [initialUser, { refetch }] = createResource(fetchUser);
+// Initialize createResource with cached data if available
+const [initialUser, { refetch }] = createResource(
+  async () => {
+    const cached = await cachedUserPromise;
+    if (cached) return cached;
+    return fetchUser();
+  }
+);
 
 // Export user signal for components
 export const user = () => userSignal() || initialUser();
