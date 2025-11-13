@@ -1,6 +1,7 @@
 import { createSignal, createResource, onMount } from 'solid-js';
-import { tryGetCached } from './utils/cachedFetch';
+import { tryGetCached, clearBrowserCache } from './utils/cachedFetch';
 import { authFetch } from './utils/authFetch';
+import { clearAllCaches } from './utils/dataStore';
 
 interface User {
   id: string;
@@ -67,6 +68,12 @@ export const auth = {
 
   async logout() {
     try {
+      // Clear all caches first to prevent stale data
+      console.log('[Auth] Clearing all caches');
+      clearAllCaches(); // Clear dataStore caches
+      await clearBrowserCache(); // Clear browser HTTP cache
+      
+      // Call logout endpoint to clear server-side cookie
       await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' });
       setUser(null);
       window.location.href = '/';
