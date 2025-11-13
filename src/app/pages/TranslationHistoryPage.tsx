@@ -1,4 +1,5 @@
 import { createSignal, For, Show } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 import { SkeletonListItem } from '../components/Skeleton';
 import { tryGetCached, createCachedFetcher } from '../utils/cachedFetch';
 import { authFetch } from '../utils/authFetch';
@@ -31,6 +32,7 @@ async function fetchHistory(projectId: string, language: string, key: string) {
 }
 
 export default function TranslationHistoryPage() {
+  const navigate = useNavigate();
   const [projectId, setProjectId] = createSignal('');
   const [language, setLanguage] = createSignal('');
   const [key, setKey] = createSignal('');
@@ -77,7 +79,15 @@ export default function TranslationHistoryPage() {
   return (
     <div class="min-h-screen bg-white">
       <div class="border-b">
-        <div class="max-w-5xl mx-auto px-8 py-5">
+        <div class="max-w-5xl mx-auto px-8 py-5 flex items-center gap-3">
+          <button
+            onClick={() => navigate('/dashboard')}
+            class="text-gray-400 hover:text-gray-600"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
           <h1 class="text-lg font-semibold">Translation History</h1>
         </div>
       </div>
