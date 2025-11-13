@@ -1,5 +1,4 @@
 import { createSignal, createResource, onMount } from 'solid-js';
-import { cachedFetch } from './utils/cache';
 
 interface User {
   id: string;
@@ -15,9 +14,8 @@ const [error, setError] = createSignal<string | null>(null);
 
 const fetchUser = async () => {
   try {
-    const res = await cachedFetch(`${API}/auth/me`, { 
+    const res = await fetch(`${API}/auth/me`, { 
       credentials: 'include',
-      cacheTTL: 3600000, // 1 hour
     });
     if (!res.ok) return null;
     const data: any = await res.json();

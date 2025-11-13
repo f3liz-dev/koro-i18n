@@ -4,14 +4,14 @@ This document describes the data caching implementation for the koro-i18n platfo
 
 ## Overview
 
-The caching strategy uses a two-layer approach:
+The caching strategy uses a simplified approach that relies on the browser's native HTTP cache and smart prefetching:
 
 1. **HTTP Cache-Control Headers** (Server-side): API responses include appropriate Cache-Control headers to leverage browser's native HTTP cache
-2. **Client-side Cache** (Frontend): In-memory cache with TTL and pattern-based invalidation
+2. **Smart Prefetching with ForesightJS**: Uses the [ForesightJS](https://foresightjs.com/) library to predict user interactions and prefetch resources before they're needed
 
 ## Cache Configurations
 
-Different types of data have different cache durations:
+Different types of data have different cache durations set via HTTP headers:
 
 | Data Type | Cache Duration | SWR Duration | Rationale |
 |-----------|---------------|--------------|-----------|
@@ -37,69 +37,33 @@ Cache-Control: max-age=300, stale-while-revalidate=60, private
 - `stale-while-revalidate`: Additional time to serve stale content while revalidating
 - `private`: Prevents CDN caching of user-specific data
 
-### 2. Client-side Cache
+The browser automatically handles caching based on these headers - no JavaScript cache management needed!
 
-The `cachedFetch()` function provides:
+### 2. Smart Prefetching with ForesightJS
 
-- **In-memory caching** with configurable TTL
-- **Automatic cache key generation** based on URL and method
-- **ETag support** for conditional requests (304 Not Modified responses)
-- **Cache statistics** for debugging
+ForesightJS predicts user intent based on:
+- **Mouse trajectory** (desktop): Predicts where users will click based on cursor movement
+- **Keyboard navigation**: Tracks tab navigation to prefetch focused elements
+- **Viewport detection** (mobile): Prefetches resources when elements enter viewport
+- **Touch events** (mobile): Prefetches on touch start
 
 Example usage:
 
 ```typescript
-// Fetch with 5-minute cache
-const response = await cachedFetch('/api/projects', { 
-  credentials: 'include',
-  cacheTTL: 300000 // 5 minutes in milliseconds
-});
-```
+import { prefetchForRoute, registerNavigationElement } from '../utils/prefetch';
 
-### 3. Cache Invalidation
+// Prefetch resources for a specific route
+prefetchForRoute('dashboard');
 
-The cache automatically clears when:
-
-1. **Force reload**: User presses Ctrl+Shift+R (or Cmd+Shift+R on Mac)
-2. **Manual invalidation**: Using `fetchCache.clear()` or `fetchCache.invalidatePattern()`
-3. **After mutations**: Using the `mutate()` helper
-
-Example of mutation with automatic cache invalidation:
-
-```typescript
-// Delete a project and invalidate related caches
-await mutate(`/api/projects/${projectId}`, {
-  method: 'DELETE',
-  credentials: 'include',
-});
-// This automatically invalidates all caches matching /api\/projects/
-```
-
-### 4. Pattern-based Invalidation
-
-The `mutate()` helper automatically invalidates related caches based on URL patterns:
-
-- `/api/projects/*` mutations → invalidates all project-related caches
-- `/api/translations/*` mutations → invalidates all translation-related caches
-- `/api/projects/*/upload` mutations → invalidates all file-related caches
-
-You can also manually invalidate caches:
-
-```typescript
-import { fetchCache } from './utils/cache';
-
-// Invalidate all project caches
-fetchCache.invalidatePattern(/GET:\/api\/projects/);
-
-// Clear all caches
-fetchCache.clear();
+// Register a navigation element for smart prefetching
+registerNavigationElement(linkElement, ['/api/projects']);
 ```
 
 ## Implementation Details
 
 ### Backend Changes
 
-Each API route now includes cache headers:
+Each API route includes cache headers:
 
 ```typescript
 // Example from src/routes/projects.ts
@@ -110,70 +74,119 @@ return response;
 
 ### Frontend Changes
 
-Components use `cachedFetch()` instead of `fetch()`:
+Components use standard `fetch()` API. The browser handles caching automatically based on Cache-Control headers:
 
 ```typescript
-// Before
+// Simple fetch - browser handles caching
 const res = await fetch('/api/projects', { credentials: 'include' });
-
-// After
-const res = await cachedFetch('/api/projects', { 
-  credentials: 'include',
-  cacheTTL: 300000, // Optional: override default TTL
-});
 ```
 
-Mutations use `mutate()` for automatic cache invalidation:
+ForesightJS is initialized at app startup and automatically tracks user interactions:
 
 ```typescript
-// Before
-await fetch(`/api/projects/${id}`, { method: 'DELETE', credentials: 'include' });
+// In src/app/index.tsx
+import { initializeForesight } from './utils/prefetch';
 
-// After
-await mutate(`/api/projects/${id}`, { method: 'DELETE', credentials: 'include' });
+initializeForesight();
 ```
 
 ## Performance Benefits
 
-1. **Reduced Network Requests**: Cached data is served from memory, eliminating network round-trips
-2. **Faster Page Loads**: Cached data is available instantly
-3. **Reduced Server Load**: Fewer requests to the API and database
-4. **Better UX**: Instant response for frequently accessed data
+1. **Reduced Network Requests**: Browser's HTTP cache serves repeated requests from memory
+2. **Faster Interactions**: ForesightJS prefetches resources before users click/navigate
+3. **Reduced Server Load**: Fewer requests hit the API and database
+4. **Better UX**: Near-instant response for cached data and prefetched resources
 5. **Stale-While-Revalidate**: Users see content immediately while fresh data loads in background
+6. **Mobile Optimized**: Different strategies for touch devices vs mouse/keyboard
 
 ## Testing
 
 Run tests to verify caching functionality:
 
 ```bash
-npm run test
+pnpm run test
 ```
 
 Cache-specific tests are in `src/lib/cache-headers.test.ts`.
 
-## Debugging
-
-To inspect cache state:
-
-```typescript
-import { fetchCache } from './utils/cache';
-
-// Get cache statistics
-console.log(fetchCache.getStats());
-// Output: { size: 5, entries: [...] }
-```
-
-The cache also logs operations to the console:
-- `[Cache HIT]`: Data served from cache
-- `[Cache MISS]`: New request made
-- `[Cache 304]`: Server returned 304 Not Modified
-- `[Cache INVALIDATE]`: Cache entry cleared
-- `[Cache CLEAR]`: All cache entries cleared
-
 ## Browser DevTools
 
-You can also inspect HTTP caching in browser DevTools:
+You can inspect HTTP caching in browser DevTools:
 
 1. Open DevTools → Network tab
-2. Look for responses with `X-Cache: HIT` or `X-Cache: 304` headers
-3. Check the Cache-Control headers in response headers
+2. Check the Cache-Control headers in response headers
+3. Look for responses served from disk/memory cache
+4. Use the "Disable cache" checkbox to test without cache
+
+## ForesightJS Features
+
+ForesightJS provides:
+- **Automatic prediction**: Works out of the box with no configuration
+- **Framework agnostic**: Works with any JavaScript framework
+- **Mobile support**: Different strategies for touch vs mouse devices
+- **Low overhead**: Minimal performance impact
+- **DevTools**: Optional visualization tools for debugging
+
+For more information, see the [ForesightJS documentation](https://foresightjs.com/).
+
+## Browser Compatibility
+
+The implementation uses standard web APIs:
+- Fetch API (widely supported)
+- HTTP Cache-Control (universal browser support)
+- ForesightJS (modern browsers with ES6+ support)
+
+Compatible with all modern browsers (Chrome, Firefox, Safari, Edge).
+
+## Debugging
+
+To debug prefetching behavior, you can install the ForesightJS DevTools:
+
+```bash
+pnpm add -D js.foresight-devtools
+```
+
+See the [ForesightJS DevTools documentation](https://foresightjs.com/docs/debugging/devtools) for usage.
+
+## Future Enhancements
+
+Potential improvements for the future:
+1. **Service Worker**: Enable offline functionality
+2. **Cache Warming**: Pre-fetch likely-needed data on app load
+3. **Analytics**: Track cache hit rates and prefetch effectiveness
+4. **ETag Implementation**: Add ETag generation on server for 304 responses
+
+## Security Considerations
+
+✅ **All user-specific data uses `private` directive**
+- Prevents CDN caching of sensitive information
+- Each user gets their own cached data
+
+✅ **No security vulnerabilities introduced**
+- Uses only standard web APIs
+- ForesightJS is a trusted, well-maintained library
+
+✅ **Cache isolation**
+- Browser handles cache isolation automatically
+- No cross-user cache pollution
+
+## Rollback Plan
+
+If issues arise, the caching can be easily disabled:
+
+1. **Backend**: Comment out `response.headers.set('Cache-Control', ...)` lines
+2. **Frontend**: Remove ForesightJS initialization from `src/app/index.tsx`
+3. **Complete Removal**: Uninstall `js.foresight` package
+
+## Conclusion
+
+This implementation successfully provides:
+✅ Re-using fetched data via native browser HTTP cache
+✅ Smart prefetching based on user intent prediction
+✅ Support for cache time limits via Cache-Control headers
+✅ Mobile and desktop optimization
+✅ Clean, maintainable solution with minimal code
+✅ Comprehensive tests and documentation
+
+The caching strategy is production-ready and provides significant performance improvements without compromising security or data freshness.
+

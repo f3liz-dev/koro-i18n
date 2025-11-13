@@ -5,7 +5,6 @@ import TranslationEditorHeader from '../components/TranslationEditorHeader';
 import TranslationEditorPanel from '../components/TranslationEditorPanel';
 import TranslationList from '../components/TranslationList';
 import MobileMenuOverlay from '../components/MobileMenuOverlay';
-import { cachedFetch, mutate } from '../utils/cache';
 
 interface Translation {
   id: string;
@@ -36,16 +35,16 @@ interface Project {
 }
 
 async function fetchProjectTranslations(projectId: string, language: string) {
-  const response = await cachedFetch(
+  const response = await fetch(
     `/api/translations?projectId=${encodeURIComponent(projectId)}&language=${language}&status=pending`,
-    { credentials: 'include', cacheTTL: 60000 } // 1 minute cache
+    { credentials: 'include' }
   );
   if (!response.ok) throw new Error('Failed to fetch translations');
   return response.json();
 }
 
 async function submitTranslation(projectId: string, language: string, key: string, value: string) {
-  const response = await mutate('/api/translations', {
+  const response = await fetch('/api/translations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -58,16 +57,15 @@ async function submitTranslation(projectId: string, language: string, key: strin
 async function fetchSuggestions(projectId: string, language: string, key?: string) {
   const params = new URLSearchParams({ projectId, language });
   if (key) params.append('key', key);
-  const response = await cachedFetch(`/api/translations/suggestions?${params}`, {
+  const response = await fetch(`/api/translations/suggestions?${params}`, {
     credentials: 'include',
-    cacheTTL: 60000, // 1 minute cache
   });
   if (!response.ok) throw new Error('Failed to fetch suggestions');
   return response.json();
 }
 
 async function approveSuggestion(id: string) {
-  const response = await mutate(`/api/translations/${id}/approve`, {
+  const response = await fetch(`/api/translations/${id}/approve`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -76,7 +74,7 @@ async function approveSuggestion(id: string) {
 }
 
 async function rejectSuggestion(id: string) {
-  const response = await mutate(`/api/translations/${id}`, {
+  const response = await fetch(`/api/translations/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -109,9 +107,8 @@ export default function TranslationEditorPage() {
   // Load project to get source language
   const loadProject = async () => {
     try {
-      const res = await cachedFetch('/api/projects', { 
+      const res = await fetch('/api/projects', { 
         credentials: 'include',
-        cacheTTL: 300000, // 5 minutes cache
       });
       if (res.ok) {
         const data = await res.json() as { projects: Project[] };
@@ -144,9 +141,8 @@ export default function TranslationEditorPage() {
         targetUrl += `&filename=${encodeURIComponent(targetFilename)}`;
       }
       
-      const sourceRes = await cachedFetch(sourceUrl, { 
+      const sourceRes = await fetch(sourceUrl, { 
         credentials: 'include',
-        cacheTTL: 600000, // 10 minutes cache
       });
       
       if (!sourceRes.ok) {
@@ -158,9 +154,8 @@ export default function TranslationEditorPage() {
       const sourceData = await sourceRes.json() as { files: any[] };
       const sourceFiles = sourceData.files || [];
       
-      const targetRes = await cachedFetch(targetUrl, { 
+      const targetRes = await fetch(targetUrl, { 
         credentials: 'include',
-        cacheTTL: 600000, // 10 minutes cache
       });
       
       const targetData = targetRes.ok ? (await targetRes.json() as { files: any[] }) : { files: [] };
