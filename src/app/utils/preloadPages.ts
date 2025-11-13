@@ -16,6 +16,16 @@ export function preloadFrequentPages() {
   if (preloadStarted) return;
   preloadStarted = true;
 
+  // Skip preloading on /login and / (root index) to avoid 401 redirect loops
+  // On these pages, users aren't authenticated yet or haven't committed to using the app
+  if (typeof window !== 'undefined') {
+    const path = window.location.pathname;
+    if (path === '/login' || path === '/') {
+      console.log('[Preload] Skipping preload on', path);
+      return;
+    }
+  }
+
   // Use requestIdleCallback to preload during idle time, or setTimeout as fallback
   const schedulePreload = (callback: () => void) => {
     if ('requestIdleCallback' in window) {
