@@ -4,6 +4,7 @@ import { user, auth } from '../auth';
 import { prefetchForRoute } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
 import { cachedFetch } from '../utils/cachedFetch';
+import { SkeletonCard } from '../components/Skeleton';
 
 interface Project {
   id: string;
@@ -17,6 +18,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   const [projects, setProjects] = createSignal<Project[]>([]);
+  const [isLoading, setIsLoading] = createSignal(true);
 
   // ForesightJS refs for navigation buttons
   const homeButtonRef = useForesight({ prefetchUrls: ['/api/user'], debugName: 'home-button' });
@@ -26,6 +28,7 @@ export default function DashboardPage() {
 
   const loadProjects = async () => {
     console.log('loadProjects called');
+    setIsLoading(true);
     try {
       console.log('Fetching projects...');
       // Try cache first (ForesightJS may have prefetched this)
@@ -55,6 +58,8 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Failed to load projects:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -160,12 +165,22 @@ export default function DashboardPage() {
           </button>
         </div>
         
-        {projects().length === 0 ? (
+        <Show when={isLoading()}>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        </Show>
+
+        <Show when={!isLoading() && projects().length === 0}>
           <div class="bg-white rounded-lg border p-12 text-center">
             <div class="text-gray-400 mb-2">No projects yet</div>
             <div class="text-sm text-gray-400">Create a project to get started with translations</div>
           </div>
-        ) : (
+        </Show>
+
+        <Show when={!isLoading() && projects().length > 0}>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <For each={projects()}>
               {(project) => {
@@ -208,7 +223,7 @@ export default function DashboardPage() {
               }}
             </For>
           </div>
-        )}
+        </Show>
       </div>
     </div>
   );

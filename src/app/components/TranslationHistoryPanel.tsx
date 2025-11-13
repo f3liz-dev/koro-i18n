@@ -1,4 +1,5 @@
 import { For, Show } from 'solid-js';
+import { SkeletonListItem } from './Skeleton';
 
 interface HistoryEntry {
   id: string;
@@ -79,9 +80,10 @@ export default function TranslationHistoryPanel(props: TranslationHistoryPanelPr
           <h3 class="text-sm font-semibold text-gray-900 mb-3">Translation History</h3>
           
           <Show when={props.isLoading}>
-            <div class="text-center py-6">
-              <div class="animate-spin rounded-full h-6 w-6 border-2 border-gray-400 border-t-transparent mx-auto mb-2"></div>
-              <p class="text-xs text-gray-500">Loading...</p>
+            <div class="py-3">
+              <SkeletonListItem />
+              <SkeletonListItem />
+              <SkeletonListItem />
             </div>
           </Show>
 

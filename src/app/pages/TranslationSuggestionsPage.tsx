@@ -2,6 +2,7 @@ import { createSignal, createResource, For, Show } from 'solid-js';
 import { useParams, useNavigate } from '@solidjs/router';
 import { user } from '../auth';
 import { useForesight } from '../utils/useForesight';
+import { SkeletonListItem } from '../components/Skeleton';
 
 interface TranslationSuggestion {
   id: string;
@@ -259,9 +260,12 @@ export default function TranslationSuggestionsPage() {
       {/* Content */}
       <div class="max-w-7xl mx-auto px-4 py-6">
         <Show when={suggestions.loading}>
-          <div class="text-center py-12">
-            <div class="animate-spin rounded-full h-8 w-8 border-2 border-gray-400 border-t-transparent mx-auto mb-4"></div>
-            <p class="text-gray-600">Loading...</p>
+          <div class="bg-white rounded-lg shadow divide-y">
+            <SkeletonListItem />
+            <SkeletonListItem />
+            <SkeletonListItem />
+            <SkeletonListItem />
+            <SkeletonListItem />
           </div>
         </Show>
 
