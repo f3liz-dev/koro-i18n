@@ -11,6 +11,7 @@
  */
 
 import { createStore } from 'solid-js/store';
+import { authFetch } from './authFetch';
 
 // Projects store
 interface Project {
@@ -38,7 +39,7 @@ export const projectsCache = {
   
   async fetch() {
     // Fetch in background, don't block
-    fetch('/api/projects', { credentials: 'include' })
+    authFetch('/api/projects', { credentials: 'include' })
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json() as { projects: Project[] };
@@ -91,7 +92,7 @@ export const filesCache = {
     if (params.toString()) url += `?${params.toString()}`;
     
     // Fetch in background, don't block
-    fetch(url, { credentials: 'include' })
+    authFetch(url, { credentials: 'include' })
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json() as { files: FileData[] };
@@ -153,7 +154,7 @@ export const filesSummaryCache = {
     if (language) url += `?lang=${language}`;
     
     // Fetch in background, don't block
-    fetch(url, { credentials: 'include' })
+    authFetch(url, { credentials: 'include' })
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json() as FileSummaryData;
@@ -218,7 +219,7 @@ export const translationsCache = {
     const url = `/api/translations?${params}`;
     
     // Fetch in background, don't block
-    fetch(url, { credentials: 'include' })
+    authFetch(url, { credentials: 'include' })
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json() as { translations: Translation[] };
@@ -285,7 +286,7 @@ export const suggestionsCache = {
     const url = `/api/translations/suggestions?${params}`;
     
     // Fetch in background, don't block
-    fetch(url, { credentials: 'include' })
+    authFetch(url, { credentials: 'include' })
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json() as { suggestions: Suggestion[] };
@@ -341,7 +342,7 @@ export const membersCache = {
   
   async fetch(projectId: string) {
     // Fetch in background, don't block
-    fetch(`/api/projects/${projectId}/members`, { credentials: 'include' })
+    authFetch(`/api/projects/${projectId}/members`, { credentials: 'include' })
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json() as { members: Member[] };

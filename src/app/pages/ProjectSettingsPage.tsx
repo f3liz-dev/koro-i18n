@@ -3,6 +3,7 @@ import { createSignal, onMount, For, Show } from 'solid-js';
 import { user } from '../auth';
 import { useForesight } from '../utils/useForesight';
 import { projectsCache, membersCache } from '../utils/dataStore';
+import { authFetch } from '../utils/authFetch';
 
 interface Member {
   id: string;
@@ -47,7 +48,7 @@ export default function ProjectSettingsPage() {
     if (!pid) return;
     
     try {
-      const res = await fetch(`/api/projects/${pid}/members/${memberId}/approve`, {
+      const res = await authFetch(`/api/projects/${pid}/members/${memberId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -69,7 +70,7 @@ export default function ProjectSettingsPage() {
     if (!pid) return;
 
     try {
-      const res = await fetch(`/api/projects/${pid}/members/${memberId}`, {
+      const res = await authFetch(`/api/projects/${pid}/members/${memberId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -88,7 +89,7 @@ export default function ProjectSettingsPage() {
     if (!pid) return;
     
     try {
-      const res = await fetch(`/api/projects/${pid}`, {
+      const res = await authFetch(`/api/projects/${pid}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -110,7 +111,7 @@ export default function ProjectSettingsPage() {
     if (!confirm('Delete this project? This cannot be undone.')) return;
 
     try {
-      const res = await fetch(`/api/projects/${pid}`, {
+      const res = await authFetch(`/api/projects/${pid}`, {
         method: 'DELETE',
         credentials: 'include',
       });

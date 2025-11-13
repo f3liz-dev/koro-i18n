@@ -6,6 +6,7 @@ import TranslationEditorPanel from '../components/TranslationEditorPanel';
 import TranslationList from '../components/TranslationList';
 import MobileMenuOverlay from '../components/MobileMenuOverlay';
 import { projectsCache, filesCache, suggestionsCache } from '../utils/dataStore';
+import { authFetch } from '../utils/authFetch';
 
 interface Translation {
   id: string;
@@ -36,7 +37,7 @@ interface Project {
 }
 
 async function fetchProjectTranslations(projectId: string, language: string) {
-  const response = await fetch(
+  const response = await authFetch(
     `/api/translations?projectId=${encodeURIComponent(projectId)}&language=${language}&status=pending`,
     { credentials: 'include' }
   );
@@ -45,7 +46,7 @@ async function fetchProjectTranslations(projectId: string, language: string) {
 }
 
 async function submitTranslation(projectId: string, language: string, key: string, value: string) {
-  const response = await fetch('/api/translations', {
+  const response = await authFetch('/api/translations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -58,7 +59,7 @@ async function submitTranslation(projectId: string, language: string, key: strin
 async function fetchSuggestions(projectId: string, language: string, key?: string) {
   const params = new URLSearchParams({ projectId, language });
   if (key) params.append('key', key);
-  const response = await fetch(`/api/translations/suggestions?${params}`, {
+  const response = await authFetch(`/api/translations/suggestions?${params}`, {
     credentials: 'include',
   });
   if (!response.ok) throw new Error('Failed to fetch suggestions');
@@ -66,7 +67,7 @@ async function fetchSuggestions(projectId: string, language: string, key?: strin
 }
 
 async function approveSuggestion(id: string) {
-  const response = await fetch(`/api/translations/${id}/approve`, {
+  const response = await authFetch(`/api/translations/${id}/approve`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -75,7 +76,7 @@ async function approveSuggestion(id: string) {
 }
 
 async function rejectSuggestion(id: string) {
-  const response = await fetch(`/api/translations/${id}`, {
+  const response = await authFetch(`/api/translations/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });

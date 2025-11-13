@@ -3,6 +3,7 @@ import { createSignal, onMount, For, Show } from 'solid-js';
 import { user } from '../auth';
 import { useForesight } from '../utils/useForesight';
 import { projectsCache } from '../utils/dataStore';
+import { authFetch } from '../utils/authFetch';
 
 interface Project {
   id: string;
@@ -29,7 +30,7 @@ export default function JoinProjectPage() {
 
   const loadAllProjects = async () => {
     try {
-      const res = await fetch('/api/projects/all', { credentials: 'include' });
+      const res = await authFetch('/api/projects/all', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json() as { projects: Project[] };
         setAllProjects(data.projects);
@@ -41,7 +42,7 @@ export default function JoinProjectPage() {
 
   const handleJoin = async (projectId: string) => {
     try {
-      const res = await fetch(`/api/projects/${projectId}/join`, {
+      const res = await authFetch(`/api/projects/${projectId}/join`, {
         method: 'POST',
         credentials: 'include',
       });
