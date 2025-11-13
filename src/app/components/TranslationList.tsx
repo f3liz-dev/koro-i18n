@@ -25,10 +25,12 @@ export default function TranslationList(props: TranslationListProps) {
 
   const getSuggestionStatus = (
     str: TranslationString,
-  ): "none" | "pending" | "approved" => {
+  ): "none" | "pending" | "approved" | "imported" => {
     // This is a simplified check - in a real implementation, this would come from API data
     // For now, we assume: currentValue = approved, no currentValue = none
     // The parent component should ideally pass this information
+    if (str.suggestionStatus === "none" && !!str.currentValue)
+      return "imported";
     return str.suggestionStatus || (str.currentValue ? "approved" : "none");
   };
 
@@ -56,7 +58,7 @@ export default function TranslationList(props: TranslationListProps) {
       sorted.sort((a, b) => {
         const statusA = getSuggestionStatus(a);
         const statusB = getSuggestionStatus(b);
-        const orderMap = { none: 0, pending: 1, approved: 2 };
+        const orderMap = { none: 0, pending: 1, imported: 2, approved: 3 };
         return orderMap[statusA] - orderMap[statusB];
       });
     } else if (sort === "alphabetical") {
