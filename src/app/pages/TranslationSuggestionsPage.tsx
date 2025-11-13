@@ -1,6 +1,7 @@
 import { createSignal, createResource, For, Show } from 'solid-js';
 import { useParams, useNavigate } from '@solidjs/router';
 import { user } from '../auth';
+import { useForesight } from '../utils/useForesight';
 
 interface TranslationSuggestion {
   id: string;
@@ -53,6 +54,12 @@ export default function TranslationSuggestionsPage() {
   const [filterStatus, setFilterStatus] = createSignal<'all' | 'pending' | 'approved'>('pending');
   const [searchQuery, setSearchQuery] = createSignal('');
   const [viewMode, setViewMode] = createSignal<'grouped' | 'flat'>('grouped');
+
+  // ForesightJS ref
+  const backButtonRef = useForesight({
+    prefetchUrls: ['/api/projects'],
+    debugName: 'back-to-dashboard',
+  });
 
   const [suggestions, { refetch }] = createResource(
     () => ({ projectId: projectId(), language: selectedLanguage() === 'all' ? undefined : selectedLanguage() }),
@@ -198,6 +205,7 @@ export default function TranslationSuggestionsPage() {
               </p>
             </div>
             <button
+              ref={backButtonRef}
               onClick={() => navigate('/dashboard')}
               class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded"
             >

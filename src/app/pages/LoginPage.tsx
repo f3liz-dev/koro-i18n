@@ -1,9 +1,15 @@
 import { useNavigate } from '@solidjs/router';
 import { createEffect } from 'solid-js';
 import { user } from '../auth';
+import { useForesight } from '../utils/useForesight';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+
+  const backButtonRef = useForesight({
+    prefetchUrls: [],
+    debugName: 'back-to-home',
+  });
 
   createEffect(() => {
     if (user()) {
@@ -44,6 +50,7 @@ export default function LoginPage() {
         </button>
         <div class="mt-8 text-center">
           <button
+            ref={backButtonRef}
             onClick={() => navigate('/')}
             class="text-sm text-gray-500 hover:text-gray-900"
           >
