@@ -258,7 +258,18 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return c.json({ members });
+    // Flatten the user data into the member object
+    const flattenedMembers = members.map(member => ({
+      id: member.id,
+      userId: member.userId,
+      username: member.user.username,
+      avatarUrl: member.user.avatarUrl || '',
+      status: member.status,
+      role: member.role,
+      createdAt: member.createdAt.toISOString(),
+    }));
+
+    return c.json({ members: flattenedMembers });
   });
 
   app.post('/:id/members/:memberId/approve', async (c) => {
