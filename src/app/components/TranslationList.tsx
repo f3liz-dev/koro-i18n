@@ -1,4 +1,5 @@
 import { For, Show, createSignal } from 'solid-js';
+import { SkeletonListItem } from './Skeleton';
 
 interface TranslationString {
   key: string;
@@ -104,10 +105,11 @@ export default function TranslationList(props: TranslationListProps) {
       </div>
       <div class="divide-y overflow-y-auto flex-1">
         <Show when={props.isLoading}>
-          <div class="p-4 lg:p-8 text-center text-gray-500">
-            <div class="animate-spin rounded-full h-6 w-6 border-2 border-gray-400 border-t-transparent mx-auto mb-2"></div>
-            <p class="text-sm">Loading...</p>
-          </div>
+          <SkeletonListItem />
+          <SkeletonListItem />
+          <SkeletonListItem />
+          <SkeletonListItem />
+          <SkeletonListItem />
         </Show>
         <Show when={!props.isLoading && sortedAndFilteredStrings().length === 0}>
           <div class="p-4 lg:p-8 text-center text-gray-500">

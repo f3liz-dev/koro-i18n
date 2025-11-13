@@ -2,6 +2,7 @@ import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user } from '../auth';
 import { cachedFetch } from '../utils/cachedFetch';
+import { SkeletonTableRow } from '../components/Skeleton';
 
 interface Member {
   id: string;
@@ -27,6 +28,7 @@ export default function ProjectManagementPage() {
   const [project, setProject] = createSignal<Project | null>(null);
   const [members, setMembers] = createSignal<Member[]>([]);
   const [activeTab, setActiveTab] = createSignal<'approved' | 'pending' | 'rejected'>('approved');
+  const [isLoadingMembers, setIsLoadingMembers] = createSignal(true);
 
   const loadProject = async () => {
     try {
@@ -46,6 +48,7 @@ export default function ProjectManagementPage() {
   };
 
   const loadMembers = async () => {
+    setIsLoadingMembers(true);
     try {
       // Try cache first (may be prefetched)
       const res = await cachedFetch(`/api/projects/${params.id}/members`, { 
@@ -58,6 +61,8 @@ export default function ProjectManagementPage() {
       }
     } catch (error) {
       console.error('Failed to load members:', error);
+    } finally {
+      setIsLoadingMembers(false);
     }
   };
 
@@ -206,61 +211,69 @@ export default function ProjectManagementPage() {
             </div>
 
             <div class="space-y-2">
-              <For each={filteredMembers()}>
-                {(member) => (
-                  <div class="border rounded-lg p-4 flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                      <img src={member.avatarUrl} alt={member.username} class="w-10 h-10 rounded-full" />
-                      <div>
-                        <div class="font-medium">{member.username}</div>
-                        <div class="text-xs text-gray-500">{member.role}</div>
+              <Show when={isLoadingMembers()}>
+                <SkeletonTableRow />
+                <SkeletonTableRow />
+                <SkeletonTableRow />
+              </Show>
+              
+              <Show when={!isLoadingMembers()}>
+                <For each={filteredMembers()}>
+                  {(member) => (
+                    <div class="border rounded-lg p-4 flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                        <img src={member.avatarUrl} alt={member.username} class="w-10 h-10 rounded-full" />
+                        <div>
+                          <div class="font-medium">{member.username}</div>
+                          <div class="text-xs text-gray-500">{member.role}</div>
+                        </div>
+                      </div>
+                      <div class="flex gap-2">
+                        <Show when={member.status === 'pending'}>
+                          <button
+                            onClick={() => handleApprove(member.id, 'approved')}
+                            class="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleApprove(member.id, 'rejected')}
+                            class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50"
+                          >
+                            Reject
+                          </button>
+                        </Show>
+                        <Show when={member.status === 'approved'}>
+                          <button
+                            onClick={() => handleRemove(member.id)}
+                            class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
+                          >
+                            Remove
+                          </button>
+                        </Show>
+                        <Show when={member.status === 'rejected'}>
+                          <button
+                            onClick={() => handleApprove(member.id, 'approved')}
+                            class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleRemove(member.id)}
+                            class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
+                          >
+                            Remove
+                          </button>
+                        </Show>
                       </div>
                     </div>
-                    <div class="flex gap-2">
-                      <Show when={member.status === 'pending'}>
-                        <button
-                          onClick={() => handleApprove(member.id, 'approved')}
-                          class="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleApprove(member.id, 'rejected')}
-                          class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50"
-                        >
-                          Reject
-                        </button>
-                      </Show>
-                      <Show when={member.status === 'approved'}>
-                        <button
-                          onClick={() => handleRemove(member.id)}
-                          class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
-                        >
-                          Remove
-                        </button>
-                      </Show>
-                      <Show when={member.status === 'rejected'}>
-                        <button
-                          onClick={() => handleApprove(member.id, 'approved')}
-                          class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleRemove(member.id)}
-                          class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
-                        >
-                          Remove
-                        </button>
-                      </Show>
-                    </div>
+                  )}
+                </For>
+                <Show when={filteredMembers().length === 0}>
+                  <div class="text-center py-8 text-gray-400 text-sm">
+                    No {activeTab()} members
                   </div>
-                )}
-              </For>
-              <Show when={filteredMembers().length === 0}>
-                <div class="text-center py-8 text-gray-400 text-sm">
-                  No {activeTab()} members
-                </div>
+                </Show>
               </Show>
             </div>
           </div>
