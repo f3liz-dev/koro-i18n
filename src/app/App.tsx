@@ -3,15 +3,13 @@ import { Router, Route } from '@solidjs/router';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
 
-// Import frequently-used pages directly for instant transitions
-import HomePage from './pages/HomePage';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import LanguageSelectionPage from './pages/LanguageSelectionPage';
-import FileSelectionPage from './pages/FileSelectionPage';
-import TranslationEditorPage from './pages/TranslationEditorPage';
-
-// Lazy load infrequently-used pages to keep initial bundle size reasonable
+// All pages use lazy loading for optimal initial bundle size
+const HomePage = lazy(() => import('./pages/HomePage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const LanguageSelectionPage = lazy(() => import('./pages/LanguageSelectionPage'));
+const FileSelectionPage = lazy(() => import('./pages/FileSelectionPage'));
+const TranslationEditorPage = lazy(() => import('./pages/TranslationEditorPage'));
 const CreateProjectPage = lazy(() => import('./pages/CreateProjectPage'));
 const ProjectSettingsPage = lazy(() => import('./pages/ProjectSettingsPage'));
 const TranslationHistoryPage = lazy(() => import('./pages/TranslationHistoryPage'));
