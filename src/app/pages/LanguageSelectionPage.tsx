@@ -1,8 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
-import { addPrefetchLink } from '../utils/prefetch';
-import { cachedFetch } from '../utils/cache';
+import { prefetchForRoute } from '../utils/prefetch';
 
 interface Project {
   id: string;
@@ -30,9 +29,8 @@ export default function LanguageSelectionPage() {
 
   const loadProject = async () => {
     try {
-      const res = await cachedFetch('/api/projects', { 
+      const res = await fetch('/api/projects', { 
         credentials: 'include',
-        cacheTTL: 300000, // 5 minutes cache
       });
       if (res.ok) {
         const data = await res.json() as { projects: Project[] };
@@ -50,9 +48,8 @@ export default function LanguageSelectionPage() {
   const loadLanguages = async () => {
     try {
       setIsLoading(true);
-      const res = await cachedFetch(`/api/projects/${params.id}/files/summary`, {
+      const res = await fetch(`/api/projects/${params.id}/files/summary`, {
         credentials: 'include',
-        cacheTTL: 600000, // 10 minutes cache
       });
       
       if (res.ok) {
@@ -133,10 +130,10 @@ export default function LanguageSelectionPage() {
     auth.refresh();
     loadProject();
     
-    // Prefetch summary endpoint for this project
+    // Use smart prefetch for project-languages route
     const projectId = params.id;
     if (projectId) {
-      addPrefetchLink(`/api/projects/${projectId}/files/summary`, 'fetch');
+      prefetchForRoute('project-languages', projectId);
     }
   });
 

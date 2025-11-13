@@ -1,7 +1,7 @@
 import { useNavigate } from '@solidjs/router';
 import { createEffect, createSignal, For, onMount, Show } from 'solid-js';
 import { user, auth } from '../auth';
-import { cachedFetch, mutate } from '../utils/cache';
+import { prefetchForRoute } from '../utils/prefetch';
 
 interface Project {
   id: string;
@@ -20,9 +20,8 @@ export default function DashboardPage() {
     console.log('loadProjects called');
     try {
       console.log('Fetching projects...');
-      const res = await cachedFetch('/api/projects', { 
+      const res = await fetch('/api/projects', { 
         credentials: 'include',
-        cacheTTL: 300000, // 5 minutes
       });
       console.log('Projects response:', res.status);
       if (res.ok) {
@@ -53,6 +52,8 @@ export default function DashboardPage() {
     console.log('DashboardPage mounted');
     console.log('Current user:', user());
     auth.refresh();
+    // Use smart prefetch for dashboard route
+    prefetchForRoute('dashboard');
     loadProjects();
   });
 
@@ -68,7 +69,7 @@ export default function DashboardPage() {
     if (!confirm('Delete this project? This cannot be undone.')) return;
 
     try {
-      const res = await mutate(`/api/projects/${projectId}`, {
+      const res = await fetch(`/api/projects/${projectId}`, {
         method: 'DELETE',
         credentials: 'include',
       });

@@ -1,8 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
-import { addPrefetchLink } from '../utils/prefetch';
-import { cachedFetch } from '../utils/cache';
+import { prefetchForRoute, addPrefetchLink } from '../utils/prefetch';
 
 interface Project {
   id: string;
@@ -32,9 +31,8 @@ export default function FileSelectionPage() {
 
   const loadProject = async () => {
     try {
-      const res = await cachedFetch('/api/projects', { 
+      const res = await fetch('/api/projects', { 
         credentials: 'include',
-        cacheTTL: 300000, // 5 minutes
       });
       if (res.ok) {
         const data = await res.json() as { projects: Project[] };
@@ -57,13 +55,11 @@ export default function FileSelectionPage() {
       
       // Fetch source and target files separately with language filter for better optimization
       const [sourceRes, targetRes] = await Promise.all([
-        cachedFetch(`/api/projects/${params.id}/files/summary?lang=${sourceLanguage}`, {
+        fetch(`/api/projects/${params.id}/files/summary?lang=${sourceLanguage}`, {
           credentials: 'include',
-          cacheTTL: 600000, // 10 minutes
         }),
-        cachedFetch(`/api/projects/${params.id}/files/summary?lang=${targetLanguage}`, {
+        fetch(`/api/projects/${params.id}/files/summary?lang=${targetLanguage}`, {
           credentials: 'include',
-          cacheTTL: 600000, // 10 minutes
         })
       ]);
       
