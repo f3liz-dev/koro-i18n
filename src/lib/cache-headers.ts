@@ -27,6 +27,9 @@ export const CACHE_CONFIGS = {
   // User data changes very infrequently
   user: { maxAge: 3600 }, // 1 hour cache
   
+  // No caching - always fetch fresh data
+  noCache: { maxAge: 0, mustRevalidate: true }, // No cache, must revalidate
+  
   // Static/reference data
   static: { maxAge: 86400 }, // 24 hours cache
 } as const;
