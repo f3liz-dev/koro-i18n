@@ -142,3 +142,48 @@ export function createCachedFetcher<T>(options: RequestInit = {}) {
     return response.json();
   };
 }
+
+/**
+ * Clear browser HTTP cache for specific URLs or patterns.
+ * This uses the Cache Storage API to remove cached responses.
+ * 
+ * @param patterns - Array of URL patterns to clear. If not provided, clears all caches.
+ * 
+ * @example
+ * ```typescript
+ * // Clear specific API routes
+ * await clearBrowserCache(['/api/auth/me', '/api/projects']);
+ * 
+ * // Clear all caches
+ * await clearBrowserCache();
+ * ```
+ */
+export async function clearBrowserCache(patterns?: string[]): Promise<void> {
+  try {
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      
+      for (const cacheName of cacheNames) {
+        const cache = await caches.open(cacheName);
+        
+        if (patterns && patterns.length > 0) {
+          // Clear specific patterns
+          const requests = await cache.keys();
+          for (const request of requests) {
+            const url = request.url;
+            if (patterns.some(pattern => url.includes(pattern))) {
+              await cache.delete(request);
+              console.log(`[CachedFetch] Cleared cache for: ${url}`);
+            }
+          }
+        } else {
+          // Clear entire cache
+          await caches.delete(cacheName);
+          console.log(`[CachedFetch] Cleared cache: ${cacheName}`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[CachedFetch] Failed to clear browser cache:', error);
+  }
+}

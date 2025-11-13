@@ -1,26 +1,45 @@
 import { useNavigate } from '@solidjs/router';
-import { createEffect } from 'solid-js';
+import { createEffect, createSignal } from 'solid-js';
 import { user } from '../auth';
 import { useForesight } from '../utils/useForesight';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [isVerifying, setIsVerifying] = createSignal(false);
 
   const backButtonRef = useForesight({
     prefetchUrls: [],
     debugName: 'back-to-home',
   });
 
+  // Verify user is actually authenticated before redirecting
+  // This prevents redirect loops when cached user data exists but token is invalid
   createEffect(() => {
-    if (user()) {
-      // Check for saved redirect URL from sessionStorage
-      const redirectUrl = sessionStorage.getItem('redirectAfterLogin');
-      if (redirectUrl) {
-        sessionStorage.removeItem('redirectAfterLogin');
-        navigate(redirectUrl, { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
+    const currentUser = user();
+    if (currentUser && !isVerifying()) {
+      setIsVerifying(true);
+      
+      // Verify the token is still valid by making an authenticated request
+      fetch('/api/auth/me', { credentials: 'include' })
+        .then(async (res) => {
+          if (res.ok) {
+            // Token is valid, safe to redirect
+            const redirectUrl = sessionStorage.getItem('redirectAfterLogin');
+            if (redirectUrl) {
+              sessionStorage.removeItem('redirectAfterLogin');
+              navigate(redirectUrl, { replace: true });
+            } else {
+              navigate('/dashboard', { replace: true });
+            }
+          } else {
+            // Token is invalid, stay on login page
+            setIsVerifying(false);
+          }
+        })
+        .catch(() => {
+          // Error verifying, stay on login page
+          setIsVerifying(false);
+        });
     }
   });
 
