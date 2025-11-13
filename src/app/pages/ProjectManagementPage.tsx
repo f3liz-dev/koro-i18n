@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user } from '../auth';
+import { cachedFetch } from '../utils/cachedFetch';
 
 interface Member {
   id: string;
@@ -29,7 +30,11 @@ export default function ProjectManagementPage() {
 
   const loadProject = async () => {
     try {
-      const res = await fetch(`/api/projects`, { credentials: 'include' });
+      // Try cache first for instant loading
+      const res = await cachedFetch(`/api/projects`, { 
+        credentials: 'include',
+        tryCache: true,
+      });
       if (res.ok) {
         const data = await res.json() as { projects: Project[] };
         const proj = data.projects.find((p: any) => p.id === params.id);
@@ -42,7 +47,11 @@ export default function ProjectManagementPage() {
 
   const loadMembers = async () => {
     try {
-      const res = await fetch(`/api/projects/${params.id}/members`, { credentials: 'include' });
+      // Try cache first (may be prefetched)
+      const res = await cachedFetch(`/api/projects/${params.id}/members`, { 
+        credentials: 'include',
+        tryCache: true,
+      });
       if (res.ok) {
         const data = await res.json() as { members: Member[] };
         setMembers(data.members);

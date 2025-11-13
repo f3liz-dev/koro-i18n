@@ -3,6 +3,7 @@ import { createSignal, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchForRoute } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
+import { cachedFetch } from '../utils/cachedFetch';
 
 interface Project {
   id: string;
@@ -46,8 +47,10 @@ export default function LanguageSelectionPage() {
 
   const loadProject = async () => {
     try {
-      const res = await fetch('/api/projects', { 
+      // Try cache first for instant loading
+      const res = await cachedFetch('/api/projects', { 
         credentials: 'include',
+        tryCache: true,
       });
       if (res.ok) {
         const data = await res.json() as { projects: Project[] };
@@ -65,8 +68,10 @@ export default function LanguageSelectionPage() {
   const loadLanguages = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`/api/projects/${params.id}/files/summary`, {
+      // Try cache first (ForesightJS may have prefetched this)
+      const res = await cachedFetch(`/api/projects/${params.id}/files/summary`, {
         credentials: 'include',
+        tryCache: true,
       });
       
       if (res.ok) {

@@ -3,6 +3,7 @@ import { createEffect, createSignal, For, onMount, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchForRoute } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
+import { cachedFetch } from '../utils/cachedFetch';
 
 interface Project {
   id: string;
@@ -27,8 +28,10 @@ export default function DashboardPage() {
     console.log('loadProjects called');
     try {
       console.log('Fetching projects...');
-      const res = await fetch('/api/projects', { 
+      // Try cache first (ForesightJS may have prefetched this)
+      const res = await cachedFetch('/api/projects', { 
         credentials: 'include',
+        tryCache: true,
       });
       console.log('Projects response:', res.status);
       if (res.ok) {

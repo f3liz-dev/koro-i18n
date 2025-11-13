@@ -5,6 +5,7 @@ import TranslationEditorHeader from '../components/TranslationEditorHeader';
 import TranslationEditorPanel from '../components/TranslationEditorPanel';
 import TranslationList from '../components/TranslationList';
 import MobileMenuOverlay from '../components/MobileMenuOverlay';
+import { cachedFetch } from '../utils/cachedFetch';
 
 interface Translation {
   id: string;
@@ -107,8 +108,10 @@ export default function TranslationEditorPage() {
   // Load project to get source language
   const loadProject = async () => {
     try {
-      const res = await fetch('/api/projects', { 
+      // Try cache first for instant loading
+      const res = await cachedFetch('/api/projects', { 
         credentials: 'include',
+        tryCache: true,
       });
       if (res.ok) {
         const data = await res.json() as { projects: Project[] };
@@ -141,8 +144,10 @@ export default function TranslationEditorPage() {
         targetUrl += `&filename=${encodeURIComponent(targetFilename)}`;
       }
       
-      const sourceRes = await fetch(sourceUrl, { 
+      // Try cache first (ForesightJS may have prefetched these)
+      const sourceRes = await cachedFetch(sourceUrl, { 
         credentials: 'include',
+        tryCache: true,
       });
       
       if (!sourceRes.ok) {
@@ -154,8 +159,9 @@ export default function TranslationEditorPage() {
       const sourceData = await sourceRes.json() as { files: any[] };
       const sourceFiles = sourceData.files || [];
       
-      const targetRes = await fetch(targetUrl, { 
+      const targetRes = await cachedFetch(targetUrl, { 
         credentials: 'include',
+        tryCache: true,
       });
       
       const targetData = targetRes.ok ? (await targetRes.json() as { files: any[] }) : { files: [] };

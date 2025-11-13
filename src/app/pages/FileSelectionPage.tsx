@@ -3,6 +3,7 @@ import { createSignal, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchData } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
+import { cachedFetch } from '../utils/cachedFetch';
 
 interface Project {
   id: string;
@@ -48,8 +49,10 @@ export default function FileSelectionPage() {
 
   const loadProject = async () => {
     try {
-      const res = await fetch('/api/projects', { 
+      // Try cache first for instant loading
+      const res = await cachedFetch('/api/projects', { 
         credentials: 'include',
+        tryCache: true,
       });
       if (res.ok) {
         const data = await res.json() as { projects: Project[] };
@@ -70,13 +73,16 @@ export default function FileSelectionPage() {
       const sourceLanguage = project()?.sourceLanguage || 'en';
       const targetLanguage = language();
       
-      // Fetch source and target files separately with language filter for better optimization
+      // Try to fetch from cache first (ForesightJS may have prefetched this)
+      // This provides instant loading when data is already cached
       const [sourceRes, targetRes] = await Promise.all([
-        fetch(`/api/projects/${params.id}/files/summary?lang=${sourceLanguage}`, {
+        cachedFetch(`/api/projects/${params.id}/files/summary?lang=${sourceLanguage}`, {
           credentials: 'include',
+          tryCache: true,
         }),
-        fetch(`/api/projects/${params.id}/files/summary?lang=${targetLanguage}`, {
+        cachedFetch(`/api/projects/${params.id}/files/summary?lang=${targetLanguage}`, {
           credentials: 'include',
+          tryCache: true,
         })
       ]);
       
