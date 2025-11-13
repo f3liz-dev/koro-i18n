@@ -120,7 +120,7 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
     }));
 
     const response = c.json({ suggestions: flattenedSuggestions });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translations));
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translationSuggestions));
     return response;
   });
 

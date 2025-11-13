@@ -47,6 +47,12 @@ describe('Cache Headers', () => {
       expect(result).toContain('private');
     });
 
+    it('should build cache control for translation suggestions config', () => {
+      const result = buildCacheControl(CACHE_CONFIGS.translationSuggestions);
+      expect(result).toContain('max-age=0');
+      expect(result).toContain('private');
+    });
+
     it('should build cache control for user config', () => {
       const result = buildCacheControl(CACHE_CONFIGS.user);
       expect(result).toContain('max-age=3600');
