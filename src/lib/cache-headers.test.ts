@@ -58,5 +58,12 @@ describe('Cache Headers', () => {
       expect(result).toContain('max-age=3600');
       expect(result).toContain('private');
     });
+
+    it('should build cache control for noCache config', () => {
+      const result = buildCacheControl(CACHE_CONFIGS.noCache);
+      expect(result).toContain('max-age=0');
+      expect(result).toContain('must-revalidate');
+      expect(result).toContain('private');
+    });
   });
 });

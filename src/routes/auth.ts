@@ -119,7 +119,7 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
         githubId: payload.githubId 
       } 
     });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.user));
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.noCache));
     return response;
   });
 
