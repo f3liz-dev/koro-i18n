@@ -1,16 +1,26 @@
-import { useNavigate } from '@solidjs/router';
+import { useNavigate, useSearchParams } from '@solidjs/router';
 import { createEffect } from 'solid-js';
 import { user } from '../auth';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   createEffect(() => {
-    if (user()) navigate('/dashboard', { replace: true });
+    if (user()) {
+      const redirectParam = searchParams.redirect;
+      const redirectTo = Array.isArray(redirectParam) ? redirectParam[0] : redirectParam;
+      navigate(redirectTo || '/dashboard', { replace: true });
+    }
   });
 
   const handleLogin = () => {
-    window.location.href = '/api/auth/github';
+    const redirectParam = searchParams.redirect;
+    const redirectTo = Array.isArray(redirectParam) ? redirectParam[0] : redirectParam;
+    const url = redirectTo 
+      ? `/api/auth/github?redirect=${encodeURIComponent(redirectTo)}`
+      : '/api/auth/github';
+    window.location.href = url;
   };
 
   return (

@@ -198,7 +198,8 @@ export default function TranslationEditorPage() {
 
   onMount(async () => {
     if (!user()) {
-      navigate('/login');
+      const currentPath = window.location.pathname;
+      navigate(`/login?redirect=${encodeURIComponent(currentPath)}`);
       return;
     }
     

@@ -23,11 +23,17 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
   });
 
   app.get('/github', async (c) => {
+    const redirectUrl = c.req.query('redirect');
     const state = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     
     await prisma.oauthState.create({
-      data: { state, timestamp: Date.now(), expiresAt },
+      data: { 
+        state, 
+        timestamp: Date.now(), 
+        expiresAt,
+        redirectUrl: redirectUrl || null,
+      },
     });
     
     const params = new URLSearchParams({
@@ -101,7 +107,11 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
         secure: env.ENVIRONMENT === 'production'
       });
 
-      return c.redirect('/dashboard');
+      // Redirect to the original URL if available, otherwise to dashboard
+      const redirectUrl = stateData.redirectUrl || '/dashboard';
+      // Ensure the redirect URL is safe (starts with /)
+      const safeRedirectUrl = redirectUrl.startsWith('/') ? redirectUrl : '/dashboard';
+      return c.redirect(safeRedirectUrl);
     } catch (error) {
       console.error('OAuth error:', error);
       return c.json({ error: 'OAuth failed' }, 500);

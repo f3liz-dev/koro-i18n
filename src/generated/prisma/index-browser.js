@@ -130,7 +130,8 @@ exports.Prisma.UserScalarFieldEnum = {
 exports.Prisma.OauthStateScalarFieldEnum = {
   state: 'state',
   timestamp: 'timestamp',
-  expiresAt: 'expiresAt'
+  expiresAt: 'expiresAt',
+  redirectUrl: 'redirectUrl'
 };
 
 exports.Prisma.ProjectFileScalarFieldEnum = {

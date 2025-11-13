@@ -2786,18 +2786,21 @@ export namespace Prisma {
     state: string | null
     timestamp: number | null
     expiresAt: Date | null
+    redirectUrl: string | null
   }
 
   export type OauthStateMaxAggregateOutputType = {
     state: string | null
     timestamp: number | null
     expiresAt: Date | null
+    redirectUrl: string | null
   }
 
   export type OauthStateCountAggregateOutputType = {
     state: number
     timestamp: number
     expiresAt: number
+    redirectUrl: number
     _all: number
   }
 
@@ -2814,18 +2817,21 @@ export namespace Prisma {
     state?: true
     timestamp?: true
     expiresAt?: true
+    redirectUrl?: true
   }
 
   export type OauthStateMaxAggregateInputType = {
     state?: true
     timestamp?: true
     expiresAt?: true
+    redirectUrl?: true
   }
 
   export type OauthStateCountAggregateInputType = {
     state?: true
     timestamp?: true
     expiresAt?: true
+    redirectUrl?: true
     _all?: true
   }
 
@@ -2919,6 +2925,7 @@ export namespace Prisma {
     state: string
     timestamp: number
     expiresAt: Date
+    redirectUrl: string | null
     _count: OauthStateCountAggregateOutputType | null
     _avg: OauthStateAvgAggregateOutputType | null
     _sum: OauthStateSumAggregateOutputType | null
@@ -2944,27 +2951,31 @@ export namespace Prisma {
     state?: boolean
     timestamp?: boolean
     expiresAt?: boolean
+    redirectUrl?: boolean
   }, ExtArgs["result"]["oauthState"]>
 
   export type OauthStateSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     state?: boolean
     timestamp?: boolean
     expiresAt?: boolean
+    redirectUrl?: boolean
   }, ExtArgs["result"]["oauthState"]>
 
   export type OauthStateSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     state?: boolean
     timestamp?: boolean
     expiresAt?: boolean
+    redirectUrl?: boolean
   }, ExtArgs["result"]["oauthState"]>
 
   export type OauthStateSelectScalar = {
     state?: boolean
     timestamp?: boolean
     expiresAt?: boolean
+    redirectUrl?: boolean
   }
 
-  export type OauthStateOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"state" | "timestamp" | "expiresAt", ExtArgs["result"]["oauthState"]>
+  export type OauthStateOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"state" | "timestamp" | "expiresAt" | "redirectUrl", ExtArgs["result"]["oauthState"]>
 
   export type $OauthStatePayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     name: "OauthState"
@@ -2973,6 +2984,7 @@ export namespace Prisma {
       state: string
       timestamp: number
       expiresAt: Date
+      redirectUrl: string | null
     }, ExtArgs["result"]["oauthState"]>
     composites: {}
   }
@@ -3399,6 +3411,7 @@ export namespace Prisma {
     readonly state: FieldRef<"OauthState", 'String'>
     readonly timestamp: FieldRef<"OauthState", 'Int'>
     readonly expiresAt: FieldRef<"OauthState", 'DateTime'>
+    readonly redirectUrl: FieldRef<"OauthState", 'String'>
   }
     
 
@@ -9369,7 +9382,8 @@ export namespace Prisma {
   export const OauthStateScalarFieldEnum: {
     state: 'state',
     timestamp: 'timestamp',
-    expiresAt: 'expiresAt'
+    expiresAt: 'expiresAt',
+    redirectUrl: 'redirectUrl'
   };
 
   export type OauthStateScalarFieldEnum = (typeof OauthStateScalarFieldEnum)[keyof typeof OauthStateScalarFieldEnum]
@@ -9583,12 +9597,14 @@ export namespace Prisma {
     state?: StringFilter<"OauthState"> | string
     timestamp?: IntFilter<"OauthState"> | number
     expiresAt?: DateTimeFilter<"OauthState"> | Date | string
+    redirectUrl?: StringNullableFilter<"OauthState"> | string | null
   }
 
   export type OauthStateOrderByWithRelationInput = {
     state?: SortOrder
     timestamp?: SortOrder
     expiresAt?: SortOrder
+    redirectUrl?: SortOrderInput | SortOrder
   }
 
   export type OauthStateWhereUniqueInput = Prisma.AtLeast<{
@@ -9598,12 +9614,14 @@ export namespace Prisma {
     NOT?: OauthStateWhereInput | OauthStateWhereInput[]
     timestamp?: IntFilter<"OauthState"> | number
     expiresAt?: DateTimeFilter<"OauthState"> | Date | string
+    redirectUrl?: StringNullableFilter<"OauthState"> | string | null
   }, "state">
 
   export type OauthStateOrderByWithAggregationInput = {
     state?: SortOrder
     timestamp?: SortOrder
     expiresAt?: SortOrder
+    redirectUrl?: SortOrderInput | SortOrder
     _count?: OauthStateCountOrderByAggregateInput
     _avg?: OauthStateAvgOrderByAggregateInput
     _max?: OauthStateMaxOrderByAggregateInput
@@ -9618,6 +9636,7 @@ export namespace Prisma {
     state?: StringWithAggregatesFilter<"OauthState"> | string
     timestamp?: IntWithAggregatesFilter<"OauthState"> | number
     expiresAt?: DateTimeWithAggregatesFilter<"OauthState"> | Date | string
+    redirectUrl?: StringNullableWithAggregatesFilter<"OauthState"> | string | null
   }
 
   export type ProjectFileWhereInput = {
@@ -10096,42 +10115,49 @@ export namespace Prisma {
     state: string
     timestamp: number
     expiresAt: Date | string
+    redirectUrl?: string | null
   }
 
   export type OauthStateUncheckedCreateInput = {
     state: string
     timestamp: number
     expiresAt: Date | string
+    redirectUrl?: string | null
   }
 
   export type OauthStateUpdateInput = {
     state?: StringFieldUpdateOperationsInput | string
     timestamp?: IntFieldUpdateOperationsInput | number
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    redirectUrl?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type OauthStateUncheckedUpdateInput = {
     state?: StringFieldUpdateOperationsInput | string
     timestamp?: IntFieldUpdateOperationsInput | number
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    redirectUrl?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type OauthStateCreateManyInput = {
     state: string
     timestamp: number
     expiresAt: Date | string
+    redirectUrl?: string | null
   }
 
   export type OauthStateUpdateManyMutationInput = {
     state?: StringFieldUpdateOperationsInput | string
     timestamp?: IntFieldUpdateOperationsInput | number
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    redirectUrl?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type OauthStateUncheckedUpdateManyInput = {
     state?: StringFieldUpdateOperationsInput | string
     timestamp?: IntFieldUpdateOperationsInput | number
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    redirectUrl?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type ProjectFileCreateInput = {
@@ -10753,6 +10779,7 @@ export namespace Prisma {
     state?: SortOrder
     timestamp?: SortOrder
     expiresAt?: SortOrder
+    redirectUrl?: SortOrder
   }
 
   export type OauthStateAvgOrderByAggregateInput = {
@@ -10763,12 +10790,14 @@ export namespace Prisma {
     state?: SortOrder
     timestamp?: SortOrder
     expiresAt?: SortOrder
+    redirectUrl?: SortOrder
   }
 
   export type OauthStateMinOrderByAggregateInput = {
     state?: SortOrder
     timestamp?: SortOrder
     expiresAt?: SortOrder
+    redirectUrl?: SortOrder
   }
 
   export type OauthStateSumOrderByAggregateInput = {

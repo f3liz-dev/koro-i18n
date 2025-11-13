@@ -32,9 +32,10 @@ model User {
 
 // OAuth states table (temporary, auto-expire, in-memory only for stateless JWT)
 model OauthState {
-  state     String   @id
-  timestamp Int
-  expiresAt DateTime
+  state      String   @id
+  timestamp  Int
+  expiresAt  DateTime
+  redirectUrl String?
 
   @@index([expiresAt])
 }
