@@ -3,6 +3,7 @@ import { createSignal, onMount, For, Show } from 'solid-js';
 import { user } from '../auth';
 import { SkeletonTableRow } from '../components/Skeleton';
 import { projectsCache, membersCache } from '../utils/dataStore';
+import { authFetch } from '../utils/authFetch';
 
 interface Member {
   id: string;
@@ -38,7 +39,7 @@ export default function ProjectManagementPage() {
 
   const handleApprove = async (memberId: string, status: 'approved' | 'rejected') => {
     try {
-      const res = await fetch(`/api/projects/${params.id}/members/${memberId}/approve`, {
+      const res = await authFetch(`/api/projects/${params.id}/members/${memberId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -58,7 +59,7 @@ export default function ProjectManagementPage() {
     if (!confirm('Remove this member?')) return;
 
     try {
-      const res = await fetch(`/api/projects/${params.id}/members/${memberId}`, {
+      const res = await authFetch(`/api/projects/${params.id}/members/${memberId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -74,7 +75,7 @@ export default function ProjectManagementPage() {
 
   const handleAccessControlChange = async (accessControl: 'whitelist' | 'blacklist') => {
     try {
-      const res = await fetch(`/api/projects/${params.id}`, {
+      const res = await authFetch(`/api/projects/${params.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
