@@ -35,9 +35,9 @@ export default function FileSelectionPage() {
   const project = () => projectsStore.projects.find((p: any) => p.id === params.id) || null;
   
   const language = () => params.language || '';
-  const sourceLanguage = () => project()?.sourceLanguage || 'en';
   
-  const sourceFilesStore = () => filesSummaryCache.get(params.id || '', sourceLanguage());
+  // Use 'source-language' to automatically detect the actual source language from uploaded files
+  const sourceFilesStore = () => filesSummaryCache.get(params.id || '', 'source-language');
   const targetFilesStore = () => filesSummaryCache.get(params.id || '', language());
   
   const sourceFilesData = () => sourceFilesStore()?.data;
@@ -113,10 +113,10 @@ export default function FileSelectionPage() {
     
     const projectId = params.id;
     const targetLanguage = language();
-    const srcLang = sourceLanguage();
     
     if (projectId && targetLanguage) {
-      filesSummaryCache.fetch(projectId, srcLang);
+      // Use 'source-language' to automatically detect the actual source language
+      filesSummaryCache.fetch(projectId, 'source-language');
       filesSummaryCache.fetch(projectId, targetLanguage);
       
       // Prefetch summary endpoints for this page
