@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'solid-js';
 import { Router, Route } from '@solidjs/router';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
+import NavigationLoadingBar from './components/NavigationLoadingBar';
 
 // All pages use lazy loading for optimal initial bundle size
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -21,6 +22,8 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Router>
+        {/* Navigation loading bar - only shows for slow transitions (>300ms) */}
+        <NavigationLoadingBar threshold={300} />
         <Suspense fallback={<LoadingSpinner />}>
           <Route path="/" component={HomePage} />
           <Route path="/login" component={LoginPage} />
