@@ -22,7 +22,7 @@ export default function ErrorBoundary(props: Props) {
                   An error occurred while loading this page.
                 </p>
                 <details class="text-left mb-4">
-                  <summary class="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
+                  <summary class="cursor-pointer text-sm text-gray-500 hover:text-gray-700 active:text-gray-800 transition">
                     Error details
                   </summary>
                   <pre class="mt-2 p-3 bg-gray-100 rounded text-xs overflow-auto max-h-40">
@@ -32,7 +32,7 @@ export default function ErrorBoundary(props: Props) {
                 </details>
                 <button
                   onClick={() => window.location.href = '/'}
-                  class="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition"
+                  class="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 transition"
                 >
                   Go to Home
                 </button>

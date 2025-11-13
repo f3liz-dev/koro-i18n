@@ -31,7 +31,7 @@ export default function HomePage() {
           <button
             ref={dashboardButtonRef}
             onClick={() => navigate('/dashboard')}
-            class="px-8 py-3 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition"
+            class="px-8 py-3 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 transition"
           >
             Go to Dashboard
           </button>
@@ -39,7 +39,7 @@ export default function HomePage() {
           <button
             ref={loginButtonRef}
             onClick={() => navigate('/login')}
-            class="px-8 py-3 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition"
+            class="px-8 py-3 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 transition"
           >
             Sign in with GitHub
           </button>

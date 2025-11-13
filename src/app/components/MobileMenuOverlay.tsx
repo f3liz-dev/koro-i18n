@@ -38,7 +38,7 @@ export default function MobileMenuOverlay(props: MobileMenuOverlayProps) {
           <h2 class="text-lg font-semibold">Translation Strings</h2>
           <button
             onClick={props.onClose}
-            class="p-2 hover:bg-gray-100 rounded"
+            class="p-2 hover:bg-gray-100 active:bg-gray-200 rounded transition"
             aria-label="Close"
           >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

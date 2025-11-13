@@ -79,7 +79,7 @@ export default function JoinProjectPage() {
             <button
               ref={backButtonRef}
               onClick={() => navigate('/dashboard')}
-              class="text-gray-400 hover:text-gray-600"
+              class="text-gray-400 hover:text-gray-600 active:text-gray-700 transition"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -102,7 +102,7 @@ export default function JoinProjectPage() {
         <div class="space-y-3">
           <For each={availableProjects()}>
             {(project) => (
-              <div class="bg-white rounded-lg border p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-gray-300 transition">
+              <div class="bg-white rounded-lg border p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-gray-300 active:scale-[0.98] transition">
                 <div>
                   <h3 class="font-medium text-gray-900 mb-1">{project.name}</h3>
                   <code class="text-xs text-gray-500">{project.repository}</code>
@@ -110,7 +110,7 @@ export default function JoinProjectPage() {
                 <button
                   onClick={() => handleJoin(project.id)}
                   disabled={requestedProjects().has(project.id)}
-                  class="px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-50"
+                  class="px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-50 transition"
                 >
                   {requestedProjects().has(project.id) ? 'Request Sent' : 'Request to Join'}
                 </button>

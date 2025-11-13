@@ -104,7 +104,7 @@ export default function ProjectManagementPage() {
       <div class="border-b">
         <div class="max-w-6xl mx-auto px-8 py-5 flex items-center justify-between">
           <div class="flex items-center gap-4">
-            <button onClick={() => navigate('/dashboard')} class="text-lg font-semibold hover:text-gray-600">
+            <button onClick={() => navigate('/dashboard')} class="text-lg font-semibold hover:text-gray-600 active:text-gray-700 transition">
               ← Back
             </button>
           </div>
@@ -123,20 +123,20 @@ export default function ProjectManagementPage() {
             <div class="flex gap-4">
               <button
                 onClick={() => handleAccessControlChange('whitelist')}
-                class={`px-4 py-2 text-sm border rounded ${
+                class={`px-4 py-2 text-sm border rounded transition ${
                   project()!.accessControl === 'whitelist' 
                     ? 'bg-gray-900 text-white' 
-                    : 'hover:bg-gray-50'
+                    : 'hover:bg-gray-50 active:bg-gray-100'
                 }`}
               >
                 Whitelist (Approve to join)
               </button>
               <button
                 onClick={() => handleAccessControlChange('blacklist')}
-                class={`px-4 py-2 text-sm border rounded ${
+                class={`px-4 py-2 text-sm border rounded transition ${
                   project()!.accessControl === 'blacklist' 
                     ? 'bg-gray-900 text-white' 
-                    : 'hover:bg-gray-50'
+                    : 'hover:bg-gray-50 active:bg-gray-100'
                 }`}
               >
                 Blacklist (Block specific users)
@@ -207,13 +207,13 @@ export default function ProjectManagementPage() {
                         <Show when={member.status === 'pending'}>
                           <button
                             onClick={() => handleApprove(member.id, 'approved')}
-                            class="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                            class="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 active:bg-green-800 transition"
                           >
                             Approve
                           </button>
                           <button
                             onClick={() => handleApprove(member.id, 'rejected')}
-                            class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50"
+                            class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50 active:bg-gray-100 transition"
                           >
                             Reject
                           </button>
@@ -221,7 +221,7 @@ export default function ProjectManagementPage() {
                         <Show when={member.status === 'approved'}>
                           <button
                             onClick={() => handleRemove(member.id)}
-                            class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
+                            class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 active:bg-red-100 rounded transition"
                           >
                             Remove
                           </button>
@@ -229,13 +229,13 @@ export default function ProjectManagementPage() {
                         <Show when={member.status === 'rejected'}>
                           <button
                             onClick={() => handleApprove(member.id, 'approved')}
-                            class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50"
+                            class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50 active:bg-gray-100 transition"
                           >
                             Approve
                           </button>
                           <button
                             onClick={() => handleRemove(member.id)}
-                            class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
+                            class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 active:bg-red-100 rounded transition"
                           >
                             Remove
                           </button>

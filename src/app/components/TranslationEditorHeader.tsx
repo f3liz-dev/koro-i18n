@@ -19,7 +19,7 @@ export default function TranslationEditorHeader(props: TranslationEditorHeaderPr
             {/* Hamburger Menu Button - Mobile Only */}
             <button
               onClick={props.onMenuToggle}
-              class="lg:hidden p-2 hover:bg-gray-100 rounded"
+              class="lg:hidden p-2 hover:bg-gray-100 active:bg-gray-200 rounded transition"
               aria-label="Menu"
             >
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -40,7 +40,7 @@ export default function TranslationEditorHeader(props: TranslationEditorHeaderPr
             </div>
             <button
               onClick={() => navigate('/dashboard')}
-              class="px-3 py-2 text-sm lg:text-base text-gray-700 hover:bg-gray-100 rounded"
+              class="px-3 py-2 text-sm lg:text-base text-gray-700 hover:bg-gray-100 active:bg-gray-200 rounded transition"
             >
               <span class="hidden sm:inline">Back to Dashboard</span>
               <span class="sm:hidden">Back</span>

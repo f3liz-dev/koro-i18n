@@ -120,7 +120,7 @@ export default function DashboardPage() {
           <button
             ref={createProjectButtonRef}
             onClick={() => navigate('/projects/create')}
-            class="px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+            class="px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 transition"
           >
             Create Project
           </button>
@@ -154,7 +154,7 @@ export default function DashboardPage() {
                 const isOwner = () => project.userId === user()?.id;
 
                 return (
-                  <div class="bg-white rounded-lg border p-6 hover:border-gray-300 hover:shadow-sm transition">
+                   <div class="bg-white rounded-lg border p-6 hover:border-gray-300 hover:shadow-sm active:scale-[0.98] transition">
                     <button
                       ref={projectCardRef}
                       onClick={() => navigate(`/projects/${project.name}`)}
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                     <Show when={isOwner()}>
                       <button
                         onClick={() => navigate(`/projects/${project.name}/settings`)}
-                        class="w-full px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 transition"
+                        class="w-full px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 active:bg-gray-100 transition"
                       >
                         Manage Project
                       </button>

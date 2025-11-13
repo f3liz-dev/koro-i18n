@@ -145,7 +145,7 @@ export default function ProjectSettingsPage() {
             <button
               ref={backButtonRef}
               onClick={() => navigate(`/projects/${params.id}`)}
-              class="text-gray-400 hover:text-gray-600"
+              class="text-gray-400 hover:text-gray-600 active:text-gray-700 transition"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -171,7 +171,7 @@ export default function ProjectSettingsPage() {
                 class={`px-4 py-2.5 text-sm rounded-lg border transition ${
                   project()!.accessControl === 'whitelist' 
                     ? 'bg-gray-900 text-white border-gray-900' 
-                    : 'bg-white hover:bg-gray-50 border-gray-300'
+                    : 'bg-white hover:bg-gray-50 active:bg-gray-100 border-gray-300'
                 }`}
               >
                 <div class="font-medium">Whitelist</div>
@@ -182,7 +182,7 @@ export default function ProjectSettingsPage() {
                 class={`px-4 py-2.5 text-sm rounded-lg border transition ${
                   project()!.accessControl === 'blacklist' 
                     ? 'bg-gray-900 text-white border-gray-900' 
-                    : 'bg-white hover:bg-gray-50 border-gray-300'
+                    : 'bg-white hover:bg-gray-50 active:bg-gray-100 border-gray-300'
                 }`}
               >
                 <div class="font-medium">Blacklist</div>
@@ -206,7 +206,7 @@ export default function ProjectSettingsPage() {
                 class={`px-4 py-2 text-sm transition ${
                   activeTab() === 'approved' 
                     ? 'border-b-2 border-gray-900 font-medium text-gray-900' 
-                    : 'text-gray-500 hover:text-gray-700'
+                    : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
                 }`}
               >
                 Approved ({members().filter(m => m.status === 'approved').length})
@@ -216,7 +216,7 @@ export default function ProjectSettingsPage() {
                 class={`px-4 py-2 text-sm transition ${
                   activeTab() === 'pending' 
                     ? 'border-b-2 border-gray-900 font-medium text-gray-900' 
-                    : 'text-gray-500 hover:text-gray-700'
+                    : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
                 }`}
               >
                 Pending ({members().filter(m => m.status === 'pending').length})
@@ -226,7 +226,7 @@ export default function ProjectSettingsPage() {
                 class={`px-4 py-2 text-sm transition ${
                   activeTab() === 'rejected' 
                     ? 'border-b-2 border-gray-900 font-medium text-gray-900' 
-                    : 'text-gray-500 hover:text-gray-700'
+                    : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
                 }`}
               >
                 Rejected ({members().filter(m => m.status === 'rejected').length})
@@ -236,7 +236,7 @@ export default function ProjectSettingsPage() {
             <div class="space-y-2">
               <For each={filteredMembers()}>
                 {(member) => (
-                  <div class="rounded-lg border p-4 flex items-center justify-between hover:bg-gray-50">
+                  <div class="rounded-lg border p-4 flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition">
                     <div class="flex items-center gap-3">
                       <img src={member.avatarUrl} alt={member.username} class="w-10 h-10 rounded-full" />
                       <div>
@@ -248,13 +248,13 @@ export default function ProjectSettingsPage() {
                       <Show when={member.status === 'pending'}>
                         <button
                           onClick={() => handleApprove(member.id, 'approved')}
-                          class="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700"
+                          class="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 transition"
                         >
                           Approve
                         </button>
                         <button
                           onClick={() => handleApprove(member.id, 'rejected')}
-                          class="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50"
+                          class="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50 active:bg-gray-100 transition"
                         >
                           Reject
                         </button>
@@ -262,7 +262,7 @@ export default function ProjectSettingsPage() {
                       <Show when={member.status === 'approved'}>
                         <button
                           onClick={() => handleRemove(member.id)}
-                          class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg"
+                          class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 active:bg-red-100 rounded-lg transition"
                         >
                           Remove
                         </button>
@@ -270,13 +270,13 @@ export default function ProjectSettingsPage() {
                       <Show when={member.status === 'rejected'}>
                         <button
                           onClick={() => handleApprove(member.id, 'approved')}
-                          class="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50"
+                          class="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50 active:bg-gray-100 transition"
                         >
                           Approve
                         </button>
                         <button
                           onClick={() => handleRemove(member.id)}
-                          class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg"
+                          class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 active:bg-red-100 rounded-lg transition"
                         >
                           Remove
                         </button>
@@ -303,7 +303,7 @@ export default function ProjectSettingsPage() {
               </div>
               <button
                 onClick={handleDeleteProject}
-                class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+                class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 active:bg-red-800 transition"
               >
                 Delete Project
               </button>
