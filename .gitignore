@@ -43,9 +43,3 @@ coverage/
 *.tmp
 *.temp
 .cache/
-
-# Prisma
-src/generated/
-prisma.config.ts
-
-/generated/prisma

@@ -1,0 +1,144 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Users table
+model User {
+  id        String   @id
+  githubId  Int      @unique
+  username  String
+  email     String
+  avatarUrl String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  projects           Project[]
+  translations       Translation[]
+  translationHistory TranslationHistory[]
+  projectMemberships ProjectMember[]
+  addedMembers       ProjectMember[]      @relation("AddedBy")
+
+  @@index([githubId])
+}
+
+// OAuth states table (temporary, auto-expire, in-memory only for stateless JWT)
+model OauthState {
+  state     String   @id
+  timestamp Int
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+// Project source files (uploaded by client)
+model ProjectFile {
+  id         String   @id
+  projectId  String
+  branch     String
+  commitSha  String
+  filename   String
+  filetype   String
+  lang       String
+  contents   String // JSON string of flattened key-value pairs
+  metadata   String? // JSON string of file metadata
+  uploadedAt DateTime @default(now())
+
+  @@unique([projectId, branch, filename, lang])
+  @@index([projectId, branch])
+  @@index([projectId, lang])
+}
+
+// Translations table (pending translations to be batched and committed)
+model Translation {
+  id        String   @id
+  projectId String
+  language  String
+  key       String
+  value     String
+  userId    String
+  status    String   @default("pending") // pending, approved, committed, rejected, deleted
+  commitSha String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  // Relations
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  history TranslationHistory[]
+
+  @@index([projectId, language])
+  @@index([status])
+  @@index([projectId, language, key])
+  @@index([createdAt])
+}
+
+// Translation history log (audit trail for each translation key)
+model TranslationHistory {
+  id            String   @id
+  translationId String
+  projectId     String
+  language      String
+  key           String
+  value         String
+  userId        String
+  action        String // submitted, approved, rejected, deleted, committed
+  commitSha     String?
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  translation Translation @relation(fields: [translationId], references: [id], onDelete: Cascade)
+
+  @@index([translationId])
+  @@index([projectId, language, key])
+  @@index([createdAt])
+}
+
+// Projects (Cloudflare-style: simple name + repository binding)
+model Project {
+  id             String   @id
+  userId         String
+  name           String   @unique
+  repository     String   @unique
+  accessControl  String   @default("whitelist") // 'whitelist' or 'blacklist'
+  sourceLanguage String   @default("en") // Source language for translations
+  createdAt      DateTime @default(now())
+
+  // Relations
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members ProjectMember[]
+
+  @@index([userId])
+  @@index([name])
+  @@index([repository])
+}
+
+// Project members (users who have access to a project)
+model ProjectMember {
+  id        String   @id
+  projectId String
+  userId    String
+  status    String   @default("pending") // 'pending', 'approved', 'rejected'
+  role      String   @default("member") // 'owner', 'member'
+  addedBy   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  // Relations
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addedByUser User?   @relation("AddedBy", fields: [addedBy], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([projectId, status])
+}
