@@ -139,7 +139,7 @@ export default function TranslationEditorPanel(
                     <span
                       class={
                         status() === 'imported'
-                          ? 'text-xs px-2 py-1 rounded text-gray-600 bg-black'
+                          ? 'text-xs px-2 py-1 rounded text-gray-300 bg-black'
                           : 'text-xs px-2 py-1 rounded text-green-700 bg-green-100'
                       }
                     >
