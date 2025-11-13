@@ -133,7 +133,7 @@ export default function LanguageSelectionPage() {
     // Use smart prefetch for project-languages route
     const projectId = params.id;
     if (projectId) {
-      prefetchForRoute('project-languages', projectId);
+      void prefetchForRoute('project-languages', projectId);
     }
   });
 

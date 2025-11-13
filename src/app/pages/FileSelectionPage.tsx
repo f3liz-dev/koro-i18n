@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
-import { prefetchForRoute, addPrefetchLink } from '../utils/prefetch';
+import { prefetchData } from '../utils/prefetch';
 
 interface Project {
   id: string;
@@ -123,10 +123,9 @@ export default function FileSelectionPage() {
     const targetLanguage = language();
     
     // Prefetch both source and target language summaries
-    if (projectId) {
-      // We'll prefetch the source language once project is loaded
-      // For now, prefetch the target language
-      addPrefetchLink(`/api/projects/${projectId}/files/summary?lang=${targetLanguage}`, 'fetch');
+    if (projectId && targetLanguage) {
+      // Prefetch target language summary
+      void prefetchData(`/api/projects/${projectId}/files/summary?lang=${targetLanguage}`);
     }
   });
 
@@ -139,7 +138,7 @@ export default function FileSelectionPage() {
         
         // Prefetch source language summary
         if (sourceLanguage && projectId) {
-          addPrefetchLink(`/api/projects/${projectId}/files/summary?lang=${sourceLanguage}`, 'fetch');
+          void prefetchData(`/api/projects/${projectId}/files/summary?lang=${sourceLanguage}`);
         }
         
         loadFiles();

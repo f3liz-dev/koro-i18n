@@ -3,9 +3,15 @@
  * 
  * This module uses the ForesightJS library to predict user interactions
  * and prefetch resources before they're needed, optimizing SPA performance.
+ * 
+ * According to ForesightJS documentation, the callback should perform actual
+ * data fetching, not just create <link> tags. This is crucial for SPAs.
  */
 
 import { ForesightManager } from 'js.foresight';
+
+// Cache to track which URLs have been prefetched to avoid duplicate requests
+const prefetchCache = new Set<string>();
 
 /**
  * Initialize ForesightJS with optimal settings for the SPA
@@ -13,58 +19,65 @@ import { ForesightManager } from 'js.foresight';
 export function initializeForesight() {
   if (typeof window === 'undefined') return;
 
-  // Initialize ForesightJS with default settings
-  // It works out of the box with no configuration needed
+  // Initialize ForesightJS with default settings optimized for this SPA
   ForesightManager.initialize({
     touchDeviceStrategy: 'viewport',
     defaultHitSlop: 20,
+    enableMousePrediction: true,
+    enableTabPrediction: true,
+    enableScrollPrediction: true,
   });
 }
 
 /**
- * Legacy API - Add a prefetch link to the document head
+ * Prefetch a single URL by actually fetching it
+ * This is the correct approach for SPA data prefetching with ForesightJS
  * @param url - The URL to prefetch
- * @param as - The resource type (fetch, script, style, etc.)
  */
-export function addPrefetchLink(url: string, as: string = 'fetch'): void {
+export async function prefetchData(url: string): Promise<void> {
   if (typeof window === 'undefined') return;
   
-  // Check if link already exists
-  const existingLink = document.querySelector(`link[rel="prefetch"][href="${url}"]`);
-  if (existingLink) {
+  // Skip if already prefetched
+  if (prefetchCache.has(url)) {
     return;
   }
 
-  const link = document.createElement('link');
-  link.rel = 'prefetch';
-  link.href = url;
-  link.as = as;
-  
-  // For fetch requests, add crossorigin attribute
-  if (as === 'fetch') {
-    link.crossOrigin = 'use-credentials';
+  try {
+    // Mark as prefetching to avoid duplicates
+    prefetchCache.add(url);
+    
+    // Perform actual fetch - this will be cached by the browser
+    await fetch(url, { 
+      credentials: 'include',
+      // Use low priority so it doesn't interfere with user-initiated requests
+      priority: 'low' as RequestPriority,
+    });
+    
+    console.log(`[ForesightJS] Prefetched: ${url}`);
+  } catch (error) {
+    // Remove from cache on error so it can be retried
+    prefetchCache.delete(url);
+    console.warn(`[ForesightJS] Failed to prefetch ${url}:`, error);
   }
-  
-  document.head.appendChild(link);
 }
 
 /**
  * Prefetch multiple URLs
  * @param urls - Array of URLs to prefetch
- * @param as - The resource type (fetch, script, style, etc.)
  */
-export function prefetchMultiple(urls: string[], as: string = 'fetch'): void {
-  urls.forEach(url => addPrefetchLink(url, as));
+export async function prefetchMultiple(urls: string[]): Promise<void> {
+  // Prefetch in parallel for better performance
+  await Promise.all(urls.map(url => prefetchData(url)));
 }
 
 /**
  * Smart prefetch based on route context
- * This creates prefetch links that ForesightJS will use to prefetch when user shows intent
+ * This performs actual data fetching when ForesightJS predicts user intent
  * @param route - Current route name
  * @param projectId - Optional project ID
  * @param language - Optional language code
  */
-export function prefetchForRoute(route: string, projectId?: string, language?: string): void {
+export async function prefetchForRoute(route: string, projectId?: string, language?: string): Promise<void> {
   const prefetchMap: Record<string, string[]> = {
     dashboard: ['/api/projects'],
     'project-languages': projectId ? [`/api/projects/${projectId}/files/summary`] : [],
@@ -81,7 +94,7 @@ export function prefetchForRoute(route: string, projectId?: string, language?: s
   };
 
   const urls = prefetchMap[route] || [];
-  prefetchMultiple(urls);
+  await prefetchMultiple(urls);
 }
 
 /**
@@ -100,8 +113,8 @@ export function registerNavigationElement(
   ForesightManager.instance.register({
     element,
     callback: () => {
-      // Prefetch all URLs when ForesightJS predicts user will interact
-      prefetchMultiple(prefetchUrls);
+      // Perform actual data fetching when ForesightJS predicts interaction
+      void prefetchMultiple(prefetchUrls);
     },
     hitSlop,
   });
@@ -115,6 +128,13 @@ export function unregisterNavigationElement(element: HTMLElement): void {
   if (typeof window === 'undefined' || !element) return;
   
   ForesightManager.instance.unregister(element);
+}
+
+/**
+ * Clear the prefetch cache (useful for testing or when data changes)
+ */
+export function clearPrefetchCache(): void {
+  prefetchCache.clear();
 }
 
 /**
