@@ -109,61 +109,66 @@ export default function TranslationSuggestionsPanel(props: TranslationSuggestion
                     <div class="absolute left-0 top-0 -translate-x-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white"></div>
                     
                     <div class="bg-gray-50 rounded-lg p-3 border">
-                      {/* Header with User Info */}
-                      <div class="flex items-start justify-between mb-2">
-                        <div class="flex items-center gap-2 flex-1 min-w-0">
-                          {/* User Avatar */}
-                          <Show when={entry.username}>
-                            <img
-                              src={entry.avatarUrl || `https://ui-avatars.com/api/?name=${entry.username}`}
-                              alt={entry.username}
-                              class="w-6 h-6 rounded-full flex-shrink-0"
-                            />
+                      {/* Main horizontal layout */}
+                      <div class="flex items-start gap-3">
+                        {/* Left side: vertical layout with value and user info */}
+                        <div class="flex flex-col gap-2 flex-1 min-w-0">
+                          {/* Value */}
+                          <Show when={entry.status !== 'deleted'}>
+                            <div class="bg-white p-2 rounded border text-sm text-gray-900">
+                              {entry.value}
+                            </div>
                           </Show>
                           
-                          <div class="flex flex-col min-w-0 flex-1">
-                            <div class="flex items-center gap-2 flex-wrap">
-                              <Show when={entry.username}>
-                                <span class="text-sm font-medium text-gray-900 truncate">
-                                  {entry.username}
-                                </span>
-                              </Show>
-                              <span class="text-lg flex-shrink-0">{getStatusIcon(entry.status)}</span>
-                              <span class={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${getStatusBadge(entry.status)}`}>
-                                {entry.status}
+                          {/* Horizontal layout for profile image, username, and date */}
+                          <div class="flex items-center gap-2">
+                            {/* User Avatar */}
+                            <Show when={entry.username}>
+                              <img
+                                src={entry.avatarUrl || `https://ui-avatars.com/api/?name=${entry.username}`}
+                                alt={entry.username}
+                                class="w-6 h-6 rounded-full flex-shrink-0"
+                              />
+                            </Show>
+                            
+                            {/* Username */}
+                            <Show when={entry.username}>
+                              <span class="text-sm font-medium text-gray-900 truncate">
+                                {entry.username}
                               </span>
-                            </div>
+                            </Show>
+                            
+                            {/* Date */}
                             <span class="text-xs text-gray-500" title={formatDate(entry.createdAt)}>
                               {formatRelativeTime(entry.createdAt)}
                             </span>
+                            
+                            {/* Status icon and badge */}
+                            <span class="text-lg flex-shrink-0">{getStatusIcon(entry.status)}</span>
+                            <span class={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${getStatusBadge(entry.status)}`}>
+                              {entry.status}
+                            </span>
                           </div>
                         </div>
+
+                        {/* Right side: Action buttons for pending suggestions */}
+                        <Show when={entry.status === 'pending' && props.onApprove && props.onReject}>
+                          <div class="flex flex-col gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => props.onApprove?.(entry.id)}
+                              class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition whitespace-nowrap"
+                            >
+                              ✓ Approve
+                            </button>
+                            <button
+                              onClick={() => props.onReject?.(entry.id)}
+                              class="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition whitespace-nowrap"
+                            >
+                              ✗ Reject
+                            </button>
+                          </div>
+                        </Show>
                       </div>
-
-                      {/* Value */}
-                      <Show when={entry.status !== 'deleted'}>
-                        <div class="bg-white p-2 rounded border text-sm text-gray-900 mb-2">
-                          {entry.value}
-                        </div>
-                      </Show>
-
-                      {/* Action buttons for pending suggestions */}
-                      <Show when={entry.status === 'pending' && props.onApprove && props.onReject}>
-                        <div class="flex gap-2 mt-2">
-                          <button
-                            onClick={() => props.onApprove?.(entry.id)}
-                            class="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition"
-                          >
-                            ✓ Approve
-                          </button>
-                          <button
-                            onClick={() => props.onReject?.(entry.id)}
-                            class="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition"
-                          >
-                            ✗ Reject
-                          </button>
-                        </div>
-                      </Show>
                     </div>
                   </div>
                 )}
