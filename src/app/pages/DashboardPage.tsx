@@ -6,6 +6,7 @@ import { useForesight } from '../utils/useForesight';
 import { SkeletonCard } from '../components/Skeleton';
 import { projectsCache } from '../utils/dataStore';
 import { authFetch } from '../utils/authFetch';
+import PageHeader, { MenuItem } from '../components/PageHeader';
 
 interface Project {
   id: string;
@@ -78,56 +79,37 @@ export default function DashboardPage() {
     }
   };
 
+  const menuItems: MenuItem[] = [
+    {
+      label: 'Create Project',
+      onClick: () => navigate('/projects/create'),
+      ref: createProjectButtonRef,
+    },
+    {
+      label: 'Join Project',
+      onClick: () => navigate('/projects/join'),
+      ref: joinProjectButtonRef,
+    },
+    {
+      label: 'History',
+      onClick: () => navigate('/history'),
+      ref: historyButtonRef,
+    },
+    {
+      label: 'Logout',
+      onClick: handleLogout,
+    },
+  ];
+
   return (
     <div class="min-h-screen bg-gray-50">
       {/* Header */}
-      <div class="bg-white border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <button ref={homeButtonRef} onClick={() => navigate('/')} class="flex items-center gap-2 hover:opacity-80">
-                <img 
-                  src="/logo.png" 
-                  alt="Koro i18n" 
-                  class="w-8 h-8 object-contain"
-                />
-                <span class="text-xl font-semibold text-gray-900">koro-i18n</span>
-              </button>
-              <span class="text-gray-300">/</span>
-              <span class="text-sm text-gray-600">{user()?.username}</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <button
-                ref={createProjectButtonRef}
-                onClick={() => navigate('/projects/create')}
-                class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-              >
-                Create Project
-              </button>
-              <button
-                ref={joinProjectButtonRef}
-                onClick={() => navigate('/projects/join')}
-                class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-              >
-                Join Project
-              </button>
-              <button
-                ref={historyButtonRef}
-                onClick={() => navigate('/history')}
-                class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-              >
-                History
-              </button>
-              <button
-                onClick={handleLogout}
-                class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="koro-i18n"
+        subtitle={`<span class="text-gray-300">/</span> <span class="text-sm text-gray-600">${user()?.username}</span>`}
+        logo={true}
+        menuItems={menuItems}
+      />
 
       {/* Content */}
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

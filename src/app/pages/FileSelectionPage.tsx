@@ -4,6 +4,7 @@ import { user, auth } from '../auth';
 import { prefetchData } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
 import { projectsCache, filesSummaryCache } from '../utils/dataStore';
+import PageHeader, { MenuItem } from '../components/PageHeader';
 
 interface Project {
   id: string;
@@ -140,58 +141,41 @@ export default function FileSelectionPage() {
     return 'text-red-600 bg-red-50';
   };
 
+  const menuItems: MenuItem[] = [
+    {
+      label: 'Settings',
+      onClick: () => navigate(`/projects/${params.id}/settings`),
+      ref: settingsButtonRef,
+      show: isOwner(),
+    },
+    {
+      label: 'Suggestions',
+      onClick: () => navigate(`/projects/${params.id}/suggestions`),
+      ref: suggestionsButtonRef,
+      variant: 'primary',
+    },
+    {
+      label: 'Logout',
+      onClick: handleLogout,
+    },
+  ];
+
   return (
     <div class="min-h-screen bg-gray-50">
       {/* Header */}
-      <div class="bg-white border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <button
-                ref={backButtonRef}
-                onClick={() => navigate(`/projects/${params.id}`)}
-                class="text-gray-400 hover:text-gray-600"
-              >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-              </button>
-              <div>
-                <h1 class="text-xl font-semibold text-gray-900">{project()?.name}</h1>
-                <div class="flex items-center gap-2">
-                  <code class="text-xs text-gray-500">{project()?.repository}</code>
-                  <span class="text-xs text-gray-400">•</span>
-                  <span class="text-xs font-medium text-blue-600">{language().toUpperCase()}</span>
-                </div>
-              </div>
-            </div>
-            <div class="flex items-center gap-2">
-              <Show when={isOwner()}>
-                <button
-                  ref={settingsButtonRef}
-                  onClick={() => navigate(`/projects/${params.id}/settings`)}
-                  class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-                >
-                  Settings
-                </button>
-              </Show>
-              <button
-                ref={suggestionsButtonRef}
-                onClick={() => navigate(`/projects/${params.id}/suggestions`)}
-                class="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 rounded-lg hover:bg-blue-50"
-              >
-                Suggestions
-              </button>
-              <button
-                onClick={handleLogout}
-                class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title={project()?.name || ''}
+        subtitle={`
+          <code class="text-xs text-gray-500">${project()?.repository || ''}</code>
+          <span class="text-xs text-gray-400">•</span>
+          <span class="text-xs font-medium text-blue-600">${language().toUpperCase()}</span>
+        `}
+        backButton={{
+          onClick: () => navigate(`/projects/${params.id}`),
+          ref: backButtonRef,
+        }}
+        menuItems={menuItems}
+      />
 
       {/* Content */}
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
