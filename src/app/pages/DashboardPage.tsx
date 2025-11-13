@@ -1,10 +1,10 @@
 import { useNavigate } from '@solidjs/router';
-import { createEffect, createSignal, For, onMount, Show } from 'solid-js';
+import { createEffect, For, onMount, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchForRoute } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
-import { cachedFetch } from '../utils/cachedFetch';
 import { SkeletonCard } from '../components/Skeleton';
+import { projectsCache } from '../utils/dataStore';
 
 interface Project {
   id: string;
@@ -17,51 +17,24 @@ interface Project {
 export default function DashboardPage() {
   const navigate = useNavigate();
 
-  const [projects, setProjects] = createSignal<Project[]>([]);
-  const [isLoading, setIsLoading] = createSignal(true);
-
   // ForesightJS refs for navigation buttons
   const homeButtonRef = useForesight({ prefetchUrls: ['/api/user'], debugName: 'home-button' });
   const createProjectButtonRef = useForesight({ prefetchUrls: [], debugName: 'create-project-button' });
   const joinProjectButtonRef = useForesight({ prefetchUrls: [], debugName: 'join-project-button' });
   const historyButtonRef = useForesight({ prefetchUrls: ['/api/history'], debugName: 'history-button' });
 
-  const loadProjects = async () => {
-    console.log('loadProjects called');
-    setIsLoading(true);
-    try {
-      console.log('Fetching projects...');
-      // Try cache first (ForesightJS may have prefetched this)
-      const res = await cachedFetch('/api/projects', { 
-        credentials: 'include',
-        tryCache: true,
-      });
-      console.log('Projects response:', res.status);
-      if (res.ok) {
-        const data = await res.json() as { projects: any[] };
-        console.log('Projects data:', data);
-        console.log('Number of projects:', data.projects.length);
-        
-        // Projects now include languages from the API
-        const projectsData = data.projects.map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          repository: p.repository,
-          languages: p.languages || [],
-          progress: 0
-        }));
-        
-        setProjects(projectsData);
-      } else {
-        const errorData = await res.json();
-        console.error('Failed to load projects:', res.status, errorData);
-      }
-    } catch (error) {
-      console.error('Failed to load projects:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Get projects from store - returns cached data immediately or empty array
+  const store = projectsCache.get();
+  const projects = () => store.projects.map((p: any) => ({
+    id: p.id,
+    name: p.name,
+    repository: p.repository,
+    languages: p.languages || [],
+    progress: 0
+  }));
+  
+  // Check if we have cached data - show skeleton only if no cache exists
+  const isLoading = () => !store.lastFetch;
 
   onMount(() => {
     console.log('DashboardPage mounted');
@@ -69,7 +42,9 @@ export default function DashboardPage() {
     auth.refresh();
     // Use smart prefetch for dashboard route
     void prefetchForRoute('dashboard');
-    loadProjects();
+    
+    // Fetch projects in background - will update store when data arrives
+    projectsCache.fetch();
   });
 
   createEffect(() => {
@@ -90,7 +65,8 @@ export default function DashboardPage() {
       });
 
       if (res.ok) {
-        loadProjects();
+        // Refetch projects to update the store
+        projectsCache.fetch();
       } else {
         const data = await res.json() as { error?: string };
         alert(data.error || 'Failed to delete project');
