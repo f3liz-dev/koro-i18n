@@ -3,7 +3,7 @@ import { createSignal, createResource, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchData } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
-import { createCachedFetcher } from '../utils/cachedFetch';
+import { createCachedFetcher, tryGetCached } from '../utils/cachedFetch';
 
 interface Project {
   id: string;
@@ -30,25 +30,64 @@ export default function FileSelectionPage() {
   
   const [project, setProject] = createSignal<Project | null>(null);
   const [isOwner, setIsOwner] = createSignal(false);
+  const [sourceFilesData, setSourceFilesData] = createSignal<FilesResponse | undefined>(undefined);
+  const [targetFilesData, setTargetFilesData] = createSignal<FilesResponse | undefined>(undefined);
+  const [isLoadingFiles, setIsLoadingFiles] = createSignal(true);
 
   const language = () => params.language || '';
   const sourceLanguage = () => project()?.sourceLanguage || 'en';
   
-  // Use createResource with cache-first fetcher for instant loading
-  const [sourceFiles] = createResource(
-    () => `/api/projects/${params.id}/files/summary?lang=${sourceLanguage()}`,
-    createCachedFetcher<FilesResponse>({ credentials: 'include' })
-  );
+  // Load files with cache check
+  const loadFiles = async () => {
+    const projectId = params.id;
+    const targetLanguage = language();
+    const srcLang = sourceLanguage();
+    
+    if (!projectId || !targetLanguage) return;
+    
+    const sourceUrl = `/api/projects/${projectId}/files/summary?lang=${srcLang}`;
+    const targetUrl = `/api/projects/${projectId}/files/summary?lang=${targetLanguage}`;
+    
+    // Try to get cached data first for instant display
+    const cachedSource = await tryGetCached(sourceUrl, { credentials: 'include' });
+    const cachedTarget = await tryGetCached(targetUrl, { credentials: 'include' });
+    
+    // If we have cached data, use it immediately without showing loading
+    if (cachedSource && cachedTarget) {
+      try {
+        const sourceData = await cachedSource.json() as FilesResponse;
+        const targetData = await cachedTarget.json() as FilesResponse;
+        
+        setSourceFilesData(sourceData);
+        setTargetFilesData(targetData);
+        setIsLoadingFiles(false);
+        return; // Exit early since we have cached data
+      } catch (error) {
+        console.log('Failed to use cached data, falling back to network fetch', error);
+      }
+    }
+    
+    // Fallback: show loading and fetch from network
+    try {
+      setIsLoadingFiles(true);
+      
+      const fetcher = createCachedFetcher<FilesResponse>({ credentials: 'include' });
+      const sourceData = await fetcher(sourceUrl);
+      const targetData = await fetcher(targetUrl);
+      
+      setSourceFilesData(sourceData);
+      setTargetFilesData(targetData);
+    } catch (error) {
+      console.error('Failed to load files:', error);
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  };
   
-  const [targetFiles] = createResource(
-    () => `/api/projects/${params.id}/files/summary?lang=${language()}`,
-    createCachedFetcher<FilesResponse>({ credentials: 'include' })
-  );
-  
-  // Compute file stats from the resources
+  // Compute file stats from the data
   const fileStats = () => {
-    const source = sourceFiles();
-    const target = targetFiles();
+    const source = sourceFilesData();
+    const target = targetFilesData();
     
     if (!source || !target) return [];
     
@@ -86,8 +125,8 @@ export default function FileSelectionPage() {
     return stats;
   };
   
-  // isLoading is automatically handled by resources
-  const isLoading = () => sourceFiles.loading || targetFiles.loading;
+  // isLoading is now manually managed
+  const isLoading = () => isLoadingFiles();
 
   // ForesightJS refs for navigation buttons
   const backButtonRef = useForesight({
@@ -119,9 +158,10 @@ export default function FileSelectionPage() {
     }
   };
 
-  onMount(() => {
+  onMount(async () => {
     auth.refresh();
-    loadProject();
+    await loadProject();
+    await loadFiles();
     
     // Prefetch summary endpoints for this page
     const projectId = params.id;

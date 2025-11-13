@@ -1,4 +1,4 @@
-import { createSignal, createResource, onMount, onCleanup } from 'solid-js';
+import { createSignal, onMount, onCleanup, createEffect } from 'solid-js';
 import { useParams, useNavigate } from '@solidjs/router';
 import { user } from '../auth';
 import TranslationEditorHeader from '../components/TranslationEditorHeader';
@@ -273,6 +273,10 @@ export default function TranslationEditorPage() {
     
     // Then load translation files
     loadTranslationFiles();
+    
+    // Load translations and suggestions
+    loadTranslations();
+    loadAllSuggestions();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key === 'ArrowLeft') {
@@ -291,16 +295,80 @@ export default function TranslationEditorPage() {
     onCleanup(() => window.removeEventListener('keydown', handleKeyDown));
   });
 
-  const [translations] = createResource(
-    () => ({ projectId: projectId(), language: language() }),
-    (params) => fetchProjectTranslations(params.projectId, params.language)
-  );
+  const [translations, setTranslations] = createSignal<any>(null);
+  const [isLoadingTranslations, setIsLoadingTranslations] = createSignal(false);
 
-  // Fetch all suggestions for the project/language to enrich translation strings
-  const [allSuggestions, { refetch: refetchAllSuggestions }] = createResource(
-    () => ({ projectId: projectId(), language: language(), token: suggestionRefetchToken() }),
-    (params) => fetchSuggestions(params.projectId, params.language)
-  );
+  const loadTranslations = async () => {
+    const pid = projectId();
+    const lang = language();
+    
+    if (!pid || !lang) return;
+    
+    const url = `/api/translations?projectId=${encodeURIComponent(pid)}&language=${lang}&status=pending`;
+    
+    // Try to get cached data first
+    const cached = await tryGetCached(url, { credentials: 'include' });
+    if (cached) {
+      try {
+        const data = await cached.json();
+        setTranslations(data);
+        return;
+      } catch (error) {
+        console.log('Failed to use cached translations, falling back to network', error);
+      }
+    }
+    
+    // Fallback to network fetch
+    try {
+      setIsLoadingTranslations(true);
+      const data = await fetchProjectTranslations(pid, lang);
+      setTranslations(data);
+    } catch (error) {
+      console.error('Failed to load translations:', error);
+    } finally {
+      setIsLoadingTranslations(false);
+    }
+  };
+
+  const [allSuggestions, setAllSuggestions] = createSignal<any>(null);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = createSignal(false);
+
+  const loadAllSuggestions = async () => {
+    const pid = projectId();
+    const lang = language();
+    
+    if (!pid || !lang) return;
+    
+    const params = new URLSearchParams({ projectId: pid, language: lang });
+    const url = `/api/translations/suggestions?${params}`;
+    
+    // Try to get cached data first
+    const cached = await tryGetCached(url, { credentials: 'include' });
+    if (cached) {
+      try {
+        const data = await cached.json();
+        setAllSuggestions(data);
+        return;
+      } catch (error) {
+        console.log('Failed to use cached suggestions, falling back to network', error);
+      }
+    }
+    
+    // Fallback to network fetch
+    try {
+      setIsLoadingSuggestions(true);
+      const data = await fetchSuggestions(pid, lang);
+      setAllSuggestions(data);
+    } catch (error) {
+      console.error('Failed to load all suggestions:', error);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
+  const refetchAllSuggestions = () => {
+    loadAllSuggestions();
+  };
 
   // Enrich translation strings with suggestion status
   const enrichedTranslationStrings = () => {
@@ -325,13 +393,54 @@ export default function TranslationEditorPage() {
   };
 
   // Always fetch suggestions when a key is selected
-  const [suggestions, { refetch: refetchSuggestions }] = createResource(
-    () => {
-      const key = selectedKey();
-      return key ? { projectId: projectId(), language: language(), key, token: suggestionRefetchToken() } : null;
-    },
-    (params) => params ? fetchSuggestions(params.projectId, params.language, params.key) : null
-  );
+  const [suggestions, setSuggestions] = createSignal<any>(null);
+  const [isLoadingKeySuggestions, setIsLoadingKeySuggestions] = createSignal(false);
+
+  const loadKeySuggestions = async (key: string | null) => {
+    if (!key) {
+      setSuggestions(null);
+      return;
+    }
+    
+    const pid = projectId();
+    const lang = language();
+    
+    const params = new URLSearchParams({ projectId: pid, language: lang, key });
+    const url = `/api/translations/suggestions?${params}`;
+    
+    // Try to get cached data first
+    const cached = await tryGetCached(url, { credentials: 'include' });
+    if (cached) {
+      try {
+        const data = await cached.json();
+        setSuggestions(data);
+        return;
+      } catch (error) {
+        console.log('Failed to use cached key suggestions, falling back to network', error);
+      }
+    }
+    
+    // Fallback to network fetch
+    try {
+      setIsLoadingKeySuggestions(true);
+      const data = await fetchSuggestions(pid, lang, key);
+      setSuggestions(data);
+    } catch (error) {
+      console.error('Failed to load key suggestions:', error);
+    } finally {
+      setIsLoadingKeySuggestions(false);
+    }
+  };
+
+  const refetchSuggestions = () => {
+    loadKeySuggestions(selectedKey());
+  };
+
+  // Watch for selected key changes to load suggestions
+  createEffect(() => {
+    const key = selectedKey();
+    loadKeySuggestions(key);
+  });
 
   const filteredStrings = () => {
     const query = searchQuery().toLowerCase();
@@ -534,7 +643,7 @@ export default function TranslationEditorPage() {
             translationValue={translationValue()}
             showSuggestions={showSuggestions()}
             suggestions={(suggestions() as any)?.suggestions}
-            isLoadingSuggestions={suggestions.loading}
+            isLoadingSuggestions={isLoadingKeySuggestions()}
             currentIndex={getCurrentIndex()}
             totalCount={filteredStrings().length}
             onTranslationChange={handleTranslationChange}

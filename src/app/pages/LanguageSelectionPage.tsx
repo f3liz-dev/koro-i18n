@@ -1,9 +1,9 @@
 import { useNavigate, useParams } from '@solidjs/router';
-import { createSignal, createResource, createMemo, onMount, For, Show } from 'solid-js';
+import { createSignal, createMemo, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchForRoute } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
-import { createCachedFetcher } from '../utils/cachedFetch';
+import { createCachedFetcher, tryGetCached } from '../utils/cachedFetch';
 
 interface Project {
   id: string;
@@ -30,14 +30,46 @@ export default function LanguageSelectionPage() {
   
   const [project, setProject] = createSignal<Project | null>(null);
   const [isOwner, setIsOwner] = createSignal(false);
+  const [filesData, setFilesData] = createSignal<FilesResponse | undefined>(undefined);
+  const [isLoadingFiles, setIsLoadingFiles] = createSignal(true);
 
   const sourceLanguage = () => project()?.sourceLanguage || 'en';
   
-  // Use createResource with cache-first fetcher for instant loading
-  const [filesData] = createResource(
-    () => `/api/projects/${params.id}/files/summary`,
-    createCachedFetcher<FilesResponse>({ credentials: 'include' })
-  );
+  // Load files with cache check
+  const loadFiles = async () => {
+    const projectId = params.id;
+    
+    if (!projectId) return;
+    
+    const url = `/api/projects/${projectId}/files/summary`;
+    
+    // Try to get cached data first for instant display
+    const cached = await tryGetCached(url, { credentials: 'include' });
+    
+    // If we have cached data, use it immediately without showing loading
+    if (cached) {
+      try {
+        const data = await cached.json() as FilesResponse;
+        setFilesData(data);
+        setIsLoadingFiles(false);
+        return; // Exit early since we have cached data
+      } catch (error) {
+        console.log('Failed to use cached data, falling back to network fetch', error);
+      }
+    }
+    
+    // Fallback: show loading and fetch from network
+    try {
+      setIsLoadingFiles(true);
+      const fetcher = createCachedFetcher<FilesResponse>({ credentials: 'include' });
+      const data = await fetcher(url);
+      setFilesData(data);
+    } catch (error) {
+      console.error('Failed to load files:', error);
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  };
   
   // Compute language stats from the resource
   const languageStats = createMemo(() => {
@@ -90,8 +122,8 @@ export default function LanguageSelectionPage() {
     return stats;
   });
   
-  // isLoading is automatically handled by resource
-  const isLoading = () => filesData.loading;
+  // isLoading is now manually managed
+  const isLoading = () => isLoadingFiles();
 
   // ForesightJS refs for navigation buttons
   const backButtonRef = useForesight({
@@ -123,9 +155,10 @@ export default function LanguageSelectionPage() {
     }
   };
 
-  onMount(() => {
+  onMount(async () => {
     auth.refresh();
-    loadProject();
+    await loadProject();
+    await loadFiles();
     
     // Use smart prefetch for project-languages route
     const projectId = params.id;

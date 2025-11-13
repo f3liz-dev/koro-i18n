@@ -1,8 +1,9 @@
-import { createSignal, createResource, For, Show } from 'solid-js';
+import { createSignal, For, Show, onMount, createEffect } from 'solid-js';
 import { useParams, useNavigate } from '@solidjs/router';
 import { user } from '../auth';
 import { useForesight } from '../utils/useForesight';
 import { SkeletonListItem } from '../components/Skeleton';
+import { tryGetCached, createCachedFetcher } from '../utils/cachedFetch';
 
 interface TranslationSuggestion {
   id: string;
@@ -28,10 +29,16 @@ async function fetchTranslationSuggestions(projectId: string, language?: string)
   const params = new URLSearchParams({ projectId });
   if (language) params.append('language', language);
   
-  const response = await fetch(`/api/translations/suggestions?${params}`, {
-    credentials: 'include',
-  });
+  const url = `/api/translations/suggestions?${params}`;
   
+  // Try to get cached data first
+  const cached = await tryGetCached(url, { credentials: 'include' });
+  if (cached) {
+    return cached.json();
+  }
+  
+  // Fallback to network fetch
+  const response = await fetch(url, { credentials: 'include' });
   if (!response.ok) throw new Error('Failed to fetch suggestions');
   return response.json();
 }
@@ -55,6 +62,9 @@ export default function TranslationSuggestionsPage() {
   const [filterStatus, setFilterStatus] = createSignal<'all' | 'pending' | 'approved'>('pending');
   const [searchQuery, setSearchQuery] = createSignal('');
   const [viewMode, setViewMode] = createSignal<'grouped' | 'flat'>('grouped');
+  const [suggestions, setSuggestions] = createSignal<any>(null);
+  const [isLoading, setIsLoading] = createSignal(true);
+  const [error, setError] = createSignal<boolean>(false);
 
   // ForesightJS ref
   const backButtonRef = useForesight({
@@ -62,10 +72,37 @@ export default function TranslationSuggestionsPage() {
     debugName: 'back-to-dashboard',
   });
 
-  const [suggestions, { refetch }] = createResource(
-    () => ({ projectId: projectId(), language: selectedLanguage() === 'all' ? undefined : selectedLanguage() }),
-    (params) => fetchTranslationSuggestions(params.projectId, params.language)
-  );
+  const loadSuggestions = async () => {
+    try {
+      setIsLoading(true);
+      setError(false);
+      const data = await fetchTranslationSuggestions(
+        projectId(), 
+        selectedLanguage() === 'all' ? undefined : selectedLanguage()
+      );
+      setSuggestions(data);
+    } catch (err) {
+      console.error('Failed to fetch suggestions:', err);
+      setError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const refetch = () => {
+    loadSuggestions();
+  };
+
+  // Load suggestions on mount and when language filter changes
+  onMount(() => {
+    loadSuggestions();
+  });
+
+  createEffect(() => {
+    // Reload when selected language changes
+    selectedLanguage();
+    loadSuggestions();
+  });
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this translation suggestion?')) {
@@ -259,7 +296,7 @@ export default function TranslationSuggestionsPage() {
 
       {/* Content */}
       <div class="max-w-7xl mx-auto px-4 py-6">
-        <Show when={suggestions.loading}>
+        <Show when={isLoading()}>
           <div class="bg-white rounded-lg shadow divide-y">
             <SkeletonListItem />
             <SkeletonListItem />
@@ -269,13 +306,13 @@ export default function TranslationSuggestionsPage() {
           </div>
         </Show>
 
-        <Show when={suggestions.error}>
+        <Show when={error()}>
           <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
             Failed to load suggestions. Please try again.
           </div>
         </Show>
 
-        <Show when={!suggestions.loading && !suggestions.error}>
+        <Show when={!isLoading() && !error()}>
           <div class="bg-white rounded-lg shadow">
             <div class="p-4 border-b">
               <h2 class="text-lg font-semibold">
