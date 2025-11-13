@@ -6,7 +6,16 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   createEffect(() => {
-    if (user()) navigate('/dashboard', { replace: true });
+    if (user()) {
+      // Check for saved redirect URL from sessionStorage
+      const redirectUrl = sessionStorage.getItem('redirectAfterLogin');
+      if (redirectUrl) {
+        sessionStorage.removeItem('redirectAfterLogin');
+        navigate(redirectUrl, { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
   });
 
   const handleLogin = () => {
