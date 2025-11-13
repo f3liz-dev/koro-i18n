@@ -1,10 +1,13 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import solid from 'vite-plugin-solid';
-import tailwindcss from '@tailwindcss/vite';
+import UnoCSS from 'unocss/vite';
 
 export default defineConfig({
-  plugins: [solid({ ssr: false }), tailwindcss()],
+  plugins: [
+    UnoCSS(),
+    solid({ ssr: false }),
+  ],
   root: 'src/app',
   build: {
     outDir: '../../dist/frontend',
