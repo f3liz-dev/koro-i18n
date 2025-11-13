@@ -104,6 +104,7 @@ export default function TranslationEditorPage() {
   const [translationStrings, setTranslationStrings] = createSignal<TranslationString[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = createSignal(true);
   const [isNavigating, setIsNavigating] = createSignal(false);
+  const [suggestionRefetchToken, setSuggestionRefetchToken] = createSignal(0);
 
   // Load project to get source language
   const loadProject = async () => {
@@ -231,7 +232,7 @@ export default function TranslationEditorPage() {
 
   // Fetch all suggestions for the project/language to enrich translation strings
   const [allSuggestions, { refetch: refetchAllSuggestions }] = createResource(
-    () => ({ projectId: projectId(), language: language() }),
+    () => ({ projectId: projectId(), language: language(), token: suggestionRefetchToken() }),
     (params) => fetchSuggestions(params.projectId, params.language)
   );
 
@@ -261,7 +262,7 @@ export default function TranslationEditorPage() {
   const [suggestions, { refetch: refetchSuggestions }] = createResource(
     () => {
       const key = selectedKey();
-      return key ? { projectId: projectId(), language: language(), key } : null;
+      return key ? { projectId: projectId(), language: language(), key, token: suggestionRefetchToken() } : null;
     },
     (params) => params ? fetchSuggestions(params.projectId, params.language, params.key) : null
   );
@@ -336,8 +337,8 @@ export default function TranslationEditorPage() {
   const handleApproveSuggestion = async (id: string) => {
     try {
       await approveSuggestion(id);
-      refetchSuggestions();
-      refetchAllSuggestions();
+      // Increment token to force refetch
+      setSuggestionRefetchToken(prev => prev + 1);
       alert('Suggestion approved successfully!');
     } catch (error) {
       console.error('Failed to approve suggestion:', error);
@@ -352,8 +353,8 @@ export default function TranslationEditorPage() {
 
     try {
       await rejectSuggestion(id);
-      refetchSuggestions();
-      refetchAllSuggestions();
+      // Increment token to force refetch
+      setSuggestionRefetchToken(prev => prev + 1);
       alert('Suggestion rejected successfully!');
     } catch (error) {
       console.error('Failed to reject suggestion:', error);
@@ -374,9 +375,8 @@ export default function TranslationEditorPage() {
           : str
       ));
       
-      // Refetch suggestions to update the UI with the new pending suggestion
-      refetchSuggestions();
-      refetchAllSuggestions();
+      // Increment token to force refetch of suggestions
+      setSuggestionRefetchToken(prev => prev + 1);
       
       alert('Translation saved! It will be reviewed and committed.');
     } catch (error) {
