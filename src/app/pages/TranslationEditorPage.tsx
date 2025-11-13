@@ -5,7 +5,7 @@ import TranslationEditorHeader from '../components/TranslationEditorHeader';
 import TranslationEditorPanel from '../components/TranslationEditorPanel';
 import TranslationList from '../components/TranslationList';
 import MobileMenuOverlay from '../components/MobileMenuOverlay';
-import { cachedFetch } from '../utils/cachedFetch';
+import { cachedFetch, tryGetCached } from '../utils/cachedFetch';
 
 interface Translation {
   id: string;
@@ -127,6 +127,69 @@ export default function TranslationEditorPage() {
 
   // Load translation files from uploaded data
   const loadTranslationFiles = async () => {
+    const pid = projectId();
+    const sourceLanguage = project()?.sourceLanguage || 'en';
+    const targetFilename = filename();
+    
+    // Build URLs with filters for optimized data fetching
+    let sourceUrl = `/api/projects/${pid}/files?lang=${sourceLanguage}`;
+    let targetUrl = `/api/projects/${pid}/files?lang=${language()}`;
+    
+    // Add filename filter if specified to reduce payload size
+    if (targetFilename) {
+      sourceUrl += `&filename=${encodeURIComponent(targetFilename)}`;
+      targetUrl += `&filename=${encodeURIComponent(targetFilename)}`;
+    }
+    
+    // Try to get data from cache first before showing loading state
+    const cachedSource = await tryGetCached(sourceUrl, {
+      credentials: 'include',
+    });
+    const cachedTarget = await tryGetCached(targetUrl, {
+      credentials: 'include',
+    });
+    
+    // If we have cached data, use it immediately without showing loading
+    if (cachedSource && cachedTarget) {
+      try {
+        const sourceData = await cachedSource.json() as { files: any[] };
+        const targetData = await cachedTarget.json() as { files: any[] };
+        
+        const sourceFiles = sourceData.files || [];
+        const targetFiles = targetData.files || [];
+        
+        const strings: TranslationString[] = [];
+        
+        for (const sourceFile of sourceFiles) {
+          const targetFile = targetFiles.find((f: any) => f.filename === sourceFile.filename);
+          const sourceContents = sourceFile.contents || {};
+          const targetContents = targetFile?.contents || {};
+          
+          for (const [key, sourceValue] of Object.entries(sourceContents)) {
+            strings.push({
+              key: `${sourceFile.filename}:${key}`,
+              sourceValue: String(sourceValue),
+              currentValue: targetContents[key] ? String(targetContents[key]) : '',
+              translations: []
+            });
+          }
+        }
+        
+        setTranslationStrings(strings);
+        
+        // Auto-select the first key if available
+        if (strings.length > 0 && !selectedKey()) {
+          handleSelectKey(strings[0].key);
+        }
+        
+        setIsLoadingFiles(false);
+        return; // Exit early since we have cached data
+      } catch (error) {
+        console.log('Failed to use cached data, falling back to network fetch', error);
+      }
+    }
+    
+    // Fallback: show loading and fetch from network
     try {
       setIsLoadingFiles(true);
       

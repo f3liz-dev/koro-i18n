@@ -1,9 +1,9 @@
 import { useNavigate, useParams } from '@solidjs/router';
-import { createSignal, onMount, For, Show } from 'solid-js';
+import { createSignal, createResource, createMemo, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchForRoute } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
-import { cachedFetch } from '../utils/cachedFetch';
+import { createCachedFetcher } from '../utils/cachedFetch';
 
 interface Project {
   id: string;
@@ -20,14 +20,78 @@ interface LanguageStats {
   percentage: number;
 }
 
+interface FilesResponse {
+  files: any[];
+}
+
 export default function LanguageSelectionPage() {
   const navigate = useNavigate();
   const params = useParams();
   
   const [project, setProject] = createSignal<Project | null>(null);
-  const [languageStats, setLanguageStats] = createSignal<LanguageStats[]>([]);
-  const [isLoading, setIsLoading] = createSignal(true);
   const [isOwner, setIsOwner] = createSignal(false);
+
+  const sourceLanguage = () => project()?.sourceLanguage || 'en';
+  
+  // Use createResource with cache-first fetcher for instant loading
+  const [filesData] = createResource(
+    () => `/api/projects/${params.id}/files/summary`,
+    createCachedFetcher<FilesResponse>({ credentials: 'include' })
+  );
+  
+  // Compute language stats from the resource
+  const languageStats = createMemo(() => {
+    const data = filesData();
+    if (!data) return [];
+    
+    const source = sourceLanguage();
+    const languages = new Set<string>();
+    data.files.forEach(file => {
+      if (file.lang !== source) {
+        languages.add(file.lang);
+      }
+    });
+    
+    const stats: LanguageStats[] = [];
+    
+    for (const lang of Array.from(languages)) {
+      const sourceFiles = data.files.filter(f => f.lang === source);
+      const targetFiles = data.files.filter(f => f.lang === lang);
+      
+      let totalKeys = 0;
+      let translatedKeys = 0;
+      
+      for (const sourceFile of sourceFiles) {
+        const sourceStatus = sourceFile.translationStatus || {};
+        const sourceKeys = Object.keys(sourceStatus);
+        totalKeys += sourceKeys.length;
+        
+        const targetFile = targetFiles.find(f => f.filename === sourceFile.filename);
+        if (targetFile) {
+          const targetStatus = targetFile.translationStatus || {};
+          for (const key of sourceKeys) {
+            if (targetStatus[key]) {
+              translatedKeys++;
+            }
+          }
+        }
+      }
+      
+      const percentage = totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0;
+      stats.push({
+        language: lang,
+        totalKeys,
+        translatedKeys,
+        percentage
+      });
+    }
+    
+    stats.sort((a, b) => a.language.localeCompare(b.language));
+    return stats;
+  });
+  
+  // isLoading is automatically handled by resource
+  const isLoading = () => filesData.loading;
 
   // ForesightJS refs for navigation buttons
   const backButtonRef = useForesight({
@@ -47,104 +111,15 @@ export default function LanguageSelectionPage() {
 
   const loadProject = async () => {
     try {
-      // Try cache first for instant loading
-      const res = await cachedFetch('/api/projects', { 
-        credentials: 'include',
-        tryCache: true,
-      });
-      if (res.ok) {
-        const data = await res.json() as { projects: Project[] };
-        const proj = data.projects.find((p: any) => p.name === params.id);
-        if (proj) {
-          setProject(proj);
-          setIsOwner(proj.userId === user()?.id);
-        }
+      const fetcher = createCachedFetcher<{ projects: Project[] }>({ credentials: 'include' });
+      const data = await fetcher('/api/projects');
+      const proj = data.projects.find((p: any) => p.name === params.id);
+      if (proj) {
+        setProject(proj);
+        setIsOwner(proj.userId === user()?.id);
       }
     } catch (error) {
       console.error('Failed to load project:', error);
-    }
-  };
-
-  const loadLanguages = async () => {
-    try {
-      setIsLoading(true);
-      // Try cache first (ForesightJS may have prefetched this)
-      const res = await cachedFetch(`/api/projects/${params.id}/files/summary`, {
-        credentials: 'include',
-        tryCache: true,
-      });
-      
-      if (res.ok) {
-        const data = await res.json() as { files: any[] };
-        const sourceLanguage = project()?.sourceLanguage || 'en';
-        
-        console.log(`Loading languages for project ${params.id}, source: ${sourceLanguage}`);
-        console.log(`Total files received: ${data.files.length}`);
-        
-        // Get unique languages excluding source language
-        const languages = new Set<string>();
-        data.files.forEach(file => {
-          if (file.lang !== sourceLanguage) {
-            languages.add(file.lang);
-          }
-        });
-        
-        console.log(`Target languages found: ${Array.from(languages).join(', ')}`);
-        
-        // Calculate stats for each language
-        const stats: LanguageStats[] = [];
-        
-        for (const lang of Array.from(languages)) {
-          // Get source files to count total keys
-          const sourceFiles = data.files.filter(f => f.lang === sourceLanguage);
-          const targetFiles = data.files.filter(f => f.lang === lang);
-          
-          console.log(`Language ${lang}: ${sourceFiles.length} source files, ${targetFiles.length} target files`);
-          
-          let totalKeys = 0;
-          let translatedKeys = 0;
-          
-          for (const sourceFile of sourceFiles) {
-            const sourceStatus = sourceFile.translationStatus || {};
-            const sourceKeys = Object.keys(sourceStatus);
-            totalKeys += sourceKeys.length;
-            
-            // Find corresponding target file
-            const targetFile = targetFiles.find(f => f.filename === sourceFile.filename);
-            if (targetFile) {
-              const targetStatus = targetFile.translationStatus || {};
-              
-              // Count how many source keys have translations
-              for (const key of sourceKeys) {
-                if (targetStatus[key]) {
-                  translatedKeys++;
-                }
-              }
-            }
-          }
-          
-          const percentage = totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0;
-          
-          console.log(`Language ${lang}: ${translatedKeys}/${totalKeys} keys (${percentage}%)`);
-          
-          stats.push({
-            language: lang,
-            totalKeys,
-            translatedKeys,
-            percentage
-          });
-        }
-        
-        // Sort by language code
-        stats.sort((a, b) => a.language.localeCompare(b.language));
-        
-        console.log(`Computed stats for ${stats.length} languages`);
-        setLanguageStats(stats);
-      }
-    } catch (error) {
-      console.error('Failed to load languages:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -157,16 +132,6 @@ export default function LanguageSelectionPage() {
     if (projectId) {
       void prefetchForRoute('project-languages', projectId);
     }
-  });
-
-  // Load languages after project is loaded
-  onMount(() => {
-    const interval = setInterval(() => {
-      if (project()) {
-        loadLanguages();
-        clearInterval(interval);
-      }
-    }, 100);
   });
 
   const handleLogout = async () => {

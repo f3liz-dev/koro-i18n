@@ -1,9 +1,9 @@
 import { useNavigate, useParams } from '@solidjs/router';
-import { createSignal, onMount, For, Show } from 'solid-js';
+import { createSignal, createResource, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchData } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
-import { cachedFetch } from '../utils/cachedFetch';
+import { createCachedFetcher } from '../utils/cachedFetch';
 
 interface Project {
   id: string;
@@ -20,16 +20,74 @@ interface FileStats {
   percentage: number;
 }
 
+interface FilesResponse {
+  files: any[];
+}
+
 export default function FileSelectionPage() {
   const navigate = useNavigate();
   const params = useParams();
   
   const [project, setProject] = createSignal<Project | null>(null);
-  const [fileStats, setFileStats] = createSignal<FileStats[]>([]);
-  const [isLoading, setIsLoading] = createSignal(true);
   const [isOwner, setIsOwner] = createSignal(false);
 
   const language = () => params.language || '';
+  const sourceLanguage = () => project()?.sourceLanguage || 'en';
+  
+  // Use createResource with cache-first fetcher for instant loading
+  const [sourceFiles] = createResource(
+    () => `/api/projects/${params.id}/files/summary?lang=${sourceLanguage()}`,
+    createCachedFetcher<FilesResponse>({ credentials: 'include' })
+  );
+  
+  const [targetFiles] = createResource(
+    () => `/api/projects/${params.id}/files/summary?lang=${language()}`,
+    createCachedFetcher<FilesResponse>({ credentials: 'include' })
+  );
+  
+  // Compute file stats from the resources
+  const fileStats = () => {
+    const source = sourceFiles();
+    const target = targetFiles();
+    
+    if (!source || !target) return [];
+    
+    const sourceFilesList = source.files;
+    const targetFilesList = target.files;
+    const stats: FileStats[] = [];
+    
+    for (const sourceFile of sourceFilesList) {
+      const sourceStatus = sourceFile.translationStatus || {};
+      const sourceKeys = Object.keys(sourceStatus);
+      const totalKeys = sourceKeys.length;
+      
+      const targetFile = targetFilesList.find(f => f.filename === sourceFile.filename);
+      let translatedKeys = 0;
+      
+      if (targetFile) {
+        const targetStatus = targetFile.translationStatus || {};
+        for (const key of sourceKeys) {
+          if (targetStatus[key]) {
+            translatedKeys++;
+          }
+        }
+      }
+      
+      const percentage = totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0;
+      stats.push({
+        filename: sourceFile.filename,
+        totalKeys,
+        translatedKeys,
+        percentage
+      });
+    }
+    
+    stats.sort((a, b) => a.filename.localeCompare(b.filename));
+    return stats;
+  };
+  
+  // isLoading is automatically handled by resources
+  const isLoading = () => sourceFiles.loading || targetFiles.loading;
 
   // ForesightJS refs for navigation buttons
   const backButtonRef = useForesight({
@@ -49,91 +107,15 @@ export default function FileSelectionPage() {
 
   const loadProject = async () => {
     try {
-      // Try cache first for instant loading
-      const res = await cachedFetch('/api/projects', { 
-        credentials: 'include',
-        tryCache: true,
-      });
-      if (res.ok) {
-        const data = await res.json() as { projects: Project[] };
-        const proj = data.projects.find((p: any) => p.name === params.id);
-        if (proj) {
-          setProject(proj);
-          setIsOwner(proj.userId === user()?.id);
-        }
+      const fetcher = createCachedFetcher<{ projects: Project[] }>({ credentials: 'include' });
+      const data = await fetcher('/api/projects');
+      const proj = data.projects.find((p: any) => p.name === params.id);
+      if (proj) {
+        setProject(proj);
+        setIsOwner(proj.userId === user()?.id);
       }
     } catch (error) {
       console.error('Failed to load project:', error);
-    }
-  };
-
-  const loadFiles = async () => {
-    try {
-      setIsLoading(true);
-      const sourceLanguage = project()?.sourceLanguage || 'en';
-      const targetLanguage = language();
-      
-      // Try to fetch from cache first (ForesightJS may have prefetched this)
-      // This provides instant loading when data is already cached
-      const [sourceRes, targetRes] = await Promise.all([
-        cachedFetch(`/api/projects/${params.id}/files/summary?lang=${sourceLanguage}`, {
-          credentials: 'include',
-          tryCache: true,
-        }),
-        cachedFetch(`/api/projects/${params.id}/files/summary?lang=${targetLanguage}`, {
-          credentials: 'include',
-          tryCache: true,
-        })
-      ]);
-      
-      if (sourceRes.ok) {
-        const sourceData = await sourceRes.json() as { files: any[] };
-        const targetData = targetRes.ok ? await targetRes.json() as { files: any[] } : { files: [] };
-        
-        const sourceFiles = sourceData.files;
-        const targetFiles = targetData.files;
-        
-        const stats: FileStats[] = [];
-        
-        for (const sourceFile of sourceFiles) {
-          const sourceStatus = sourceFile.translationStatus || {};
-          const sourceKeys = Object.keys(sourceStatus);
-          const totalKeys = sourceKeys.length;
-          
-          // Find corresponding target file
-          const targetFile = targetFiles.find(f => f.filename === sourceFile.filename);
-          let translatedKeys = 0;
-          
-          if (targetFile) {
-            const targetStatus = targetFile.translationStatus || {};
-            
-            // Count how many source keys have translations
-            for (const key of sourceKeys) {
-              if (targetStatus[key]) {
-                translatedKeys++;
-              }
-            }
-          }
-          
-          const percentage = totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0;
-          
-          stats.push({
-            filename: sourceFile.filename,
-            totalKeys,
-            translatedKeys,
-            percentage
-          });
-        }
-        
-        // Sort by filename
-        stats.sort((a, b) => a.filename.localeCompare(b.filename));
-        
-        setFileStats(stats);
-      }
-    } catch (error) {
-      console.error('Failed to load files:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -147,27 +129,8 @@ export default function FileSelectionPage() {
     
     // Prefetch both source and target language summaries
     if (projectId && targetLanguage) {
-      // Prefetch target language summary
       void prefetchData(`/api/projects/${projectId}/files/summary?lang=${targetLanguage}`);
     }
-  });
-
-  // Load files after project is loaded
-  onMount(() => {
-    const interval = setInterval(() => {
-      if (project()) {
-        const sourceLanguage = project()!.sourceLanguage;
-        const projectId = params.id;
-        
-        // Prefetch source language summary
-        if (sourceLanguage && projectId) {
-          void prefetchData(`/api/projects/${projectId}/files/summary?lang=${sourceLanguage}`);
-        }
-        
-        loadFiles();
-        clearInterval(interval);
-      }
-    }, 100);
   });
 
   const handleLogout = async () => {
