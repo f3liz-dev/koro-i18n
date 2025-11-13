@@ -1,6 +1,7 @@
 import { createSignal, For, Show } from 'solid-js';
 import { SkeletonListItem } from '../components/Skeleton';
 import { tryGetCached, createCachedFetcher } from '../utils/cachedFetch';
+import { authFetch } from '../utils/authFetch';
 
 interface HistoryEntry {
   id: string;
@@ -23,7 +24,7 @@ async function fetchHistory(projectId: string, language: string, key: string) {
   }
   
   // Fallback to network fetch
-  const response = await fetch(url, { credentials: 'include' });
+  const response = await authFetch(url, { credentials: 'include' });
   if (!response.ok) throw new Error('Failed to fetch history');
   const data = await response.json() as { history: HistoryEntry[] };
   return data.history;

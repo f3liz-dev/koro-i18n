@@ -5,6 +5,7 @@ import { prefetchForRoute } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
 import { SkeletonCard } from '../components/Skeleton';
 import { projectsCache } from '../utils/dataStore';
+import { authFetch } from '../utils/authFetch';
 
 interface Project {
   id: string;
@@ -59,7 +60,7 @@ export default function DashboardPage() {
     if (!confirm('Delete this project? This cannot be undone.')) return;
 
     try {
-      const res = await fetch(`/api/projects/${projectId}`, {
+      const res = await authFetch(`/api/projects/${projectId}`, {
         method: 'DELETE',
         credentials: 'include',
       });

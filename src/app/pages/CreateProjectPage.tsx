@@ -2,6 +2,7 @@ import { useNavigate } from '@solidjs/router';
 import { createSignal, onMount } from 'solid-js';
 import { user } from '../auth';
 import { useForesight } from '../utils/useForesight';
+import { authFetch } from '../utils/authFetch';
 
 export default function CreateProjectPage() {
   const navigate = useNavigate();
@@ -32,7 +33,7 @@ export default function CreateProjectPage() {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch('/api/projects', {
+      const res = await authFetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

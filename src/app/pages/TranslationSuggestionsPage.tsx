@@ -4,6 +4,7 @@ import { user } from '../auth';
 import { useForesight } from '../utils/useForesight';
 import { SkeletonListItem } from '../components/Skeleton';
 import { suggestionsCache } from '../utils/dataStore';
+import { authFetch } from '../utils/authFetch';
 
 interface TranslationSuggestion {
   id: string;
@@ -26,7 +27,7 @@ interface GroupedSuggestion {
 }
 
 async function deleteTranslation(id: string) {
-  const response = await fetch(`/api/translations/${id}`, {
+  const response = await authFetch(`/api/translations/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });

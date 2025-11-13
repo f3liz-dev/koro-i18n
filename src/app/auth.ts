@@ -1,5 +1,6 @@
 import { createSignal, createResource, onMount } from 'solid-js';
 import { tryGetCached } from './utils/cachedFetch';
+import { authFetch } from './utils/authFetch';
 
 interface User {
   id: string;
@@ -29,7 +30,7 @@ const cachedUserPromise = (async () => {
 
 const fetchUser = async () => {
   try {
-    const res = await fetch(`${API}/auth/me`, { 
+    const res = await authFetch(`${API}/auth/me`, { 
       credentials: 'include',
     });
     if (!res.ok) return null;
