@@ -105,8 +105,8 @@ export default function TranslationList(props: TranslationListProps) {
       <div class="divide-y overflow-y-auto flex-1">
         <Show when={props.isLoading}>
           <div class="p-4 lg:p-8 text-center text-gray-500">
-            <div class="animate-spin rounded-full h-8 w-8 lg:h-12 lg:w-12 border-b-2 border-blue-600 mx-auto mb-2 lg:mb-4"></div>
-            <p class="text-sm lg:text-base">Loading...</p>
+            <div class="animate-spin rounded-full h-6 w-6 border-2 border-gray-400 border-t-transparent mx-auto mb-2"></div>
+            <p class="text-sm">Loading...</p>
           </div>
         </Show>
         <Show when={!props.isLoading && sortedAndFilteredStrings().length === 0}>

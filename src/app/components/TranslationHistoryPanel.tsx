@@ -80,8 +80,8 @@ export default function TranslationHistoryPanel(props: TranslationHistoryPanelPr
           
           <Show when={props.isLoading}>
             <div class="text-center py-6">
-              <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-              <p class="text-xs text-gray-500">Loading history...</p>
+              <div class="animate-spin rounded-full h-6 w-6 border-2 border-gray-400 border-t-transparent mx-auto mb-2"></div>
+              <p class="text-xs text-gray-500">Loading...</p>
             </div>
           </Show>
 

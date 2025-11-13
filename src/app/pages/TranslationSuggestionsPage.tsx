@@ -252,8 +252,8 @@ export default function TranslationSuggestionsPage() {
       <div class="max-w-7xl mx-auto px-4 py-6">
         <Show when={suggestions.loading}>
           <div class="text-center py-12">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p class="text-gray-600">Loading suggestions...</p>
+            <div class="animate-spin rounded-full h-8 w-8 border-2 border-gray-400 border-t-transparent mx-auto mb-4"></div>
+            <p class="text-gray-600">Loading...</p>
           </div>
         </Show>
 
