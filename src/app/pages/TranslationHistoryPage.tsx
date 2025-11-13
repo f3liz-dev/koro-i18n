@@ -1,4 +1,5 @@
 import { createSignal, createResource, For, Show } from 'solid-js';
+import { SkeletonListItem } from '../components/Skeleton';
 
 interface HistoryEntry {
   id: string;
@@ -113,7 +114,13 @@ export default function TranslationHistoryPage() {
         </div>
 
         <div class="border rounded-lg">
-          <Show when={!history.loading} fallback={<div class="p-8 text-center text-sm text-gray-400">Loading...</div>}>
+          <Show when={!history.loading} fallback={
+            <div class="divide-y">
+              <SkeletonListItem />
+              <SkeletonListItem />
+              <SkeletonListItem />
+            </div>
+          }>
             <Show when={history()} fallback={<div class="p-8 text-center text-sm text-gray-400">Enter search criteria and click Search</div>}>
               <Show when={history()?.length} fallback={<div class="p-8 text-center text-sm text-gray-400">No history found</div>}>
                 <div class="divide-y">
