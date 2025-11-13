@@ -14,6 +14,7 @@ interface Project {
   repository: string;
   languages: string[];
   progress: number;
+  userId: string;
 }
 
 export default function DashboardPage() {
@@ -32,7 +33,8 @@ export default function DashboardPage() {
     name: p.name,
     repository: p.repository,
     languages: p.languages || [],
-    progress: 0
+    progress: 0,
+    userId: p.userId
   }));
   
   // Check if we have cached data - show skeleton only if no cache exists
@@ -148,36 +150,48 @@ export default function DashboardPage() {
                   debugName: `project-card-${project.name}`,
                   hitSlop: 10,
                 });
+                
+                const isOwner = () => project.userId === user()?.id;
 
                 return (
-                  <button
-                    ref={projectCardRef}
-                    onClick={() => navigate(`/projects/${project.name}`)}
-                    class="bg-white rounded-lg border p-6 hover:border-gray-300 hover:shadow-sm transition text-left"
-                  >
-                    <div class="mb-4">
-                      <h3 class="font-semibold text-gray-900 mb-1">{project.name}</h3>
-                      <code class="text-xs text-gray-500">{project.repository}</code>
-                    </div>
-                    <Show when={project.languages.length > 0} fallback={
-                      <div class="text-xs text-gray-400 italic">No files uploaded yet</div>
-                    }>
-                      <div class="flex flex-wrap gap-2">
-                        <For each={project.languages.slice(0, 4)}>
-                          {(lang) => (
-                            <span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
-                              {lang.toUpperCase()}
-                            </span>
-                          )}
-                        </For>
-                        <Show when={project.languages.length > 4}>
-                          <span class="px-2 py-1 text-xs font-medium text-gray-500">
-                            +{project.languages.length - 4}
-                          </span>
-                        </Show>
+                  <div class="bg-white rounded-lg border p-6 hover:border-gray-300 hover:shadow-sm transition">
+                    <button
+                      ref={projectCardRef}
+                      onClick={() => navigate(`/projects/${project.name}`)}
+                      class="w-full text-left mb-4"
+                    >
+                      <div class="mb-4">
+                        <h3 class="font-semibold text-gray-900 mb-1">{project.name}</h3>
+                        <code class="text-xs text-gray-500">{project.repository}</code>
                       </div>
+                      <Show when={project.languages.length > 0} fallback={
+                        <div class="text-xs text-gray-400 italic">No files uploaded yet</div>
+                      }>
+                        <div class="flex flex-wrap gap-2">
+                          <For each={project.languages.slice(0, 4)}>
+                            {(lang) => (
+                              <span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
+                                {lang.toUpperCase()}
+                              </span>
+                            )}
+                          </For>
+                          <Show when={project.languages.length > 4}>
+                            <span class="px-2 py-1 text-xs font-medium text-gray-500">
+                              +{project.languages.length - 4}
+                            </span>
+                          </Show>
+                        </div>
+                      </Show>
+                    </button>
+                    <Show when={isOwner()}>
+                      <button
+                        onClick={() => navigate(`/projects/${project.name}/settings`)}
+                        class="w-full px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 transition"
+                      >
+                        Manage Project
+                      </button>
                     </Show>
-                  </button>
+                  </div>
                 );
               }}
             </For>
