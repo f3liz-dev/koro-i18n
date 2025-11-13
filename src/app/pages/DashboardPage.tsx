@@ -53,7 +53,7 @@ export default function DashboardPage() {
     console.log('Current user:', user());
     auth.refresh();
     // Use smart prefetch for dashboard route
-    prefetchForRoute('dashboard');
+    void prefetchForRoute('dashboard');
     loadProjects();
   });
 
