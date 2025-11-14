@@ -79,6 +79,7 @@ model Translation {
   @@index([projectId, language])
   @@index([status])
   @@index([projectId, language, key])
+  @@index([projectId, language, status])
   @@index([createdAt])
 }
 

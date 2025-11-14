@@ -303,6 +303,18 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         commitEmail: string | null;
       }> = [];
       
+      // Collect all ProjectFile records to upsert
+      const projectFilesToUpsert: Array<{
+        fileKey: string;
+        filename: string;
+        lang: string;
+        filetype: string;
+        contentsJson: string;
+        metadataJson: string;
+        sourceHash: string | null;
+        structureMapJson: string | null;
+      }> = [];
+      
       for (const file of files) {
         const { filetype, filename, lang, contents, metadata, history, structureMap, sourceHash } = file;
         const fileKey = `${filename}:${lang}`;
@@ -312,39 +324,72 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         
         const { flattened, contentsJson, metadataJson, structureMapJson } = fileData;
         
-        // Upsert project file
-        await prisma.projectFile.upsert({
-          where: {
-            projectId_branch_filename_lang: {
+        // Collect file for batch upsert
+        projectFilesToUpsert.push({
+          fileKey,
+          filename,
+          lang,
+          filetype,
+          contentsJson,
+          metadataJson,
+          sourceHash: sourceHash || null,
+          structureMapJson,
+        });
+      }
+      
+      // Batch upsert all project files using transaction
+      console.log(`[upload] Batch upserting ${projectFilesToUpsert.length} project files...`);
+      const startTime = Date.now();
+      
+      await prisma.$transaction(
+        projectFilesToUpsert.map(fileInfo => 
+          prisma.projectFile.upsert({
+            where: {
+              projectId_branch_filename_lang: {
+                projectId,
+                branch: branch || 'main',
+                filename: fileInfo.filename,
+                lang: fileInfo.lang,
+              },
+            },
+            update: {
+              commitSha: commitSha || '',
+              filetype: fileInfo.filetype,
+              contents: fileInfo.contentsJson,
+              metadata: fileInfo.metadataJson,
+              sourceHash: fileInfo.sourceHash,
+              structureMap: fileInfo.structureMapJson,
+              uploadedAt: new Date(),
+            },
+            create: {
+              id: crypto.randomUUID(),
               projectId,
               branch: branch || 'main',
-              filename,
-              lang,
+              commitSha: commitSha || '',
+              filename: fileInfo.filename,
+              filetype: fileInfo.filetype,
+              lang: fileInfo.lang,
+              contents: fileInfo.contentsJson,
+              metadata: fileInfo.metadataJson,
+              sourceHash: fileInfo.sourceHash,
+              structureMap: fileInfo.structureMapJson,
             },
-          },
-          update: {
-            commitSha: commitSha || '',
-            filetype,
-            contents: contentsJson,
-            metadata: metadataJson,
-            sourceHash: sourceHash || null,
-            structureMap: structureMapJson,
-            uploadedAt: new Date(),
-          },
-          create: {
-            id: crypto.randomUUID(),
-            projectId,
-            branch: branch || 'main',
-            commitSha: commitSha || '',
-            filename,
-            filetype,
-            lang,
-            contents: contentsJson,
-            metadata: metadataJson,
-            sourceHash: sourceHash || null,
-            structureMap: structureMapJson,
-          },
-        });
+          })
+        )
+      );
+      
+      const elapsedTime = Date.now() - startTime;
+      console.log(`[upload] Batch upsert completed in ${elapsedTime}ms (${(elapsedTime / projectFilesToUpsert.length).toFixed(2)}ms per file)`);
+      
+      // Now process translations for non-source language files
+      for (const file of files) {
+        const { filename, lang, history, structureMap } = file;
+        const fileKey = `${filename}:${lang}`;
+        const fileData = fileDataMap.get(fileKey);
+        
+        if (!fileData) continue;
+        
+        const { flattened } = fileData;
         
         // Prepare translation entries for non-source language files
         if (lang !== project.sourceLanguage && lang !== sourceLanguage) {
@@ -412,27 +457,41 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         }
       }
       
-      // Bulk insert translations and history
+      // Bulk insert translations and history in chunks to avoid database limits
+      const CHUNK_SIZE = 500; // Process 500 records at a time
+      
       if (translationsToCreate.length > 0) {
-        console.log(`[upload] Bulk creating ${translationsToCreate.length} translations...`);
+        console.log(`[upload] Bulk creating ${translationsToCreate.length} translations in chunks of ${CHUNK_SIZE}...`);
+        const translationStartTime = Date.now();
         
-        // Use createMany for bulk insert
-        await prisma.translation.createMany({
-          data: translationsToCreate,
-        });
+        // Process in chunks
+        for (let i = 0; i < translationsToCreate.length; i += CHUNK_SIZE) {
+          const chunk = translationsToCreate.slice(i, i + CHUNK_SIZE);
+          await prisma.translation.createMany({
+            data: chunk,
+          });
+          console.log(`[upload] Created translations ${i + 1}-${Math.min(i + CHUNK_SIZE, translationsToCreate.length)} of ${translationsToCreate.length}`);
+        }
         
-        console.log(`[upload] Translations created successfully`);
+        const translationElapsed = Date.now() - translationStartTime;
+        console.log(`[upload] All translations created in ${translationElapsed}ms (${(translationElapsed / translationsToCreate.length).toFixed(2)}ms per translation)`);
       }
       
       if (historyToCreate.length > 0) {
-        console.log(`[upload] Bulk creating ${historyToCreate.length} history entries...`);
+        console.log(`[upload] Bulk creating ${historyToCreate.length} history entries in chunks of ${CHUNK_SIZE}...`);
+        const historyStartTime = Date.now();
         
-        // Use createMany for bulk insert
-        await prisma.translationHistory.createMany({
-          data: historyToCreate,
-        });
+        // Process in chunks
+        for (let i = 0; i < historyToCreate.length; i += CHUNK_SIZE) {
+          const chunk = historyToCreate.slice(i, i + CHUNK_SIZE);
+          await prisma.translationHistory.createMany({
+            data: chunk,
+          });
+          console.log(`[upload] Created history entries ${i + 1}-${Math.min(i + CHUNK_SIZE, historyToCreate.length)} of ${historyToCreate.length}`);
+        }
         
-        console.log(`[upload] History entries created successfully`);
+        const historyElapsed = Date.now() - historyStartTime;
+        console.log(`[upload] All history entries created in ${historyElapsed}ms (${(historyElapsed / historyToCreate.length).toFixed(2)}ms per entry)`);
       }
 
       return c.json({
@@ -645,41 +704,73 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         commitEmail: string | null;
       }> = [];
       
+      // Collect all ProjectFile records to upsert
+      const projectFilesToUpsert: Array<{
+        filename: string;
+        contentsJson: string;
+        metadataJson: string;
+      }> = [];
+      
       for (const [filename, content] of Object.entries(files)) {
         const fileData = fileDataMap.get(filename);
         if (!fileData) continue;
         
         const { flattened, contentsJson, metadataJson } = fileData;
         
-        // Upsert project file
-        await prisma.projectFile.upsert({
-          where: {
-            projectId_branch_filename_lang: {
+        // Collect file for batch upsert
+        projectFilesToUpsert.push({
+          filename,
+          contentsJson,
+          metadataJson,
+        });
+      }
+      
+      // Batch upsert all project files using transaction
+      console.log(`[upload-json] Batch upserting ${projectFilesToUpsert.length} project files...`);
+      const startTime = Date.now();
+      
+      await prisma.$transaction(
+        projectFilesToUpsert.map(fileInfo => 
+          prisma.projectFile.upsert({
+            where: {
+              projectId_branch_filename_lang: {
+                projectId,
+                branch: branch || 'main',
+                filename: fileInfo.filename,
+                lang: fileLang,
+              },
+            },
+            update: {
+              commitSha: commitSha || '',
+              filetype: 'json',
+              contents: fileInfo.contentsJson,
+              metadata: fileInfo.metadataJson,
+              uploadedAt: new Date(),
+            },
+            create: {
+              id: crypto.randomUUID(),
               projectId,
               branch: branch || 'main',
-              filename,
+              commitSha: commitSha || '',
+              filename: fileInfo.filename,
+              filetype: 'json',
               lang: fileLang,
+              contents: fileInfo.contentsJson,
+              metadata: fileInfo.metadataJson,
             },
-          },
-          update: {
-            commitSha: commitSha || '',
-            filetype: 'json',
-            contents: contentsJson,
-            metadata: metadataJson,
-            uploadedAt: new Date(),
-          },
-          create: {
-            id: crypto.randomUUID(),
-            projectId,
-            branch: branch || 'main',
-            commitSha: commitSha || '',
-            filename,
-            filetype: 'json',
-            lang: fileLang,
-            contents: contentsJson,
-            metadata: metadataJson,
-          },
-        });
+          })
+        )
+      );
+      
+      const elapsedTime = Date.now() - startTime;
+      console.log(`[upload-json] Batch upsert completed in ${elapsedTime}ms (${(elapsedTime / projectFilesToUpsert.length).toFixed(2)}ms per file)`);
+      
+      // Now process translations for non-source language files
+      for (const [filename, content] of Object.entries(files)) {
+        const fileData = fileDataMap.get(filename);
+        if (!fileData) continue;
+        
+        const { flattened } = fileData;
         
         // Prepare translation entries for non-source language files
         if (fileLang !== project.sourceLanguage) {
@@ -723,25 +814,41 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         }
       }
       
-      // Bulk insert translations and history
+      // Bulk insert translations and history in chunks to avoid database limits
+      const CHUNK_SIZE = 500; // Process 500 records at a time
+      
       if (translationsToCreate.length > 0) {
-        console.log(`[upload-json] Bulk creating ${translationsToCreate.length} translations...`);
+        console.log(`[upload-json] Bulk creating ${translationsToCreate.length} translations in chunks of ${CHUNK_SIZE}...`);
+        const translationStartTime = Date.now();
         
-        await prisma.translation.createMany({
-          data: translationsToCreate,
-        });
+        // Process in chunks
+        for (let i = 0; i < translationsToCreate.length; i += CHUNK_SIZE) {
+          const chunk = translationsToCreate.slice(i, i + CHUNK_SIZE);
+          await prisma.translation.createMany({
+            data: chunk,
+          });
+          console.log(`[upload-json] Created translations ${i + 1}-${Math.min(i + CHUNK_SIZE, translationsToCreate.length)} of ${translationsToCreate.length}`);
+        }
         
-        console.log(`[upload-json] Translations created successfully`);
+        const translationElapsed = Date.now() - translationStartTime;
+        console.log(`[upload-json] All translations created in ${translationElapsed}ms (${(translationElapsed / translationsToCreate.length).toFixed(2)}ms per translation)`);
       }
       
       if (historyToCreate.length > 0) {
-        console.log(`[upload-json] Bulk creating ${historyToCreate.length} history entries...`);
+        console.log(`[upload-json] Bulk creating ${historyToCreate.length} history entries in chunks of ${CHUNK_SIZE}...`);
+        const historyStartTime = Date.now();
         
-        await prisma.translationHistory.createMany({
-          data: historyToCreate,
-        });
+        // Process in chunks
+        for (let i = 0; i < historyToCreate.length; i += CHUNK_SIZE) {
+          const chunk = historyToCreate.slice(i, i + CHUNK_SIZE);
+          await prisma.translationHistory.createMany({
+            data: chunk,
+          });
+          console.log(`[upload-json] Created history entries ${i + 1}-${Math.min(i + CHUNK_SIZE, historyToCreate.length)} of ${historyToCreate.length}`);
+        }
         
-        console.log(`[upload-json] History entries created successfully`);
+        const historyElapsed = Date.now() - historyStartTime;
+        console.log(`[upload-json] All history entries created in ${historyElapsed}ms (${(historyElapsed / historyToCreate.length).toFixed(2)}ms per entry)`);
       }
 
       return c.json({
