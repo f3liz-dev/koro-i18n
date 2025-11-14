@@ -112,7 +112,8 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
     
-    // No store - never cache auth status for security
+    // Cache auth response for 5 minutes to reduce server load
+    // authFetch will clear cache and refetch on 401 errors
     const response = c.json({ 
       user: { 
         id: payload.userId, 
@@ -120,7 +121,7 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
         githubId: payload.githubId 
       } 
     });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.noStore));
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.auth));
     return response;
   });
 
