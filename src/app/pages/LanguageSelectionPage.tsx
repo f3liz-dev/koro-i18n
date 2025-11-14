@@ -213,7 +213,7 @@ export default function LanguageSelectionPage() {
                   <button
                     ref={langCardRef}
                     onClick={() => navigate(`/projects/${params.id}/language/${langStat.language}`)}
-                    class="bg-white rounded-lg border p-6 hover:border-blue-500 hover:shadow-md transition text-left"
+                    class="bg-white rounded-lg border p-6 hover:border-blue-500 hover:shadow-md active:scale-[0.98] transition text-left"
                   >
                     <div class="flex items-center justify-between mb-4">
                       <h3 class="text-xl font-semibold text-gray-900">{langStat.language.toUpperCase()}</h3>

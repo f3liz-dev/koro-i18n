@@ -123,7 +123,7 @@ export default function DashboardPage() {
           <button
             ref={createProjectButtonRef}
             onClick={() => navigate('/projects/create')}
-            class="px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 transition"
+            class="px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 active:scale-[0.98] transition"
           >
             Create Project
           </button>

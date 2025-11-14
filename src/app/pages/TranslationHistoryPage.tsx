@@ -151,7 +151,7 @@ export default function TranslationHistoryPage() {
                 <div class="divide-y">
                   <For each={history()}>
                     {(entry) => (
-                      <div class="p-4 hover:bg-gray-50">
+                      <div class="p-4 hover:bg-gray-50 active:bg-gray-100 transition">
                         <div class="flex items-center gap-3 mb-2">
                           <span class="text-sm font-medium">{entry.username}</span>
                           <span class={`text-xs ${getActionColor(entry.action)}`}>

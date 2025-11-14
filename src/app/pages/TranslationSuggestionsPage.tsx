@@ -399,7 +399,7 @@ export default function TranslationSuggestionsPage() {
               <div class="divide-y">
                 <For each={flatSuggestions()}>
                   {(suggestion: TranslationSuggestion) => (
-                    <div class="p-4 hover:bg-gray-50 transition">
+                    <div class="p-4 hover:bg-gray-50 active:bg-gray-100 transition">
                       <div class="flex items-start justify-between gap-4">
                         <div class="flex-1 min-w-0">
                           {/* Header with user info and status */}

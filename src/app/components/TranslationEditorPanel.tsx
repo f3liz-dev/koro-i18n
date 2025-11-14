@@ -184,7 +184,7 @@ export default function TranslationEditorPanel(
                   </div>
                   <button
                     onClick={props.onSave}
-                    class="px-6 py-3 text-base font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    class="px-6 py-3 text-base font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition"
                     disabled={
                       !props.translationValue.trim() ||
                       props.translationValue === str()!.currentValue
