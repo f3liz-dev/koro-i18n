@@ -68,7 +68,7 @@ export default function CreateProjectPage() {
             <button
               ref={backButtonRef}
               onClick={() => navigate('/dashboard')}
-              class="text-gray-400 hover:text-gray-600"
+              class="text-gray-400 hover:text-gray-600 active:text-gray-700 transition"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -127,7 +127,7 @@ export default function CreateProjectPage() {
               <button
                 type="submit"
                 disabled={!projectRepo() || !projectName() || isSubmitting()}
-                class="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                class="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition"
               >
                 {isSubmitting() ? 'Creating...' : 'Create Project'}
               </button>
@@ -135,7 +135,7 @@ export default function CreateProjectPage() {
                 type="button"
                 ref={backButtonRef}
                 onClick={() => navigate('/dashboard')}
-                class="px-4 py-2.5 border rounded-lg hover:bg-gray-50 text-sm font-medium"
+                class="px-4 py-2.5 border rounded-lg hover:bg-gray-50 active:bg-gray-100 text-sm font-medium transition"
               >
                 Cancel
               </button>

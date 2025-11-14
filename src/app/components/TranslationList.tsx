@@ -131,7 +131,7 @@ export default function TranslationList(props: TranslationListProps) {
         <For each={sortedAndFilteredStrings()}>
           {(str) => (
             <div
-              class={`p-3 lg:p-4 cursor-pointer hover:bg-gray-50 transition ${
+              class={`p-3 lg:p-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition ${
                 props.selectedKey === str.key
                   ? "bg-blue-50 border-l-4 border-blue-500"
                   : ""

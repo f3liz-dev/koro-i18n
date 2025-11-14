@@ -73,7 +73,7 @@ export default function TranslationEditorPanel(
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 lg:gap-3">
               <button
                 onClick={props.onToggleSuggestions}
-                class="text-xs lg:text-sm text-blue-600 hover:text-blue-800"
+                class="text-xs lg:text-sm text-blue-600 hover:text-blue-800 active:text-blue-900 transition"
               >
                 {props.showSuggestions ? "Hide" : "Show"} Suggestions
               </button>
@@ -81,7 +81,7 @@ export default function TranslationEditorPanel(
                 <button
                   onClick={props.onPrevious}
                   disabled={props.currentIndex === 1}
-                  class="px-4 py-2.5 lg:py-2 border rounded hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
+                  class="px-4 py-2.5 lg:py-2 border rounded hover:bg-gray-50 active:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition"
                   title="Previous (Alt+←)"
                 >
                   <svg
@@ -105,7 +105,7 @@ export default function TranslationEditorPanel(
                 <button
                   onClick={props.onNext}
                   disabled={props.currentIndex === props.totalCount}
-                  class="px-4 py-2.5 lg:py-2 border rounded hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
+                  class="px-4 py-2.5 lg:py-2 border rounded hover:bg-gray-50 active:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition"
                   title="Next (Alt+→)"
                 >
                   <span class="hidden sm:inline text-sm">Next</span>
@@ -184,7 +184,7 @@ export default function TranslationEditorPanel(
                   </div>
                   <button
                     onClick={props.onSave}
-                    class="px-6 py-3 text-base font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="px-6 py-3 text-base font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
                     disabled={
                       !props.translationValue.trim() ||
                       props.translationValue === str()!.currentValue

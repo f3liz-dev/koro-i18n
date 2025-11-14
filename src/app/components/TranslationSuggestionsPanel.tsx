@@ -158,13 +158,13 @@ export default function TranslationSuggestionsPanel(props: TranslationSuggestion
                           <div class="flex gap-2 flex-shrink-0">
                             <button
                               onClick={() => props.onApprove?.(entry.id)}
-                              class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition whitespace-nowrap"
+                              class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 active:bg-green-800 rounded transition whitespace-nowrap"
                             >
                               ✓ Approve
                             </button>
                             <button
                               onClick={() => props.onReject?.(entry.id)}
-                              class="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition whitespace-nowrap"
+                              class="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded transition whitespace-nowrap"
                             >
                               ✗ Reject
                             </button>

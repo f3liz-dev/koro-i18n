@@ -21,13 +21,13 @@ export default function NotFoundPage() {
           <button
             ref={homeButtonRef}
             onClick={() => navigate('/')}
-            class="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition"
+            class="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 transition"
           >
             Go to Home
           </button>
           <button
             onClick={() => window.history.back()}
-            class="px-6 py-3 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition"
+            class="px-6 py-3 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 active:bg-gray-400 transition"
           >
             Go Back
           </button>

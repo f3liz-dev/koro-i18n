@@ -26,11 +26,11 @@ export default function PageHeader(props: PageHeaderProps) {
   const getButtonClasses = (variant: string = 'default') => {
     switch (variant) {
       case 'primary':
-        return 'px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 rounded-lg hover:bg-blue-50';
+        return 'px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 active:text-blue-800 rounded-lg hover:bg-blue-50 active:bg-blue-100 transition';
       case 'danger':
-        return 'px-3 py-1.5 text-sm text-red-600 hover:text-red-700 rounded-lg hover:bg-red-50';
+        return 'px-3 py-1.5 text-sm text-red-600 hover:text-red-700 active:text-red-800 rounded-lg hover:bg-red-50 active:bg-red-100 transition';
       default:
-        return 'px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100';
+        return 'px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 active:text-gray-950 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition';
     }
   };
 
@@ -47,7 +47,7 @@ export default function PageHeader(props: PageHeaderProps) {
                 <button
                   ref={props.backButton?.ref}
                   onClick={props.backButton?.onClick}
-                  class="text-gray-400 hover:text-gray-600"
+                  class="text-gray-400 hover:text-gray-600 active:text-gray-700 transition"
                 >
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -93,7 +93,7 @@ export default function PageHeader(props: PageHeaderProps) {
               <Show when={visibleMenuItems().length > 0}>
                 <button
                   onClick={() => setShowMobileMenu(!showMobileMenu())}
-                  class="md:hidden p-2 hover:bg-gray-100 rounded"
+                  class="md:hidden p-2 hover:bg-gray-100 active:bg-gray-200 rounded transition"
                   aria-label="Menu"
                 >
                   <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,7 +121,7 @@ export default function PageHeader(props: PageHeaderProps) {
             <h2 class="text-lg font-semibold">Menu</h2>
             <button
               onClick={() => setShowMobileMenu(false)}
-              class="p-2 hover:bg-gray-100 rounded"
+              class="p-2 hover:bg-gray-100 active:bg-gray-200 rounded transition"
               aria-label="Close"
             >
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
