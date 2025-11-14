@@ -77,13 +77,7 @@ pnpm run deploy
 
 ## Client Setup
 
-### 1. Install Client Library
-
-```bash
-npm install @koro-i18n/client
-```
-
-### 2. Configure Project
+### 1. Configure Project
 
 Create `.koro-i18n.repo.config.toml`:
 
@@ -100,7 +94,9 @@ files = ["locales/en/**/*.json"]
 languages = ["ja", "es", "fr"]
 ```
 
-### 3. Add GitHub Action
+### 2. Add GitHub Action
+
+The action automatically builds and uses the client library from the repository:
 
 ```yaml
 name: Upload Translations
@@ -117,11 +113,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-      - run: npm install -g @koro-i18n/client
-      - run: koro-i18n upload
-        env:
-          I18N_PLATFORM_URL: ${{ secrets.I18N_PLATFORM_URL }}
+      - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
+        with:
+          project-name: my-project
 ```
 
 ## Get JWT Token (Development)
