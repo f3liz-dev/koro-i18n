@@ -207,7 +207,41 @@ function extractPerKeyGitHistory(filePath: string, flattenedKeys: string[]): Key
       return [];
     }
 
-    const histories: KeyHistory[] = [];
+    // Read the file content to map keys to line numbers
+    const fileContent = fs.readFileSync(filePath, 'utf-8');
+    const fileLines = fileContent.split('\n');
+    
+    // Build a map of flattened keys to their line numbers in the file
+    const keyToLineMap: Map<string, number> = new Map();
+    
+    // For JSON files, we need to find which line contains each key
+    // We'll search for the key name (as a quoted string) in the file
+    for (const key of flattenedKeys) {
+      // Split nested keys to find the actual property name
+      const keyParts = key.split('.');
+      const leafKey = keyParts[keyParts.length - 1];
+      
+      // Search for the line containing this key
+      // Look for patterns like: "key": or "key" :
+      const keyPattern = `"${leafKey}"`;
+      
+      for (let i = 0; i < fileLines.length; i++) {
+        const line = fileLines[i];
+        if (line.includes(keyPattern)) {
+          // Check if this is actually a key definition (has a colon after it)
+          const colonIndex = line.indexOf(keyPattern) + keyPattern.length;
+          const afterKey = line.substring(colonIndex).trim();
+          if (afterKey.startsWith(':')) {
+            // Found the key definition line
+            if (!keyToLineMap.has(key)) {
+              // Line numbers in git blame are 1-indexed
+              keyToLineMap.set(key, i + 1);
+              break;
+            }
+          }
+        }
+      }
+    }
     
     // Use git blame to get line-by-line commit information
     const blameOutput = execSync(
@@ -220,46 +254,84 @@ function extractPerKeyGitHistory(filePath: string, flattenedKeys: string[]): Key
     }
 
     // Parse git blame porcelain format
+    // Map line numbers to commit info
     const lines = blameOutput.split('\n');
+    const lineToCommitMap: Map<number, string> = new Map();
     const commitInfo: Map<string, GitCommitInfo> = new Map();
     
     let currentCommit = '';
-    for (const line of lines) {
+    let currentLineNumber = 0;
+    let currentAuthor = '';
+    let currentEmail = '';
+    let currentTimestamp = '';
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
       if (line.match(/^[0-9a-f]{40}/)) {
-        currentCommit = line.split(' ')[0];
-      } else if (line.startsWith('author ')) {
-        const author = line.substring(7);
+        // This is a commit header line
+        const parts = line.split(' ');
+        currentCommit = parts[0];
+        currentLineNumber = parseInt(parts[2], 10);
+        
+        // Initialize commit info if not exists
         if (!commitInfo.has(currentCommit)) {
-          commitInfo.set(currentCommit, { commitSha: currentCommit, author, email: '', timestamp: '' });
-        } else {
-          commitInfo.get(currentCommit)!.author = author;
+          commitInfo.set(currentCommit, { 
+            commitSha: currentCommit, 
+            author: '', 
+            email: '', 
+            timestamp: '' 
+          });
+        }
+        
+        // Map this line to this commit
+        lineToCommitMap.set(currentLineNumber, currentCommit);
+      } else if (line.startsWith('author ')) {
+        currentAuthor = line.substring(7);
+        if (commitInfo.has(currentCommit)) {
+          commitInfo.get(currentCommit)!.author = currentAuthor;
         }
       } else if (line.startsWith('author-mail ')) {
-        const email = line.substring(12).replace(/[<>]/g, '');
+        currentEmail = line.substring(12).replace(/[<>]/g, '');
         if (commitInfo.has(currentCommit)) {
-          commitInfo.get(currentCommit)!.email = email;
+          commitInfo.get(currentCommit)!.email = currentEmail;
         }
       } else if (line.startsWith('author-time ')) {
-        const timestamp = new Date(parseInt(line.substring(12)) * 1000).toISOString();
+        currentTimestamp = new Date(parseInt(line.substring(12)) * 1000).toISOString();
         if (commitInfo.has(currentCommit)) {
-          commitInfo.get(currentCommit)!.timestamp = timestamp;
+          commitInfo.get(currentCommit)!.timestamp = currentTimestamp;
         }
       }
     }
 
-    // Return only the latest commit (most recent)
-    // Sort by timestamp descending to get the latest
-    const uniqueCommits = Array.from(commitInfo.values());
-    const sortedCommits = uniqueCommits.sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
+    // Build per-key history
+    const histories: KeyHistory[] = [];
     
-    const latestCommit = sortedCommits.length > 0 ? [sortedCommits[0]] : [];
-    if (latestCommit.length > 0) {
-      histories.push({
-        key: '__all_keys__',
-        commits: latestCommit,
-      });
+    for (const [key, lineNumber] of keyToLineMap.entries()) {
+      const commitSha = lineToCommitMap.get(lineNumber);
+      if (commitSha && commitInfo.has(commitSha)) {
+        const commit = commitInfo.get(commitSha)!;
+        histories.push({
+          key,
+          commits: [commit],
+        });
+      }
+    }
+
+    // If we couldn't map any keys, fall back to file-level history
+    if (histories.length === 0 && commitInfo.size > 0) {
+      const uniqueCommits = Array.from(commitInfo.values());
+      const sortedCommits = uniqueCommits.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+      
+      const latestCommit = sortedCommits.length > 0 ? [sortedCommits[0]] : [];
+      if (latestCommit.length > 0) {
+        histories.push({
+          key: '__all_keys__',
+          commits: latestCommit,
+        });
+      }
     }
 
     return histories;

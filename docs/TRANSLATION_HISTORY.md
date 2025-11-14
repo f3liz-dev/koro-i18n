@@ -8,10 +8,24 @@ This feature enhances the koro-i18n platform with comprehensive git history trac
 
 ### 1. Git History Tracking
 
-The platform now tracks the git commit history for each translation value, including:
+The platform now tracks the git commit history for each translation value at both file and per-key levels, including:
 - Commit SHA
 - Author name and email
 - Commit timestamp
+
+#### Per-Key History Tracking
+
+The system uses `git blame` to extract history for individual keys in JSON files:
+- Each translation key is mapped to the line(s) where it appears in the source file
+- Git blame provides commit information for each line
+- Keys are associated with their specific last-modified commit
+
+This enables granular tracking of who last modified each translation key, allowing for:
+- More accurate contributor attribution
+- Better understanding of when specific translations were changed
+- Fine-grained audit trails for individual keys
+
+**Example:** In a file with multiple keys like `welcome`, `goodbye`, and `hello`, each key can have a different commit author and timestamp if they were modified in separate commits.
 
 This information is extracted during upload and stored in the `TranslationHistory` table with `commitAuthor` and `commitEmail` fields.
 
@@ -63,7 +77,7 @@ interface TranslationFile {
 }
 
 interface KeyHistory {
-  key: string;  // '__file__' for file-level history
+  key: string;  // Flattened key name (e.g., "welcome", "buttons.save") or '__file__' for file-level history
   commits: GitCommitInfo[];
 }
 
@@ -81,7 +95,7 @@ interface StructureMapEntry {
 }
 ```
 
-**Example Upload:**
+**Example Upload with Per-Key History:**
 
 ```json
 {
@@ -95,17 +109,40 @@ interface StructureMapEntry {
       "lang": "en",
       "contents": {
         "welcome": "Welcome",
+        "goodbye": "Goodbye",
         "app.title": "My App"
       },
       "history": [
         {
-          "key": "__file__",
+          "key": "welcome",
           "commits": [
             {
               "commitSha": "abc123",
               "author": "John Doe",
               "email": "john@example.com",
               "timestamp": "2024-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "key": "goodbye",
+          "commits": [
+            {
+              "commitSha": "def456",
+              "author": "Jane Smith",
+              "email": "jane@example.com",
+              "timestamp": "2024-01-02T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "key": "app.title",
+          "commits": [
+            {
+              "commitSha": "ghi789",
+              "author": "Bob Johnson",
+              "email": "bob@example.com",
+              "timestamp": "2024-01-03T00:00:00Z"
             }
           ]
         }
@@ -117,9 +154,14 @@ interface StructureMapEntry {
           "sourceHash": "hash1"
         },
         {
+          "flattenedKey": "goodbye",
+          "originalPath": ["goodbye"],
+          "sourceHash": "hash2"
+        },
+        {
           "flattenedKey": "app.title",
           "originalPath": ["app", "title"],
-          "sourceHash": "hash2"
+          "sourceHash": "hash3"
         }
       ],
       "sourceHash": "filehash123"
@@ -127,6 +169,8 @@ interface StructureMapEntry {
   ]
 }
 ```
+
+Note how each key (`welcome`, `goodbye`, `app.title`) has its own history entry with a specific commit and author. This allows the platform to track exactly who last modified each translation key.
 
 ### Download Endpoint Enhancement
 
@@ -230,8 +274,12 @@ Users should migrate to the structured `/upload` endpoint which supports history
 
 The client library (`@i18n-platform/client`) now includes:
 
-1. **`extractGitHistory(filePath)`** - Extracts git log history for a file
-2. **`extractPerKeyGitHistory(filePath, keys)`** - Extracts per-key history using git blame
+1. **`extractGitHistory(filePath)`** - Extracts git log history for a file (fallback method)
+2. **`extractPerKeyGitHistory(filePath, keys)`** - **Primary method**: Extracts per-key history using git blame
+   - Maps each flattened key to its line number in the source file
+   - Uses git blame to get commit info for each line
+   - Associates each key with its specific last-modified commit
+   - Falls back to file-level history if key mapping fails
 3. **`buildStructureMap(obj, sourceContent)`** - Generates structure map
 4. **`calculateHash(content)`** - Calculates SHA-256 hash
 
@@ -347,8 +395,9 @@ curl -H "Authorization: Bearer $TOKEN" \
 ## Future Enhancements
 
 Potential future improvements:
-- Per-key history tracking (currently file-level)
+- ~~Per-key history tracking~~ ✅ **Implemented** - Each key now has individual history
 - Automatic outdated translation notifications
 - Translation quality scoring based on source changes
 - Bulk validation across all projects
 - History visualization in the UI
+- Blame view showing who last modified each translation key in the UI

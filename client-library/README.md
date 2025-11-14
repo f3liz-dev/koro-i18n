@@ -240,10 +240,19 @@ The client library uses OIDC tokens for authentication when used in GitHub Actio
 
 ### Git History Tracking
 
-The client library now automatically extracts git commit history for each file:
-- Commit SHA, author, email, and timestamp
-- Uses `git log --follow` and `git blame` for detailed tracking
+The client library now automatically extracts git commit history for each translation key:
+- **Per-key tracking**: Uses `git blame` to map each key to its last-modified commit
+- Commit SHA, author, email, and timestamp for each key
+- Falls back to file-level history using `git log --follow` if key mapping fails
 - Stored in platform for co-author attribution on download
+
+**How it works:**
+1. Reads the JSON file and maps each flattened key to its line number
+2. Uses `git blame --line-porcelain` to get commit info for each line
+3. Associates each key with its specific last-modified commit
+4. Example: In a file with `welcome`, `goodbye`, and `hello` keys, each can have a different author and timestamp
+
+This enables granular contributor attribution and audit trails for individual translation keys.
 
 ### Structure Mapping
 
