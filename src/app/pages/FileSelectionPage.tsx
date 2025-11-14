@@ -200,7 +200,7 @@ export default function FileSelectionPage() {
                   <button
                     ref={fileCardRef}
                     onClick={() => navigate(`/projects/${params.id}/translate/${language()}/${encodeURIComponent(fileStat.filename)}`)}
-                    class="w-full bg-white rounded-lg border p-6 hover:border-blue-500 hover:shadow-md transition text-left"
+                    class="w-full bg-white rounded-lg border p-6 hover:border-blue-500 hover:shadow-md active:scale-[0.98] transition text-left"
                   >
                     <div class="flex items-center justify-between mb-4">
                       <div class="flex-1">

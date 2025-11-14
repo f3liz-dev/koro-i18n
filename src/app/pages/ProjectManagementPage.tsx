@@ -195,7 +195,7 @@ export default function ProjectManagementPage() {
               <Show when={!isLoadingMembers()}>
                 <For each={filteredMembers()}>
                   {(member) => (
-                    <div class="border rounded-lg p-4 flex items-center justify-between">
+                    <div class="border rounded-lg p-4 flex items-center justify-between hover:border-gray-300 hover:shadow-sm active:scale-[0.98] transition">
                       <div class="flex items-center gap-3">
                         <img src={member.avatarUrl} alt={member.username} class="w-10 h-10 rounded-full" />
                         <div>
