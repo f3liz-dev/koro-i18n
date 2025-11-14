@@ -153,11 +153,25 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
         repository: true,
         userId: true,
         createdAt: true,
+        members: {
+          where: { userId: payload.userId },
+          select: { status: true },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    const response = c.json({ projects });
+    // Flatten the membership status into the project object
+    const projectsWithStatus = projects.map(p => ({
+      id: p.id,
+      name: p.name,
+      repository: p.repository,
+      userId: p.userId,
+      createdAt: p.createdAt,
+      membershipStatus: p.members[0]?.status || null,
+    }));
+
+    const response = c.json({ projects: projectsWithStatus });
     response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projects));
     return response;
   });
