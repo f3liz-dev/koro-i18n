@@ -492,9 +492,40 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       orderBy: [{ lang: 'asc' }, { filename: 'asc' }],
     });
 
-    // Generate ETag from file upload timestamps
+    // Fetch approved translations for this project
+    const translationWhere: any = {
+      projectId: project.id,
+      status: 'approved'
+    };
+    if (language) translationWhere.language = language;
+
+    const approvedTranslations = await prisma.translation.findMany({
+      where: translationWhere,
+    });
+
+    // Build a map of approved translations: language -> filename -> key -> value
+    const translationMap: Record<string, Record<string, Record<string, string>>> = {};
+    for (const trans of approvedTranslations) {
+      // Translation key format: "filename:key"
+      const colonIndex = trans.key.indexOf(':');
+      if (colonIndex === -1) continue;
+      
+      const filename = trans.key.substring(0, colonIndex);
+      const key = trans.key.substring(colonIndex + 1);
+      
+      if (!translationMap[trans.language]) {
+        translationMap[trans.language] = {};
+      }
+      if (!translationMap[trans.language][filename]) {
+        translationMap[trans.language][filename] = {};
+      }
+      translationMap[trans.language][filename][key] = trans.value;
+    }
+
+    // Generate ETag from file upload timestamps and translation updates
     const fileTimestamps = projectFiles.map(f => f.uploadedAt);
-    const etag = generateFilesETag(fileTimestamps);
+    const translationTimestamps = approvedTranslations.map(t => t.updatedAt);
+    const etag = generateFilesETag([...fileTimestamps, ...translationTimestamps]);
     
     // Check if client has current version
     const cacheControl = buildCacheControl(CACHE_CONFIGS.projectFiles);
@@ -520,6 +551,12 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         {}, 
         `download:${row.filename}:${row.lang}`
       );
+      
+      // Merge approved translations for this file and language
+      const approvedForFile = translationMap[row.lang]?.[row.filename];
+      if (approvedForFile) {
+        Object.assign(contents, approvedForFile);
+      }
       
       // If unflatten is requested and structure map is available, reconstruct original structure
       let finalContents = contents;

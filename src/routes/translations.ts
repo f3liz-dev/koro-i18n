@@ -173,6 +173,20 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
 
     if (!translation) return c.json({ error: 'Translation not found' }, 404);
 
+    // Reject other pending/approved translations for the same key
+    // Ensure only one translation is approved per key at a time
+    await prisma.translation.updateMany({
+      where: {
+        projectId: translation.projectId,
+        language: translation.language,
+        key: translation.key,
+        id: { not: id },
+        status: { in: ['pending', 'approved'] }
+      },
+      data: { status: 'rejected', updatedAt: new Date() }
+    });
+
+    // Now approve the selected translation
     await prisma.translation.update({
       where: { id },
       data: { status: 'approved', updatedAt: new Date() },
