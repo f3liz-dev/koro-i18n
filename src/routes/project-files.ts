@@ -502,29 +502,103 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       return create304Response(etag, cacheControl);
     }
 
+    // Check if client wants unflattened structure
+    const unflatten = c.req.query('unflatten') === 'true';
+    const includeMetadata = c.req.query('includeMetadata') === 'true';
+
     const filesByLang: Record<string, Record<string, any>> = {};
+    const metadataByLang: Record<string, Record<string, any>> = {};
+    
     for (const row of projectFiles) {
       if (!filesByLang[row.lang]) {
         filesByLang[row.lang] = {};
+        metadataByLang[row.lang] = {};
       }
-      filesByLang[row.lang][row.filename] = safeJSONParse(
+      
+      const contents = safeJSONParse(
         row.contents, 
         {}, 
         `download:${row.filename}:${row.lang}`
       );
+      
+      // If unflatten is requested and structure map is available, reconstruct original structure
+      let finalContents = contents;
+      if (unflatten && row.structureMap) {
+        const structureMap = safeJSONParse(row.structureMap, [], `download:${row.filename}:${row.lang}:structureMap`);
+        finalContents = unflattenWithStructureMap(contents, structureMap);
+      }
+      
+      filesByLang[row.lang][row.filename] = finalContents;
+      
+      // Include metadata if requested
+      if (includeMetadata) {
+        metadataByLang[row.lang][row.filename] = {
+          sourceHash: row.sourceHash,
+          commitSha: row.commitSha,
+          uploadedAt: row.uploadedAt,
+          structureMapAvailable: !!row.structureMap,
+        };
+      }
     }
 
-    const response = c.json({
+    const responseData: any = {
       project: projectName,
       repository: project.repository,
       branch,
       files: filesByLang,
       generatedAt: new Date().toISOString()
-    });
+    };
+    
+    if (includeMetadata) {
+      responseData.metadata = metadataByLang;
+    }
+
+    const response = c.json(responseData);
     response.headers.set('Cache-Control', cacheControl);
     response.headers.set('ETag', etag);
     return response;
   });
+
+  // Helper function to unflatten using structure map
+  function unflattenWithStructureMap(flattened: Record<string, any>, structureMap: any[]): Record<string, any> {
+    const result: any = {};
+    
+    for (const [key, value] of Object.entries(flattened)) {
+      const mapEntry = structureMap.find((entry: any) => entry.flattenedKey === key);
+      
+      if (mapEntry && mapEntry.originalPath) {
+        // Reconstruct the nested structure using original path
+        let current = result;
+        const path = mapEntry.originalPath;
+        
+        for (let i = 0; i < path.length - 1; i++) {
+          const part = path[i];
+          if (!current[part]) {
+            current[part] = {};
+          }
+          current = current[part];
+        }
+        
+        current[path[path.length - 1]] = value;
+      } else {
+        // Fallback to dot notation unflattening if no structure map entry
+        const parts = key.split('.');
+        let current = result;
+        
+        for (let i = 0; i < parts.length - 1; i++) {
+          const part = parts[i];
+          if (!current[part]) {
+            current[part] = {};
+          }
+          current = current[part];
+        }
+        
+        current[parts[parts.length - 1]] = value;
+      }
+    }
+    
+    return result;
+  }
 
   // Optimized endpoint for UI listing - returns only keys without values for statistics
   app.get('/:projectId/files/summary', async (c) => {
@@ -729,6 +803,133 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     response.headers.set('Cache-Control', cacheControl);
     response.headers.set('ETag', etag);
     return response;
+  });
+
+  // Endpoint to validate translation validity based on source content hash
+  app.get('/:projectName/validate', async (c) => {
+    const payload = await requireAuth(c, env.JWT_SECRET);
+    if (payload instanceof Response) return payload;
+
+    const projectName = c.req.param('projectName');
+    const branch = c.req.query('branch') || 'main';
+    const language = c.req.query('language');
+
+    const project = await prisma.project.findUnique({
+      where: { name: projectName },
+      select: { id: true, repository: true, sourceLanguage: true },
+    });
+
+    if (!project) {
+      return c.json({ error: `Project '${projectName}' not found` }, 404);
+    }
+
+    // Get source language files
+    const sourceFiles = await prisma.projectFile.findMany({
+      where: {
+        projectId: project.repository,
+        branch,
+        lang: project.sourceLanguage,
+      },
+      select: {
+        filename: true,
+        contents: true,
+        sourceHash: true,
+        structureMap: true,
+      },
+    });
+
+    // Get translation files for the specified language
+    const where: any = {
+      projectId: project.repository,
+      branch,
+    };
+    if (language) {
+      where.lang = language;
+    } else {
+      where.lang = { not: project.sourceLanguage };
+    }
+
+    const translationFiles = await prisma.projectFile.findMany({
+      where,
+      select: {
+        filename: true,
+        lang: true,
+        contents: true,
+        structureMap: true,
+      },
+    });
+
+    // Build validation report
+    const validationResults: any[] = [];
+
+    for (const translationFile of translationFiles) {
+      const sourceFile = sourceFiles.find(sf => sf.filename === translationFile.filename);
+      
+      if (!sourceFile) {
+        validationResults.push({
+          filename: translationFile.filename,
+          language: translationFile.lang,
+          status: 'no_source',
+          message: 'Source file not found',
+        });
+        continue;
+      }
+
+      const sourceContents = safeJSONParse(sourceFile.contents, {}, 'validate:source');
+      const translationContents = safeJSONParse(translationFile.contents, {}, 'validate:translation');
+      const sourceMap = sourceFile.structureMap ? safeJSONParse(sourceFile.structureMap, [], 'validate:sourceMap') : [];
+      const translationMap = translationFile.structureMap ? safeJSONParse(translationFile.structureMap, [], 'validate:translationMap') : [];
+
+      const invalidKeys: string[] = [];
+      const validKeys: string[] = [];
+      const missingKeys: string[] = [];
+
+      // Check each key in source
+      for (const [key, sourceValue] of Object.entries(sourceContents)) {
+        const translationValue = translationContents[key];
+        
+        if (translationValue === undefined) {
+          missingKeys.push(key);
+          continue;
+        }
+
+        // Find source hash for this key
+        const sourceMapEntry = sourceMap.find((entry: any) => entry.flattenedKey === key);
+        const translationMapEntry = translationMap.find((entry: any) => entry.flattenedKey === key);
+
+        if (sourceMapEntry && translationMapEntry) {
+          // Compare source hashes to see if source has changed
+          if (sourceMapEntry.sourceHash !== translationMapEntry.sourceHash) {
+            invalidKeys.push(key);
+          } else {
+            validKeys.push(key);
+          }
+        } else {
+          // If no hash available, assume valid
+          validKeys.push(key);
+        }
+      }
+
+      validationResults.push({
+        filename: translationFile.filename,
+        language: translationFile.lang,
+        status: invalidKeys.length === 0 && missingKeys.length === 0 ? 'valid' : 'invalid',
+        totalKeys: Object.keys(sourceContents).length,
+        validKeys: validKeys.length,
+        invalidKeys: invalidKeys.length,
+        missingKeys: missingKeys.length,
+        invalidKeysList: invalidKeys,
+        missingKeysList: missingKeys,
+      });
+    }
+
+    return c.json({
+      project: projectName,
+      branch,
+      sourceLanguage: project.sourceLanguage,
+      validationResults,
+      generatedAt: new Date().toISOString(),
+    });
   });
 
   return app;
