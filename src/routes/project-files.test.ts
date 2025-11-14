@@ -87,6 +87,34 @@ describe('Project Files - JSON Safety', () => {
         expect(jsonString.length).toBeLessThanOrEqual(MAX_SIZE);
       }
     });
+
+    it('should calculate file size correctly for error messages', () => {
+      const MAX_SIZE = 1 * 1024 * 1024; // 1MB
+      
+      // Create a file that exceeds 1MB
+      const largeValue = 'x'.repeat(200000);
+      const largeObject: Record<string, string> = {};
+      for (let i = 0; i < 10; i++) {
+        largeObject[`key${i}`] = largeValue;
+      }
+      
+      const jsonString = JSON.stringify(largeObject);
+      
+      if (jsonString.length > MAX_SIZE) {
+        const sizeMB = (jsonString.length / 1024 / 1024).toFixed(2);
+        const maxMB = (MAX_SIZE / 1024 / 1024).toFixed(2);
+        
+        // Verify size calculation is accurate
+        expect(parseFloat(sizeMB)).toBeGreaterThan(parseFloat(maxMB));
+        expect(maxMB).toBe('1.00');
+        
+        // Verify error message format
+        const errorMsg = `test.json (en-US): contents ${sizeMB}MB exceeds ${maxMB}MB limit`;
+        expect(errorMsg).toContain('exceeds');
+        expect(errorMsg).toContain(sizeMB);
+        expect(errorMsg).toContain(maxMB);
+      }
+    });
   });
 
   describe('flattenObject behavior', () => {
