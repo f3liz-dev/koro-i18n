@@ -9,6 +9,7 @@ import { createTranslationRoutes } from './routes/translations';
 import { createProjectRoutes } from './routes/projects';
 import { createProjectFileRoutes } from './routes/project-files';
 import { CACHE_CONFIGS, buildCacheControl } from './lib/cache-headers';
+import { etagMiddleware } from './lib/etag-middleware';
 
 interface Env {
   DB: D1Database;
@@ -32,6 +33,10 @@ export function createWorkerApp(env: Env) {
       : ['https://koro.f3liz.workers.dev'],
     credentials: true,
   }));
+
+  // Apply ETag middleware to all API routes
+  app.use('/api/*', etagMiddleware);
+  app.use('/health', etagMiddleware);
 
   app.route('/api/auth', createAuthRoutes(prisma, env));
   app.route('/api/translations', createTranslationRoutes(prisma, env));
@@ -59,32 +64,10 @@ export function createWorkerApp(env: Env) {
   });
 
   app.get('/health', (c) => {
-    // Static health check - can be cached for long periods
+    // Health check - must always be fresh, no caching
     const response = c.json({ status: 'ok', runtime: 'cloudflare-workers' });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.static));
+    response.headers.set('Cache-Control', 'max-age=0, no-cache');
     return response;
-  });
-
-  app.get('/api/prisma/users', async (c) => {
-    try {
-      const users = await prisma.user.findMany({
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          avatarUrl: true,
-          createdAt: true,
-        },
-        take: 10,
-      });
-      // Debug endpoint - no caching for development use
-      const response = c.json({ users, source: 'prisma-orm' });
-      response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.noCache));
-      return response;
-    } catch (error) {
-      console.error('Prisma error:', error);
-      return c.json({ error: 'Failed to fetch users' }, 500);
-    }
   });
 
   return app;
