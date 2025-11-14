@@ -628,7 +628,7 @@ function parseArgs(): {
   const result: any = {
     configPath: '.koro-i18n.repo.config.toml',
     platformUrl: process.env.I18N_PLATFORM_URL || 'https://koro.f3liz.workers.dev',
-    chunkSize: 1, // Default chunk size
+    chunkSize: 10, // Default chunk size
   };
 
   for (let i = 0; i < args.length; i++) {
