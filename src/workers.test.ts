@@ -159,6 +159,30 @@ describe('API Endpoints', () => {
       const payload = await verifyJWT(token, 'secret-2');
       expect(payload).toBeNull();
     });
+
+    it('should set no-store cache header on /api/auth/me endpoint', async () => {
+      const env = createMockEnv();
+      const app = createWorkerApp(env);
+      
+      // Create a valid JWT token
+      const user = { id: 'user-123', username: 'testuser', githubId: 12345 };
+      const token = await createJWT(user, 'github-token', env.JWT_SECRET);
+
+      const req = new Request('http://localhost/api/auth/me', {
+        method: 'GET',
+        headers: {
+          'Cookie': `auth_token=${token}`,
+        },
+      });
+
+      const res = await app.fetch(req, env, {} as ExecutionContext);
+      
+      expect(res.status).toBe(200);
+      const cacheControl = res.headers.get('Cache-Control');
+      expect(cacheControl).toContain('no-store');
+      expect(cacheControl).toContain('max-age=0');
+      expect(cacheControl).toContain('private');
+    });
   });
 
   describe('JSON flattening', () => {
