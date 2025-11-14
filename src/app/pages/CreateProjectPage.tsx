@@ -127,7 +127,7 @@ export default function CreateProjectPage() {
               <button
                 type="submit"
                 disabled={!projectRepo() || !projectName() || isSubmitting()}
-                class="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition"
+                class="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition"
               >
                 {isSubmitting() ? 'Creating...' : 'Create Project'}
               </button>
