@@ -129,7 +129,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     if (includeLanguages) {
       // Optimize: Fetch all languages for all repositories in one query
       const repositories = allProjects.map(p => p.repository);
-      const allLanguages = await prisma.projectFile.findMany({
+      const allLanguages = await prisma.r2File.findMany({
         where: { 
           projectId: { in: repositories },
           branch: 'main'
