@@ -345,17 +345,6 @@ export default function TranslationEditorPage() {
     }
   };
 
-  const handleAutoSave = () => {
-    const timer = autoSaveTimer();
-    if (timer) clearTimeout(timer);
-    
-    const newTimer = window.setTimeout(() => {
-      handleSave();
-    }, 30000);
-    
-    setAutoSaveTimer(newTimer);
-  };
-
   const getCompletionPercentage = () => {
     const total = enrichedTranslationStrings().length;
     const completed = enrichedTranslationStrings().filter(s => s.currentValue).length;
@@ -393,7 +382,6 @@ export default function TranslationEditorPage() {
 
   const handleTranslationChange = (value: string) => {
     setTranslationValue(value);
-    handleAutoSave();
   };
 
   return (
