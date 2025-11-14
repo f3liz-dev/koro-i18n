@@ -59,21 +59,10 @@ export default function FileSelectionPage() {
     const stats: FileStats[] = [];
     
     for (const sourceFile of sourceFilesList) {
-      const sourceStatus = sourceFile.translationStatus || {};
-      const sourceKeys = Object.keys(sourceStatus);
-      const totalKeys = sourceKeys.length;
+      const totalKeys = sourceFile.totalKeys || 0;
       
       const targetFile = targetFilesList.find(f => f.filename === sourceFile.filename);
-      let translatedKeys = 0;
-      
-      if (targetFile) {
-        const targetStatus = targetFile.translationStatus || {};
-        for (const key of sourceKeys) {
-          if (targetStatus[key]) {
-            translatedKeys++;
-          }
-        }
-      }
+      const translatedKeys = targetFile?.translatedKeys || 0;
       
       const percentage = totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0;
       stats.push({

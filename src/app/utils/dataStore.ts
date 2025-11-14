@@ -167,7 +167,9 @@ interface FileSummaryData {
   files: Array<{
     filename: string;
     lang: string;
-    translationStatus?: Record<string, string>;
+    totalKeys: number;
+    translatedKeys: number;
+    translationPercentage: number;
   }>;
 }
 

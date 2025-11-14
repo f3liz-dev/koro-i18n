@@ -578,7 +578,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       orderBy: { uploadedAt: 'desc' },
     });
 
-    // Return summary with keys and translation status, but not full values
+    // Return summary with calculated statistics instead of all keys
     const filesSummary = projectFiles.map((row) => {
       const contents = safeJSONParse<Record<string, any>>(
         row.contents, 
@@ -591,11 +591,20 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         `files-summary:${row.filename}:${row.lang}:metadata`
       );
       
-      // Create a map of key -> boolean (whether it has a non-empty value)
-      const translationStatus: Record<string, boolean> = {};
+      // Calculate translation statistics
+      const allKeys = Object.keys(contents);
+      const totalKeys = allKeys.length;
+      let translatedKeys = 0;
+      
       for (const [key, value] of Object.entries(contents)) {
-        translationStatus[key] = value !== null && value !== undefined && String(value).trim() !== '';
+        if (value !== null && value !== undefined && String(value).trim() !== '') {
+          translatedKeys++;
+        }
       }
+      
+      const translationPercentage = totalKeys > 0 
+        ? Math.round((translatedKeys / totalKeys) * 100) 
+        : 0;
       
       return {
         id: row.id,
@@ -606,8 +615,9 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         lang: row.lang,
         commitSha: row.commitSha,
         uploadedAt: row.uploadedAt,
-        keyCount: Object.keys(contents).length,
-        translationStatus, // Map of key -> boolean instead of key -> full value
+        totalKeys,
+        translatedKeys,
+        translationPercentage,
         metadata,
       };
     });
