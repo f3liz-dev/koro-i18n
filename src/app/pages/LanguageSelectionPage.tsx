@@ -74,18 +74,11 @@ export default function LanguageSelectionPage() {
       let translatedKeys = 0;
       
       for (const sourceFile of sourceFiles) {
-        const sourceStatus = sourceFile.translationStatus || {};
-        const sourceKeys = Object.keys(sourceStatus);
-        totalKeys += sourceKeys.length;
+        totalKeys += sourceFile.totalKeys || 0;
         
         const targetFile = targetFiles.find(f => f.filename === sourceFile.filename);
         if (targetFile) {
-          const targetStatus = targetFile.translationStatus || {};
-          for (const key of sourceKeys) {
-            if (targetStatus[key]) {
-              translatedKeys++;
-            }
-          }
+          translatedKeys += targetFile.translatedKeys || 0;
         }
       }
       

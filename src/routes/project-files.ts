@@ -14,6 +14,42 @@ interface Env {
 
 const MAX_FILES = 500;
 const MAX_PAYLOAD_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_CONTENT_SIZE = 1 * 1024 * 1024; // 1MB per file content (D1 parameter limit)
+
+/**
+ * Safely parse JSON with error handling and validation
+ */
+function safeJSONParse<T = any>(jsonString: string, fallback: T, context: string): T {
+  try {
+    return JSON.parse(jsonString) as T;
+  } catch (error: any) {
+    console.error(`[${context}] JSON parse error:`, error.message);
+    console.error(`[${context}] Problematic JSON (first 200 chars):`, jsonString.substring(0, 200));
+    return fallback;
+  }
+}
+
+/**
+ * Safely stringify JSON with validation to ensure it can be parsed back
+ */
+function safeJSONStringify(data: any, context: string): string {
+  try {
+    const jsonString = JSON.stringify(data);
+    
+    // Validate that it can be parsed back
+    JSON.parse(jsonString);
+    
+    // Check size limit
+    if (jsonString.length > MAX_FILE_CONTENT_SIZE) {
+      throw new Error(`JSON string exceeds size limit: ${jsonString.length} > ${MAX_FILE_CONTENT_SIZE}`);
+    }
+    
+    return jsonString;
+  } catch (error: any) {
+    console.error(`[${context}] JSON stringify error:`, error.message);
+    throw error;
+  }
+}
 
 export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
@@ -125,6 +161,10 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           console.warn(`[upload] Warning: File ${filename} (${lang}) has 0 keys`);
         }
         
+        // Safely stringify with validation
+        const contentsJson = safeJSONStringify(flattened, `upload:${filename}:${lang}`);
+        const metadataJson = safeJSONStringify(metadata || {}, `upload:${filename}:${lang}:metadata`);
+        
         await prisma.projectFile.upsert({
           where: {
             projectId_branch_filename_lang: {
@@ -137,8 +177,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           update: {
             commitSha: commitSha || '',
             filetype,
-            contents: JSON.stringify(flattened),
-            metadata: JSON.stringify(metadata || {}),
+            contents: contentsJson,
+            metadata: metadataJson,
             uploadedAt: new Date(),
           },
           create: {
@@ -149,8 +189,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
             filename,
             filetype,
             lang,
-            contents: JSON.stringify(flattened),
-            metadata: JSON.stringify(metadata || {}),
+            contents: contentsJson,
+            metadata: metadataJson,
           },
         });
         
@@ -273,6 +313,13 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         
         const fileLang = language || project.sourceLanguage;
         
+        // Safely stringify with validation
+        const contentsJson = safeJSONStringify(flattened, `upload-json:${filename}:${fileLang}`);
+        const metadataJson = safeJSONStringify({
+          keys: keyCount,
+          uploadMethod: 'json-direct'
+        }, `upload-json:${filename}:${fileLang}:metadata`);
+        
         await prisma.projectFile.upsert({
           where: {
             projectId_branch_filename_lang: {
@@ -285,11 +332,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           update: {
             commitSha: commitSha || '',
             filetype: 'json',
-            contents: JSON.stringify(flattened),
-            metadata: JSON.stringify({
-              keys: keyCount,
-              uploadMethod: 'json-direct'
-            }),
+            contents: contentsJson,
+            metadata: metadataJson,
             uploadedAt: new Date(),
           },
           create: {
@@ -300,11 +344,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
             filename,
             filetype: 'json',
             lang: fileLang,
-            contents: JSON.stringify(flattened),
-            metadata: JSON.stringify({
-              keys: keyCount,
-              uploadMethod: 'json-direct'
-            }),
+            contents: contentsJson,
+            metadata: metadataJson,
           },
         });
         
@@ -431,7 +472,11 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       if (!filesByLang[row.lang]) {
         filesByLang[row.lang] = {};
       }
-      filesByLang[row.lang][row.filename] = JSON.parse(row.contents);
+      filesByLang[row.lang][row.filename] = safeJSONParse(
+        row.contents, 
+        {}, 
+        `download:${row.filename}:${row.lang}`
+      );
     }
 
     const response = c.json({
@@ -533,16 +578,33 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       orderBy: { uploadedAt: 'desc' },
     });
 
-    // Return summary with keys and translation status, but not full values
+    // Return summary with calculated statistics instead of all keys
     const filesSummary = projectFiles.map((row) => {
-      const contents = JSON.parse(row.contents);
-      const metadata = JSON.parse(row.metadata || '{}');
+      const contents = safeJSONParse<Record<string, any>>(
+        row.contents, 
+        {}, 
+        `files-summary:${row.filename}:${row.lang}`
+      );
+      const metadata = safeJSONParse<Record<string, any>>(
+        row.metadata || '{}', 
+        {}, 
+        `files-summary:${row.filename}:${row.lang}:metadata`
+      );
       
-      // Create a map of key -> boolean (whether it has a non-empty value)
-      const translationStatus: Record<string, boolean> = {};
+      // Calculate translation statistics
+      const allKeys = Object.keys(contents);
+      const totalKeys = allKeys.length;
+      let translatedKeys = 0;
+      
       for (const [key, value] of Object.entries(contents)) {
-        translationStatus[key] = value !== null && value !== undefined && String(value).trim() !== '';
+        if (value !== null && value !== undefined && String(value).trim() !== '') {
+          translatedKeys++;
+        }
       }
+      
+      const translationPercentage = totalKeys > 0 
+        ? Math.round((translatedKeys / totalKeys) * 100) 
+        : 0;
       
       return {
         id: row.id,
@@ -553,8 +615,9 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         lang: row.lang,
         commitSha: row.commitSha,
         uploadedAt: row.uploadedAt,
-        keyCount: Object.keys(contents).length,
-        translationStatus, // Map of key -> boolean instead of key -> full value
+        totalKeys,
+        translatedKeys,
+        translationPercentage,
         metadata,
       };
     });
@@ -615,8 +678,16 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const files = projectFiles.map((row) => ({
       ...row,
-      contents: JSON.parse(row.contents),
-      metadata: JSON.parse(row.metadata || '{}')
+      contents: safeJSONParse<Record<string, any>>(
+        row.contents, 
+        {}, 
+        `files:${row.filename}:${row.lang}`
+      ),
+      metadata: safeJSONParse<Record<string, any>>(
+        row.metadata || '{}', 
+        {}, 
+        `files:${row.filename}:${row.lang}:metadata`
+      )
     }));
 
     const response = c.json({ files });
