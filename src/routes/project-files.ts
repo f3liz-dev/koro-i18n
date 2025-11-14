@@ -4,6 +4,7 @@ import { PrismaClient } from '../generated/prisma/';
 import { verifyJWT, requireAuth } from '../lib/auth';
 import { checkProjectAccess, flattenObject } from '../lib/database';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
+import { generateFilesETag, checkETagMatch, create304Response } from '../lib/etag-db';
 
 interface Env {
   JWT_SECRET: string;
@@ -415,6 +416,16 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       orderBy: [{ lang: 'asc' }, { filename: 'asc' }],
     });
 
+    // Generate ETag from file upload timestamps
+    const fileTimestamps = projectFiles.map(f => f.uploadedAt);
+    const etag = generateFilesETag(fileTimestamps);
+    
+    // Check if client has current version
+    const cacheControl = buildCacheControl(CACHE_CONFIGS.projectFiles);
+    if (checkETagMatch(c.req.raw, etag)) {
+      return create304Response(etag, cacheControl);
+    }
+
     const filesByLang: Record<string, Record<string, any>> = {};
     for (const row of projectFiles) {
       if (!filesByLang[row.lang]) {
@@ -423,7 +434,6 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       filesByLang[row.lang][row.filename] = JSON.parse(row.contents);
     }
 
-    // Cache download endpoint - files are stable between uploads
     const response = c.json({
       project: projectName,
       repository: project.repository,
@@ -431,7 +441,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       files: filesByLang,
       generatedAt: new Date().toISOString()
     });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+    response.headers.set('Cache-Control', cacheControl);
+    response.headers.set('ETag', etag);
     return response;
   });
 
@@ -548,8 +559,19 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       };
     });
 
+    // Generate ETag from file upload timestamps
+    const fileTimestamps = projectFiles.map(f => f.uploadedAt);
+    const etag = generateFilesETag(fileTimestamps);
+    
+    // Check if client has current version
+    const cacheControl = buildCacheControl(CACHE_CONFIGS.projectFiles);
+    if (checkETagMatch(c.req.raw, etag)) {
+      return create304Response(etag, cacheControl);
+    }
+
     const response = c.json({ files: filesSummary });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+    response.headers.set('Cache-Control', cacheControl);
+    response.headers.set('ETag', etag);
     return response;
   });
 
@@ -581,6 +603,16 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       orderBy: { uploadedAt: 'desc' },
     });
 
+    // Generate ETag from file upload timestamps
+    const fileTimestamps = projectFiles.map(f => f.uploadedAt);
+    const etag = generateFilesETag(fileTimestamps);
+    
+    // Check if client has current version
+    const cacheControl = buildCacheControl(CACHE_CONFIGS.projectFiles);
+    if (checkETagMatch(c.req.raw, etag)) {
+      return create304Response(etag, cacheControl);
+    }
+
     const files = projectFiles.map((row) => ({
       ...row,
       contents: JSON.parse(row.contents),
@@ -588,7 +620,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     }));
 
     const response = c.json({ files });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+    response.headers.set('Cache-Control', cacheControl);
+    response.headers.set('ETag', etag);
     return response;
   });
 

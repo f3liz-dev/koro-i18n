@@ -1,53 +1,54 @@
 /**
  * Cache configuration for different types of API responses
  * 
- * This module provides cache configurations that leverage browser's native HTTP cache.
- * The frontend also uses SolidJS store for in-memory caching - both work together:
- * - HTTP cache: Reduces network requests via Cache-Control headers
- * - SolidJS store: Provides instant UI updates and optimistic rendering
+ * NEW STRATEGY: All APIs use max-age=0, no-cache to force revalidation.
+ * Caching is managed through:
+ * - ETag headers: Enable 304 Not Modified responses for unchanged content
+ * - Frontend Store: SolidJS store provides instant UI updates and in-memory caching
+ * 
+ * This approach ensures:
+ * 1. Browser always checks server for fresh data (max-age=0)
+ * 2. Server can respond with 304 if content unchanged (via ETag)
+ * 3. Frontend provides instant UI from store cache
+ * 4. No stale data issues from long TTL caching
  */
 
 export interface CacheConfig {
   maxAge: number; // seconds
-  swr?: number; // stale-while-revalidate seconds
+  noCache?: boolean; // add no-cache directive
   mustRevalidate?: boolean;
 }
 
 /**
- * Predefined cache configurations for different data types
+ * All API endpoints now use max-age=0, no-cache strategy.
+ * Caching relies on ETag for conditional requests and frontend Store for instant UI.
  * 
- * Strategy:
- * - Cacheable (long TTL): Data that changes infrequently (projects, files)
- * - Short cache: Data that changes moderately (translations)
- * - No cache: Real-time data that must always be fresh (auth status, suggestions, logs)
- * - Mutations: POST/PUT/DELETE/PATCH operations never have cache headers
+ * This eliminates stale data issues while maintaining performance through:
+ * - 304 Not Modified responses (via ETag)
+ * - Frontend in-memory store (instant UI updates)
+ * - Prefetching with ForesightJS (predictive loading)
  */
 export const CACHE_CONFIGS = {
-  // Project data changes infrequently - safe to cache
-  projects: { maxAge: 300, swr: 60 }, // 5 min cache, 1 min SWR
+  // All API data uses max-age=0, no-cache
+  // Cache validation relies on ETag headers
+  api: { maxAge: 0, noCache: true }, // Always revalidate with server
   
-  // Project files are stable between uploads - safe to cache longer
-  projectFiles: { maxAge: 600, swr: 120 }, // 10 min cache, 2 min SWR
-  
-  // Translation data may change more frequently during active editing
-  translations: { maxAge: 60, swr: 30 }, // 1 min cache, 30 sec SWR
-  
-  // Translation suggestions need fresh data - always fetch latest
-  // This shows pending/approved translations that change in real-time
-  translationSuggestions: { maxAge: 0 }, // Always fresh
-  
-  // User data changes very infrequently
-  user: { maxAge: 3600 }, // 1 hour cache
-  
-  // Real-time data - always fetch fresh (auth checks, logs, debug endpoints)
-  noCache: { maxAge: 0, mustRevalidate: true }, // No cache, must revalidate
-  
-  // Static/reference data that rarely changes (health checks, system info)
-  static: { maxAge: 86400 }, // 24 hours cache
+  // Kept for backward compatibility, but all now use same strategy
+  projects: { maxAge: 0, noCache: true },
+  projectFiles: { maxAge: 0, noCache: true },
+  translations: { maxAge: 0, noCache: true },
+  translationSuggestions: { maxAge: 0, noCache: true },
+  user: { maxAge: 0, noCache: true },
+  noCache: { maxAge: 0, noCache: true, mustRevalidate: true },
+  static: { maxAge: 0, noCache: true },
 } as const;
 
 /**
  * Build Cache-Control header value from config
+ * 
+ * New strategy: max-age=0, no-cache for all APIs
+ * This forces browsers to revalidate with server on every request
+ * while still allowing 304 Not Modified responses via ETag
  */
 export function buildCacheControl(config: CacheConfig): string {
   const parts: string[] = [];
@@ -56,8 +57,8 @@ export function buildCacheControl(config: CacheConfig): string {
     parts.push(`max-age=${config.maxAge}`);
   }
   
-  if (config.swr !== undefined) {
-    parts.push(`stale-while-revalidate=${config.swr}`);
+  if (config.noCache) {
+    parts.push('no-cache');
   }
   
   if (config.mustRevalidate) {
