@@ -202,6 +202,16 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         }, 400);
       }
 
+      // First pass: Collect all translation keys to check in bulk
+      const translationKeysToCheck: Array<{ lang: string; key: string }> = [];
+      const fileDataMap = new Map<string, {
+        file: any;
+        flattened: Record<string, string>;
+        contentsJson: string;
+        metadataJson: string;
+        structureMapJson: string | null;
+      }>();
+      
       for (const file of files) {
         const { filetype, filename, lang, contents, metadata, history, structureMap, sourceHash } = file;
         
@@ -220,6 +230,89 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         const metadataJson = safeJSONStringify(metadata || {}, `upload:${filename}:${lang}:metadata`);
         const structureMapJson = structureMap ? safeJSONStringify(structureMap, `upload:${filename}:${lang}:structureMap`) : null;
         
+        // Store file data for later processing
+        fileDataMap.set(`${filename}:${lang}`, {
+          file,
+          flattened,
+          contentsJson,
+          metadataJson,
+          structureMapJson,
+        });
+        
+        // Collect translation keys to check for non-source language files
+        if (lang !== project.sourceLanguage && lang !== sourceLanguage) {
+          for (const key of Object.keys(flattened)) {
+            const translationKey = `${filename}:${key}`;
+            translationKeysToCheck.push({ lang, key: translationKey });
+          }
+        }
+      }
+      
+      // Bulk query: Check which translations already exist
+      const existingTranslationsSet = new Set<string>();
+      if (translationKeysToCheck.length > 0) {
+        console.log(`[upload] Checking ${translationKeysToCheck.length} translations in bulk...`);
+        
+        // Get all unique languages
+        const uniqueLangs = [...new Set(translationKeysToCheck.map(t => t.lang))];
+        
+        // Query existing translations for all languages at once
+        const existingTranslations = await prisma.translation.findMany({
+          where: {
+            projectId: project.id,
+            language: { in: uniqueLangs },
+            status: { in: ['approved', 'committed'] }
+          },
+          select: {
+            language: true,
+            key: true,
+          },
+        });
+        
+        // Build a set of existing translation keys for quick lookup
+        for (const trans of existingTranslations) {
+          existingTranslationsSet.add(`${trans.language}:${trans.key}`);
+        }
+        
+        console.log(`[upload] Found ${existingTranslations.length} existing translations`);
+      }
+      
+      // Second pass: Process files and prepare bulk inserts
+      const translationsToCreate: Array<{
+        id: string;
+        projectId: string;
+        language: string;
+        key: string;
+        value: string;
+        userId: string;
+        status: string;
+      }> = [];
+      
+      const historyToCreate: Array<{
+        id: string;
+        translationId: string;
+        projectId: string;
+        language: string;
+        key: string;
+        value: string;
+        userId: string;
+        action: string;
+        commitSha: string | null;
+        sourceContent: string | null;
+        commitAuthor: string | null;
+        commitEmail: string | null;
+      }> = [];
+      
+      for (const file of files) {
+        const { filetype, filename, lang, contents, metadata, history, structureMap, sourceHash } = file;
+        const fileKey = `${filename}:${lang}`;
+        const fileData = fileDataMap.get(fileKey);
+        
+        if (!fileData) continue;
+        
+        const { flattened, contentsJson, metadataJson, structureMapJson } = fileData;
+        
+        // Upsert project file
         await prisma.projectFile.upsert({
           where: {
             projectId_branch_filename_lang: {
@@ -253,79 +346,93 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           },
         });
         
-        // Create approved translation entries for non-source language files
+        // Prepare translation entries for non-source language files
         if (lang !== project.sourceLanguage && lang !== sourceLanguage) {
-          console.log(`[upload] Creating approved translations for ${filename} (${lang})`);
-          
           for (const [key, value] of Object.entries(flattened)) {
             const translationKey = `${filename}:${key}`;
+            const lookupKey = `${lang}:${translationKey}`;
+            
+            // Skip if translation already exists
+            if (existingTranslationsSet.has(lookupKey)) {
+              continue;
+            }
+            
             const translationId = crypto.randomUUID();
             
-            // Check if translation already exists
-            const existing = await prisma.translation.findFirst({
-              where: {
-                projectId: project.id,
-                language: lang,
-                key: translationKey,
-                status: { in: ['approved', 'committed'] }
-              }
+            // Add to bulk insert list
+            translationsToCreate.push({
+              id: translationId,
+              projectId: project.id,
+              language: lang,
+              key: translationKey,
+              value: String(value),
+              userId: uploadUserId,
+              status: 'approved',
             });
             
-            // Only create if no approved/committed translation exists
-            if (!existing) {
-              await prisma.translation.create({
-                data: {
-                  id: translationId,
-                  projectId: project.id,
-                  language: lang,
-                  key: translationKey,
-                  value: String(value),
-                  userId: uploadUserId,
-                  status: 'approved',
-                },
-              });
-              
-              // Extract git commit info for this key from history if available
-              let gitAuthor: string | undefined;
-              let gitEmail: string | undefined;
-              let sourceContentHash: string | undefined;
-              
-              if (history && history.length > 0) {
-                // Get the most recent commit info for this file
-                const fileHistory = history.find(h => h.key === '__file__' || h.key === '__all_keys__' || h.key === key);
-                if (fileHistory && fileHistory.commits.length > 0) {
-                  const mostRecentCommit = fileHistory.commits[0];
-                  gitAuthor = mostRecentCommit.author;
-                  gitEmail = mostRecentCommit.email;
-                }
+            // Extract git commit info for this key from history if available
+            let gitAuthor: string | undefined;
+            let gitEmail: string | undefined;
+            let sourceContentHash: string | undefined;
+            
+            if (history && history.length > 0) {
+              // Get the most recent commit info for this file
+              const fileHistory = history.find(h => h.key === '__file__' || h.key === '__all_keys__' || h.key === key);
+              if (fileHistory && fileHistory.commits.length > 0) {
+                const mostRecentCommit = fileHistory.commits[0];
+                gitAuthor = mostRecentCommit.author;
+                gitEmail = mostRecentCommit.email;
               }
-              
-              // Get source content hash from structure map if available
-              if (structureMap) {
-                const mapEntry = structureMap.find((entry: any) => entry.flattenedKey === key);
-                if (mapEntry) {
-                  sourceContentHash = mapEntry.sourceHash;
-                }
-              }
-              
-              const { logTranslationHistory } = await import('../lib/database.js');
-              await logTranslationHistory(
-                prisma,
-                translationId,
-                project.id,
-                lang,
-                translationKey,
-                String(value),
-                uploadUserId,
-                'imported',
-                commitSha,
-                sourceContentHash,
-                gitAuthor,
-                gitEmail
-              );
             }
+            
+            // Get source content hash from structure map if available
+            if (structureMap) {
+              const mapEntry = structureMap.find((entry: any) => entry.flattenedKey === key);
+              if (mapEntry) {
+                sourceContentHash = mapEntry.sourceHash;
+              }
+            }
+            
+            // Add to bulk history insert list
+            historyToCreate.push({
+              id: crypto.randomUUID(),
+              translationId,
+              projectId: project.id,
+              language: lang,
+              key: translationKey,
+              value: String(value),
+              userId: uploadUserId,
+              action: 'imported',
+              commitSha: commitSha || null,
+              sourceContent: sourceContentHash || null,
+              commitAuthor: gitAuthor || null,
+              commitEmail: gitEmail || null,
+            });
           }
         }
+      }
+      
+      // Bulk insert translations and history
+      if (translationsToCreate.length > 0) {
+        console.log(`[upload] Bulk creating ${translationsToCreate.length} translations...`);
+        
+        // Use createMany for bulk insert
+        await prisma.translation.createMany({
+          data: translationsToCreate,
+        });
+        
+        console.log(`[upload] Translations created successfully`);
+      }
+      
+      if (historyToCreate.length > 0) {
+        console.log(`[upload] Bulk creating ${historyToCreate.length} history entries...`);
+        
+        // Use createMany for bulk insert
+        await prisma.translationHistory.createMany({
+          data: historyToCreate,
+        });
+        
+        console.log(`[upload] History entries created successfully`);
       }
 
       return c.json({
@@ -443,6 +550,16 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         }, 400);
       }
 
+      // First pass: Parse and prepare file data, collect translation keys to check
+      const fileLang = language || project.sourceLanguage;
+      const translationKeysToCheck: Array<{ key: string }> = [];
+      const fileDataMap = new Map<string, {
+        parsedContent: any;
+        flattened: Record<string, string>;
+        contentsJson: string;
+        metadataJson: string;
+      }>();
+      
       for (const [filename, content] of Object.entries(files)) {
         const parsedContent = typeof content === 'string' ? JSON.parse(content) : content;
         const flattened = flattenObject(parsedContent);
@@ -454,8 +571,6 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           console.warn(`[upload-json] Warning: File ${filename} has 0 keys. Content:`, JSON.stringify(parsedContent).substring(0, 200));
         }
         
-        const fileLang = language || project.sourceLanguage;
-        
         // Safely stringify with validation
         const contentsJson = safeJSONStringify(flattened, `upload-json:${filename}:${fileLang}`);
         const metadataJson = safeJSONStringify({
@@ -463,6 +578,80 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           uploadMethod: 'json-direct'
         }, `upload-json:${filename}:${fileLang}:metadata`);
         
+        // Store file data for later processing
+        fileDataMap.set(filename, {
+          parsedContent,
+          flattened,
+          contentsJson,
+          metadataJson,
+        });
+        
+        // Collect translation keys to check for non-source language files
+        if (fileLang !== project.sourceLanguage) {
+          for (const key of Object.keys(flattened)) {
+            const translationKey = `${filename}:${key}`;
+            translationKeysToCheck.push({ key: translationKey });
+          }
+        }
+      }
+      
+      // Bulk query: Check which translations already exist
+      const existingTranslationsSet = new Set<string>();
+      if (translationKeysToCheck.length > 0) {
+        console.log(`[upload-json] Checking ${translationKeysToCheck.length} translations in bulk...`);
+        
+        const existingTranslations = await prisma.translation.findMany({
+          where: {
+            projectId: project.id,
+            language: fileLang,
+            status: { in: ['approved', 'committed'] }
+          },
+          select: {
+            key: true,
+          },
+        });
+        
+        // Build a set of existing translation keys for quick lookup
+        for (const trans of existingTranslations) {
+          existingTranslationsSet.add(trans.key);
+        }
+        
+        console.log(`[upload-json] Found ${existingTranslations.length} existing translations`);
+      }
+      
+      // Second pass: Process files and prepare bulk inserts
+      const translationsToCreate: Array<{
+        id: string;
+        projectId: string;
+        language: string;
+        key: string;
+        value: string;
+        userId: string;
+        status: string;
+      }> = [];
+      
+      const historyToCreate: Array<{
+        id: string;
+        translationId: string;
+        projectId: string;
+        language: string;
+        key: string;
+        value: string;
+        userId: string;
+        action: string;
+        commitSha: string | null;
+        sourceContent: string | null;
+        commitAuthor: string | null;
+        commitEmail: string | null;
+      }> = [];
+      
+      for (const [filename, content] of Object.entries(files)) {
+        const fileData = fileDataMap.get(filename);
+        if (!fileData) continue;
+        
+        const { flattened, contentsJson, metadataJson } = fileData;
+        
+        // Upsert project file
         await prisma.projectFile.upsert({
           where: {
             projectId_branch_filename_lang: {
@@ -492,52 +681,67 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           },
         });
         
-        // Create approved translation entries for non-source language files
+        // Prepare translation entries for non-source language files
         if (fileLang !== project.sourceLanguage) {
-          console.log(`[upload-json] Creating approved translations for ${filename} (${fileLang})`);
-          
           for (const [key, value] of Object.entries(flattened)) {
             const translationKey = `${filename}:${key}`;
+            
+            // Skip if translation already exists
+            if (existingTranslationsSet.has(translationKey)) {
+              continue;
+            }
+            
             const translationId = crypto.randomUUID();
             
-            // Check if translation already exists
-            const existing = await prisma.translation.findFirst({
-              where: {
-                projectId: project.id,
-                language: fileLang,
-                key: translationKey,
-                status: { in: ['approved', 'committed'] }
-              }
+            // Add to bulk insert list
+            translationsToCreate.push({
+              id: translationId,
+              projectId: project.id,
+              language: fileLang,
+              key: translationKey,
+              value: String(value),
+              userId: uploadUserId,
+              status: 'approved',
             });
             
-            // Only create if no approved/committed translation exists
-            if (!existing) {
-              await prisma.translation.create({
-                data: {
-                  id: translationId,
-                  projectId: project.id,
-                  language: fileLang,
-                  key: translationKey,
-                  value: String(value),
-                  userId: uploadUserId,
-                  status: 'approved',
-                },
-              });
-              
-              const { logTranslationHistory } = await import('../lib/database.js');
-              await logTranslationHistory(
-                prisma,
-                translationId,
-                project.id,
-                fileLang,
-                translationKey,
-                String(value),
-                uploadUserId,
-                'imported'
-              );
-            }
+            // Add to bulk history insert list
+            historyToCreate.push({
+              id: crypto.randomUUID(),
+              translationId,
+              projectId: project.id,
+              language: fileLang,
+              key: translationKey,
+              value: String(value),
+              userId: uploadUserId,
+              action: 'imported',
+              commitSha: null,
+              sourceContent: null,
+              commitAuthor: null,
+              commitEmail: null,
+            });
           }
         }
+      }
+      
+      // Bulk insert translations and history
+      if (translationsToCreate.length > 0) {
+        console.log(`[upload-json] Bulk creating ${translationsToCreate.length} translations...`);
+        
+        await prisma.translation.createMany({
+          data: translationsToCreate,
+        });
+        
+        console.log(`[upload-json] Translations created successfully`);
+      }
+      
+      if (historyToCreate.length > 0) {
+        console.log(`[upload-json] Bulk creating ${historyToCreate.length} history entries...`);
+        
+        await prisma.translationHistory.createMany({
+          data: historyToCreate,
+        });
+        
+        console.log(`[upload-json] History entries created successfully`);
       }
 
       return c.json({
