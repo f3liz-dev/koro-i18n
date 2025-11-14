@@ -151,6 +151,101 @@ describe('Translation History and Validation', () => {
       expect(welcomeHistory?.commits[0].author).toBe('John Doe');
       expect(goodbyeHistory?.commits[0].author).toBe('Jane Smith');
     });
+
+    it('should accept per-key history for deeply nested keys', async () => {
+      const uploadPayload = {
+        branch: 'main',
+        commitSha: 'abc123',
+        sourceLanguage: 'en',
+        targetLanguages: ['ja'],
+        files: [
+          {
+            filetype: 'json',
+            filename: 'deeply-nested.json',
+            lang: 'en',
+            contents: {
+              'app.header.title': 'My App',
+              'app.header.subtitle': 'Welcome',
+              'app.navigation.menu.items.home': 'Home',
+              'app.navigation.menu.items.services.web': 'Web Dev',
+            },
+            metadata: {
+              size: 200,
+              keys: 4,
+            },
+            history: [
+              {
+                key: 'app.header.title',
+                commits: [
+                  {
+                    commitSha: 'abc123',
+                    author: 'Alice',
+                    email: 'alice@example.com',
+                    timestamp: '2024-01-01T00:00:00Z',
+                  },
+                ],
+              },
+              {
+                key: 'app.header.subtitle',
+                commits: [
+                  {
+                    commitSha: 'def456',
+                    author: 'Bob',
+                    email: 'bob@example.com',
+                    timestamp: '2024-01-02T00:00:00Z',
+                  },
+                ],
+              },
+              {
+                key: 'app.navigation.menu.items.home',
+                commits: [
+                  {
+                    commitSha: 'ghi789',
+                    author: 'Charlie',
+                    email: 'charlie@example.com',
+                    timestamp: '2024-01-03T00:00:00Z',
+                  },
+                ],
+              },
+              {
+                key: 'app.navigation.menu.items.services.web',
+                commits: [
+                  {
+                    commitSha: 'jkl012',
+                    author: 'Diana',
+                    email: 'diana@example.com',
+                    timestamp: '2024-01-04T00:00:00Z',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // Validate deeply nested keys have individual history
+      expect(uploadPayload.files[0].history).toBeDefined();
+      expect(uploadPayload.files[0].history?.length).toBe(4);
+      
+      // Verify each nested key has its own history
+      const historyKeys = uploadPayload.files[0].history?.map(h => h.key);
+      expect(historyKeys).toContain('app.header.title');
+      expect(historyKeys).toContain('app.navigation.menu.items.home');
+      expect(historyKeys).toContain('app.navigation.menu.items.services.web');
+      
+      // Verify deeply nested keys (depth 5 and 6) have correct history
+      const deepKey = uploadPayload.files[0].history?.find(
+        h => h.key === 'app.navigation.menu.items.services.web'
+      );
+      expect(deepKey).toBeDefined();
+      expect(deepKey?.key.split('.').length).toBe(6); // Depth 6
+      expect(deepKey?.commits[0].author).toBe('Diana');
+      
+      // Verify all keys have unique commits
+      const commitShas = uploadPayload.files[0].history?.map(h => h.commits[0].commitSha);
+      const uniqueCommits = new Set(commitShas);
+      expect(uniqueCommits.size).toBe(4);
+    });
   });
 
   describe('Structure Map Unflattening', () => {
