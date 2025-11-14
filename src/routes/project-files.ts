@@ -149,7 +149,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       const uploadUserId = authResult.userId || project.userId;
 
       for (const file of files) {
-        const { filetype, filename, lang, contents, metadata } = file;
+        const { filetype, filename, lang, contents, metadata, history, structureMap, sourceHash } = file;
         
         // Flatten the contents if they are nested
         const flattened = flattenObject(contents || {});
@@ -164,6 +164,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         // Safely stringify with validation
         const contentsJson = safeJSONStringify(flattened, `upload:${filename}:${lang}`);
         const metadataJson = safeJSONStringify(metadata || {}, `upload:${filename}:${lang}:metadata`);
+        const structureMapJson = structureMap ? safeJSONStringify(structureMap, `upload:${filename}:${lang}:structureMap`) : null;
         
         await prisma.projectFile.upsert({
           where: {
@@ -179,6 +180,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
             filetype,
             contents: contentsJson,
             metadata: metadataJson,
+            sourceHash: sourceHash || null,
+            structureMap: structureMapJson,
             uploadedAt: new Date(),
           },
           create: {
@@ -191,6 +194,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
             lang,
             contents: contentsJson,
             metadata: metadataJson,
+            sourceHash: sourceHash || null,
+            structureMap: structureMapJson,
           },
         });
         
@@ -226,6 +231,29 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
                 },
               });
               
+              // Extract git commit info for this key from history if available
+              let gitAuthor: string | undefined;
+              let gitEmail: string | undefined;
+              let sourceContentHash: string | undefined;
+              
+              if (history && history.length > 0) {
+                // Get the most recent commit info for this file
+                const fileHistory = history.find(h => h.key === '__file__' || h.key === '__all_keys__' || h.key === key);
+                if (fileHistory && fileHistory.commits.length > 0) {
+                  const mostRecentCommit = fileHistory.commits[0];
+                  gitAuthor = mostRecentCommit.author;
+                  gitEmail = mostRecentCommit.email;
+                }
+              }
+              
+              // Get source content hash from structure map if available
+              if (structureMap) {
+                const mapEntry = structureMap.find((entry: any) => entry.flattenedKey === key);
+                if (mapEntry) {
+                  sourceContentHash = mapEntry.sourceHash;
+                }
+              }
+              
               const { logTranslationHistory } = await import('../lib/database.js');
               await logTranslationHistory(
                 prisma,
@@ -235,7 +263,11 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
                 translationKey,
                 String(value),
                 uploadUserId,
-                'imported'
+                'imported',
+                commitSha,
+                sourceContentHash,
+                gitAuthor,
+                gitEmail
               );
             }
           }
@@ -263,6 +295,9 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     if (!token) {
       return c.json({ error: 'Authorization token required' }, 401);
     }
+
+    // Add deprecation warning
+    console.warn(`[DEPRECATED] /upload-json endpoint is deprecated. Please use /upload with structured format instead.`);
 
     const projectName = c.req.param('projectName');
     const body = await c.req.json();
