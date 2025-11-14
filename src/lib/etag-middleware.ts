@@ -38,13 +38,15 @@ export async function etagMiddleware(c: Context, next: Next) {
   // Check if client has matching ETag
   if (checkIfNoneMatch(c.req.raw, etag)) {
     // Client has the same content, return 304 Not Modified
+    // Build headers for 304 response
+    const headers: Record<string, string> = { 'ETag': etag };
+    const cacheControl = response.headers.get('Cache-Control');
+    if (cacheControl) {
+      headers['Cache-Control'] = cacheControl;
+    }
     c.res = new Response(null, {
       status: 304,
-      headers: {
-        'ETag': etag,
-        // Preserve Cache-Control header for 304 responses
-        'Cache-Control': response.headers.get('Cache-Control') || '',
-      },
+      headers,
     });
     return;
   }
