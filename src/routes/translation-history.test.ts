@@ -74,6 +74,83 @@ describe('Translation History and Validation', () => {
       expect(uploadPayload.files[0].structureMap).toBeDefined();
       expect(uploadPayload.files[0].sourceHash).toBeDefined();
     });
+
+    it('should accept per-key history in upload payload', async () => {
+      const uploadPayload = {
+        branch: 'main',
+        commitSha: 'abc123',
+        sourceLanguage: 'en',
+        targetLanguages: ['ja'],
+        files: [
+          {
+            filetype: 'json',
+            filename: 'common.json',
+            lang: 'en',
+            contents: {
+              'welcome': 'Welcome',
+              'goodbye': 'Goodbye',
+              'hello': 'Hello',
+            },
+            metadata: {
+              size: 150,
+              keys: 3,
+            },
+            history: [
+              {
+                key: 'welcome',
+                commits: [
+                  {
+                    commitSha: 'abc123',
+                    author: 'John Doe',
+                    email: 'john@example.com',
+                    timestamp: '2024-01-01T00:00:00Z',
+                  },
+                ],
+              },
+              {
+                key: 'goodbye',
+                commits: [
+                  {
+                    commitSha: 'def456',
+                    author: 'Jane Smith',
+                    email: 'jane@example.com',
+                    timestamp: '2024-01-02T00:00:00Z',
+                  },
+                ],
+              },
+              {
+                key: 'hello',
+                commits: [
+                  {
+                    commitSha: 'ghi789',
+                    author: 'Bob Johnson',
+                    email: 'bob@example.com',
+                    timestamp: '2024-01-03T00:00:00Z',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // Validate per-key history structure
+      expect(uploadPayload.files[0].history).toBeDefined();
+      expect(uploadPayload.files[0].history?.length).toBe(3);
+      
+      // Verify each key has its own history entry
+      const historyKeys = uploadPayload.files[0].history?.map(h => h.key);
+      expect(historyKeys).toContain('welcome');
+      expect(historyKeys).toContain('goodbye');
+      expect(historyKeys).toContain('hello');
+      
+      // Verify each key has different commit info
+      const welcomeHistory = uploadPayload.files[0].history?.find(h => h.key === 'welcome');
+      const goodbyeHistory = uploadPayload.files[0].history?.find(h => h.key === 'goodbye');
+      expect(welcomeHistory?.commits[0].commitSha).not.toBe(goodbyeHistory?.commits[0].commitSha);
+      expect(welcomeHistory?.commits[0].author).toBe('John Doe');
+      expect(goodbyeHistory?.commits[0].author).toBe('Jane Smith');
+    });
   });
 
   describe('Structure Map Unflattening', () => {
