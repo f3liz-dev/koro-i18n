@@ -160,7 +160,7 @@ describe('API Endpoints', () => {
       expect(payload).toBeNull();
     });
 
-    it('should set no-store cache header on /api/auth/me endpoint', async () => {
+    it('should set cache header with TTL on /api/auth/me endpoint', async () => {
       const env = createMockEnv();
       const app = createWorkerApp(env);
       
@@ -179,9 +179,13 @@ describe('API Endpoints', () => {
       
       expect(res.status).toBe(200);
       const cacheControl = res.headers.get('Cache-Control');
-      expect(cacheControl).toContain('no-store');
-      expect(cacheControl).toContain('max-age=0');
+      // Auth endpoint now uses aggressive caching (5 min TTL with SWR)
+      // authFetch handles 401 errors by clearing cache
+      expect(cacheControl).toContain('max-age=300');
+      expect(cacheControl).toContain('stale-while-revalidate=60');
       expect(cacheControl).toContain('private');
+      expect(cacheControl).not.toContain('no-store');
+      expect(cacheControl).not.toContain('no-cache');
     });
   });
 

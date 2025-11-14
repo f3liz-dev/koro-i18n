@@ -12,6 +12,13 @@ describe('Cache Headers', () => {
       expect(result).toContain('private');
     });
 
+    it('should include stale-while-revalidate when provided', () => {
+      const result = buildCacheControl({ maxAge: 300, swr: 60 });
+      expect(result).toContain('max-age=300');
+      expect(result).toContain('stale-while-revalidate=60');
+      expect(result).toContain('private');
+    });
+
     it('should include no-cache when provided', () => {
       const result = buildCacheControl({ maxAge: 0, noCache: true });
       expect(result).toContain('max-age=0');
@@ -35,37 +42,55 @@ describe('Cache Headers', () => {
 
     it('should build cache control for projects config', () => {
       const result = buildCacheControl(CACHE_CONFIGS.projects);
-      expect(result).toContain('max-age=0');
-      expect(result).toContain('no-cache');
+      expect(result).toContain('max-age=300');
+      expect(result).toContain('stale-while-revalidate=60');
       expect(result).toContain('private');
+      expect(result).not.toContain('no-cache');
+      expect(result).not.toContain('no-store');
     });
 
     it('should build cache control for project files config', () => {
       const result = buildCacheControl(CACHE_CONFIGS.projectFiles);
-      expect(result).toContain('max-age=0');
-      expect(result).toContain('no-cache');
+      expect(result).toContain('max-age=600');
+      expect(result).toContain('stale-while-revalidate=120');
       expect(result).toContain('private');
+      expect(result).not.toContain('no-cache');
+      expect(result).not.toContain('no-store');
     });
 
     it('should build cache control for translations config', () => {
       const result = buildCacheControl(CACHE_CONFIGS.translations);
-      expect(result).toContain('max-age=0');
-      expect(result).toContain('no-cache');
+      expect(result).toContain('max-age=60');
+      expect(result).toContain('stale-while-revalidate=30');
       expect(result).toContain('private');
+      expect(result).not.toContain('no-cache');
+      expect(result).not.toContain('no-store');
     });
 
     it('should build cache control for translation suggestions config', () => {
       const result = buildCacheControl(CACHE_CONFIGS.translationSuggestions);
-      expect(result).toContain('max-age=0');
-      expect(result).toContain('no-cache');
+      expect(result).toContain('max-age=30');
+      expect(result).toContain('stale-while-revalidate=10');
       expect(result).toContain('private');
+      expect(result).not.toContain('no-cache');
+      expect(result).not.toContain('no-store');
     });
 
     it('should build cache control for user config', () => {
       const result = buildCacheControl(CACHE_CONFIGS.user);
-      expect(result).toContain('max-age=0');
-      expect(result).toContain('no-cache');
+      expect(result).toContain('max-age=3600');
       expect(result).toContain('private');
+      expect(result).not.toContain('no-cache');
+      expect(result).not.toContain('no-store');
+    });
+
+    it('should build cache control for auth config', () => {
+      const result = buildCacheControl(CACHE_CONFIGS.auth);
+      expect(result).toContain('max-age=300');
+      expect(result).toContain('stale-while-revalidate=60');
+      expect(result).toContain('private');
+      expect(result).not.toContain('no-cache');
+      expect(result).not.toContain('no-store');
     });
 
     it('should build cache control for noCache config', () => {

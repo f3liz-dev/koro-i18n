@@ -2,6 +2,7 @@ import { createSignal, createResource, onMount } from 'solid-js';
 import { tryGetCached, clearBrowserCache } from './utils/cachedFetch';
 import { authFetch } from './utils/authFetch';
 import { clearAllCaches } from './utils/dataStore';
+import { isFirstLoad } from './utils/appState';
 
 interface User {
   id: string;
@@ -15,25 +16,16 @@ const API = '/api';
 const [userSignal, setUser] = createSignal<User | null>(null);
 const [error, setError] = createSignal<string | null>(null);
 
-// Check for cached user data at module load time
-const cachedUserPromise = (async () => {
+const fetchUser = async (bypassCache = false) => {
   try {
-    const cached = await tryGetCached(`${API}/auth/me`, { credentials: 'include' });
-    if (cached) {
-      const data: any = await cached.json();
-      return data.user;
-    }
-  } catch {
-    // Cache miss is expected, continue with normal flow
-  }
-  return null;
-})();
-
-const fetchUser = async () => {
-  try {
-    const res = await authFetch(`${API}/auth/me`, { 
+    // On page reload (first load), bypass cache to ensure fresh data
+    const fetchOptions: RequestInit = { 
       credentials: 'include',
-    });
+      // Use 'reload' cache mode to bypass cache on page reload
+      ...(bypassCache ? { cache: 'reload' } : {})
+    };
+    
+    const res = await authFetch(`${API}/auth/me`, fetchOptions);
     if (!res.ok) return null;
     const data: any = await res.json();
     const userData = data.user;
@@ -45,12 +37,13 @@ const fetchUser = async () => {
   }
 };
 
-// Initialize createResource with cached data if available
+// Initialize createResource - force fresh fetch on page reload
 const [initialUser, { refetch }] = createResource(
   async () => {
-    const cached = await cachedUserPromise;
-    if (cached) return cached;
-    return fetchUser();
+    // Check if this is first load (page reload) - if so, bypass cache
+    const isPageReload = isFirstLoad();
+    console.log(`[Auth] ${isPageReload ? 'Page reload detected - fetching fresh data' : 'Using cached auth data'}`);
+    return fetchUser(isPageReload);
   }
 );
 

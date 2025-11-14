@@ -37,7 +37,7 @@ export function initializeForesight() {
 export async function prefetchData(url: string): Promise<void> {
   if (typeof window === 'undefined') return;
   
-  // Skip if already prefetched
+  // Skip if already prefetched or currently prefetching
   if (prefetchCache.has(url)) {
     return;
   }
@@ -47,13 +47,18 @@ export async function prefetchData(url: string): Promise<void> {
     prefetchCache.add(url);
     
     // Perform actual fetch - this will be cached by the browser
-    await fetch(url, { 
+    // Don't await to prevent blocking navigation
+    fetch(url, { 
       credentials: 'include',
       // Use low priority so it doesn't interfere with user-initiated requests
       priority: 'low' as RequestPriority,
+    }).then(() => {
+      console.log(`[ForesightJS] Prefetched: ${url}`);
+    }).catch((error) => {
+      // Remove from cache on error so it can be retried
+      prefetchCache.delete(url);
+      console.warn(`[ForesightJS] Failed to prefetch ${url}:`, error);
     });
-    
-    console.log(`[ForesightJS] Prefetched: ${url}`);
   } catch (error) {
     // Remove from cache on error so it can be retried
     prefetchCache.delete(url);
@@ -62,22 +67,23 @@ export async function prefetchData(url: string): Promise<void> {
 }
 
 /**
- * Prefetch multiple URLs
+ * Prefetch multiple URLs without blocking
  * @param urls - Array of URLs to prefetch
  */
-export async function prefetchMultiple(urls: string[]): Promise<void> {
-  // Prefetch in parallel for better performance
-  await Promise.all(urls.map(url => prefetchData(url)));
+export function prefetchMultiple(urls: string[]): void {
+  // Prefetch in parallel without blocking
+  urls.forEach(url => prefetchData(url));
 }
 
 /**
  * Smart prefetch based on route context
  * This performs actual data fetching when ForesightJS predicts user intent
+ * Non-blocking to prevent navigation delays
  * @param route - Current route name
  * @param projectId - Optional project ID
  * @param language - Optional language code
  */
-export async function prefetchForRoute(route: string, projectId?: string, language?: string): Promise<void> {
+export function prefetchForRoute(route: string, projectId?: string, language?: string): void {
   const prefetchMap: Record<string, string[]> = {
     dashboard: ['/api/projects'],
     'project-languages': projectId ? [`/api/projects/${projectId}/files/summary`] : [],
@@ -94,11 +100,12 @@ export async function prefetchForRoute(route: string, projectId?: string, langua
   };
 
   const urls = prefetchMap[route] || [];
-  await prefetchMultiple(urls);
+  prefetchMultiple(urls);
 }
 
 /**
  * Register a navigation element with ForesightJS for smart prefetching
+ * Non-blocking to prevent navigation delays
  * @param element - The DOM element to track (e.g., a link or button)
  * @param prefetchUrls - URLs to prefetch when user shows intent to interact
  * @param hitSlop - Optional hit slop in pixels (default uses global setting)
@@ -114,7 +121,8 @@ export function registerNavigationElement(
     element,
     callback: () => {
       // Perform actual data fetching when ForesightJS predicts interaction
-      void prefetchMultiple(prefetchUrls);
+      // Non-blocking to prevent navigation delays
+      prefetchMultiple(prefetchUrls);
     },
     hitSlop,
   });
