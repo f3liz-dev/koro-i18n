@@ -157,6 +157,51 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       // Get userId for creating translation entries
       const uploadUserId = authResult.userId || project.userId;
 
+      // Pre-validate all files for size limits before processing
+      const fileSizeErrors: string[] = [];
+      for (const file of files) {
+        const { filename, lang, contents, metadata, structureMap } = file;
+        const flattened = flattenObject(contents || {});
+        
+        // Check contents size
+        const contentsStr = JSON.stringify(flattened);
+        if (contentsStr.length > MAX_FILE_CONTENT_SIZE) {
+          const sizeMB = (contentsStr.length / 1024 / 1024).toFixed(2);
+          const maxMB = (MAX_FILE_CONTENT_SIZE / 1024 / 1024).toFixed(2);
+          fileSizeErrors.push(`${filename} (${lang}): contents ${sizeMB}MB exceeds ${maxMB}MB limit`);
+        }
+        
+        // Check metadata size
+        if (metadata) {
+          const metadataStr = JSON.stringify(metadata);
+          if (metadataStr.length > MAX_FILE_CONTENT_SIZE) {
+            const sizeMB = (metadataStr.length / 1024 / 1024).toFixed(2);
+            const maxMB = (MAX_FILE_CONTENT_SIZE / 1024 / 1024).toFixed(2);
+            fileSizeErrors.push(`${filename} (${lang}): metadata ${sizeMB}MB exceeds ${maxMB}MB limit`);
+          }
+        }
+        
+        // Check structureMap size
+        if (structureMap) {
+          const structureMapStr = JSON.stringify(structureMap);
+          if (structureMapStr.length > MAX_FILE_CONTENT_SIZE) {
+            const sizeMB = (structureMapStr.length / 1024 / 1024).toFixed(2);
+            const maxMB = (MAX_FILE_CONTENT_SIZE / 1024 / 1024).toFixed(2);
+            fileSizeErrors.push(`${filename} (${lang}): structureMap ${sizeMB}MB exceeds ${maxMB}MB limit`);
+          }
+        }
+      }
+      
+      // If any files exceed size limits, return error before processing
+      if (fileSizeErrors.length > 0) {
+        console.error(`[upload] File size limit exceeded for ${fileSizeErrors.length} file(s):`, fileSizeErrors);
+        return c.json({ 
+          error: 'One or more files exceed the size limit',
+          details: fileSizeErrors,
+          maxSizePerFile: `${MAX_FILE_CONTENT_SIZE / 1024 / 1024}MB`
+        }, 400);
+      }
+
       for (const file of files) {
         const { filetype, filename, lang, contents, metadata, history, structureMap, sourceHash } = file;
         
@@ -299,10 +344,29 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         stack: error.stack,
         name: error.name
       });
-      const errorMessage = error.message || 'Failed to store files';
+      
+      // Provide more specific error messages for known error types
+      let errorMessage = 'Failed to store files';
+      
+      if (error.message && error.message.includes('exceeds size limit')) {
+        errorMessage = error.message;
+        return c.json({ 
+          error: errorMessage,
+          details: env.ENVIRONMENT === 'development' ? error.stack : undefined
+        }, 400);
+      } else if (error.message && error.message.includes('JSON')) {
+        errorMessage = 'Invalid JSON data in one or more files';
+        return c.json({ 
+          error: errorMessage,
+          details: env.ENVIRONMENT === 'development' ? error.stack : undefined
+        }, 400);
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       return c.json({ 
-        error: 'Failed to store files',
-        details: env.ENVIRONMENT === 'development' ? errorMessage : undefined
+        error: errorMessage,
+        details: env.ENVIRONMENT === 'development' ? error.stack : undefined
       }, 500);
     }
   });
@@ -353,6 +417,31 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       
       // Get userId for creating translation entries
       const uploadUserId = authResult.userId || project.userId;
+
+      // Pre-validate all files for size limits before processing
+      const fileSizeErrors: string[] = [];
+      for (const [filename, content] of Object.entries(files)) {
+        const parsedContent = typeof content === 'string' ? JSON.parse(content) : content;
+        const flattened = flattenObject(parsedContent);
+        
+        // Check contents size
+        const contentsStr = JSON.stringify(flattened);
+        if (contentsStr.length > MAX_FILE_CONTENT_SIZE) {
+          const sizeMB = (contentsStr.length / 1024 / 1024).toFixed(2);
+          const maxMB = (MAX_FILE_CONTENT_SIZE / 1024 / 1024).toFixed(2);
+          fileSizeErrors.push(`${filename}: contents ${sizeMB}MB exceeds ${maxMB}MB limit`);
+        }
+      }
+      
+      // If any files exceed size limits, return error before processing
+      if (fileSizeErrors.length > 0) {
+        console.error(`[upload-json] File size limit exceeded for ${fileSizeErrors.length} file(s):`, fileSizeErrors);
+        return c.json({ 
+          error: 'One or more files exceed the size limit',
+          details: fileSizeErrors,
+          maxSizePerFile: `${MAX_FILE_CONTENT_SIZE / 1024 / 1024}MB`
+        }, 400);
+      }
 
       for (const [filename, content] of Object.entries(files)) {
         const parsedContent = typeof content === 'string' ? JSON.parse(content) : content;
@@ -469,10 +558,29 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         stack: error.stack,
         name: error.name
       });
-      const errorMessage = error.message || 'Failed to store files';
+      
+      // Provide more specific error messages for known error types
+      let errorMessage = 'Failed to store files';
+      
+      if (error.message && error.message.includes('exceeds size limit')) {
+        errorMessage = error.message;
+        return c.json({ 
+          error: errorMessage,
+          details: env.ENVIRONMENT === 'development' ? error.stack : undefined
+        }, 400);
+      } else if (error.message && error.message.includes('JSON')) {
+        errorMessage = 'Invalid JSON data in one or more files';
+        return c.json({ 
+          error: errorMessage,
+          details: env.ENVIRONMENT === 'development' ? error.stack : undefined
+        }, 400);
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       return c.json({ 
-        error: 'Failed to store files',
-        details: env.ENVIRONMENT === 'development' ? errorMessage : undefined
+        error: errorMessage,
+        details: env.ENVIRONMENT === 'development' ? error.stack : undefined
       }, 500);
     }
   });
