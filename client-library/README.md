@@ -195,6 +195,43 @@ Parsed to:
 - `GITHUB_REF_NAME` - Branch name (auto-set in GitHub Actions)
 - `GITHUB_SHA` - Commit SHA (auto-set in GitHub Actions)
 
+## CLI Options
+
+### `--chunk-size <number>`
+
+Configure the number of files to upload in each batch (default: 30).
+
+When uploading a large number of translation files (e.g., 234 files), the upload process splits them into smaller chunks to avoid exceeding Cloudflare Worker time limits.
+
+**Examples:**
+
+```bash
+# Use default chunk size (30 files per request)
+i18n-upload --oidc-token "$OIDC_TOKEN" --project-name "my-project"
+
+# Upload with smaller chunks (20 files per request)
+i18n-upload --oidc-token "$OIDC_TOKEN" --project-name "my-project" --chunk-size 20
+
+# Upload with larger chunks (50 files per request) - use carefully
+i18n-upload --oidc-token "$OIDC_TOKEN" --project-name "my-project" --chunk-size 50
+```
+
+**When to adjust chunk size:**
+- **Decrease** (e.g., 20) if you still get timeout errors with default settings
+- **Increase** (e.g., 50) if your files are small and you want faster uploads
+- The default of 30 works well for most projects
+
+**Progress reporting:**
+```
+Uploading 234 files in chunks of 30...
+Uploading chunk 1/8 (30 files)...
+Chunk 1/8 uploaded successfully (30 files, 1245 keys)
+Uploading chunk 2/8 (30 files)...
+Chunk 2/8 uploaded successfully (30 files, 1189 keys)
+...
+All chunks uploaded successfully! Total: 234 files, 9876 keys
+```
+
 ## Authentication
 
 The client library uses OIDC tokens for authentication when used in GitHub Actions. The reusable actions handle this automatically.
