@@ -71,6 +71,12 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           workflow: oidcPayload.workflow
         };
       }
+      
+      // OIDC token is valid but repository doesn't match
+      return {
+        authorized: false,
+        error: `Repository mismatch: token is for ${oidcPayload.repository}, but project repository is ${repository}`
+      };
     } catch (oidcError: any) {
       // OIDC verification failed, try JWT verification as fallback
       const jwtPayload = await verifyJWT(token, jwtSecret);
@@ -86,10 +92,11 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       }
       
       // If we get here, both OIDC and JWT verification failed
-      throw new Error(`Authentication failed: ${oidcError.message}`);
+      return {
+        authorized: false,
+        error: `Authentication failed: ${oidcError.message}`
+      };
     }
-    
-    return { authorized: false };
   }
 
   app.post('/:projectName/upload', async (c) => {
@@ -126,7 +133,9 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     try {
       const authResult = await validateUploadAuth(token, project.id, project.repository, env.JWT_SECRET);
       if (!authResult.authorized) {
-        return c.json({ error: 'Unauthorized to upload to this project' }, 403);
+        const errorMessage = authResult.error || 'Unauthorized to upload to this project';
+        console.error(`[upload] Authorization failed: ${errorMessage}`);
+        return c.json({ error: errorMessage }, 403);
       }
 
       // Update project sourceLanguage if provided in the upload payload
@@ -285,8 +294,16 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         uploadedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('Upload error:', error);
-      return c.json({ error: 'Failed to store files' }, 500);
+      console.error('[upload] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      const errorMessage = error.message || 'Failed to store files';
+      return c.json({ 
+        error: 'Failed to store files',
+        details: env.ENVIRONMENT === 'development' ? errorMessage : undefined
+      }, 500);
     }
   });
 
@@ -327,7 +344,9 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     try {
       const authResult = await validateUploadAuth(token, project.id, project.repository, env.JWT_SECRET);
       if (!authResult.authorized) {
-        return c.json({ error: 'Unauthorized to upload to this project' }, 403);
+        const errorMessage = authResult.error || 'Unauthorized to upload to this project';
+        console.error(`[upload-json] Authorization failed: ${errorMessage}`);
+        return c.json({ error: errorMessage }, 403);
       }
 
       const projectId = project.repository;
@@ -445,8 +464,16 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         uploadedAt: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error('JSON upload error:', error);
-      return c.json({ error: 'Failed to store files' }, 500);
+      console.error('[upload-json] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      const errorMessage = error.message || 'Failed to store files';
+      return c.json({ 
+        error: 'Failed to store files',
+        details: env.ENVIRONMENT === 'development' ? errorMessage : undefined
+      }, 500);
     }
   });
 
