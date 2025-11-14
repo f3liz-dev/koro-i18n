@@ -6,6 +6,7 @@ import { useForesight } from '../utils/useForesight';
 import { SkeletonCard } from '../components/Skeleton';
 import { projectsCache } from '../utils/dataStore';
 import { authFetch } from '../utils/authFetch';
+import { isFirstLoad } from '../utils/appState';
 import PageHeader, { MenuItem } from '../components/PageHeader';
 
 interface Project {
@@ -48,7 +49,9 @@ export default function DashboardPage() {
     void prefetchForRoute('dashboard');
     
     // Fetch projects with languages (needed for dashboard display)
-    projectsCache.fetch(true);
+    // Force fresh fetch if this is page reload
+    const forceRefresh = isFirstLoad();
+    projectsCache.fetch(true, forceRefresh);
   });
 
   createEffect(() => {

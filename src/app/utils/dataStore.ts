@@ -4,6 +4,9 @@
  * This provides instant data access when cached, avoiding loading states and skeleton loaders.
  * Data is fetched in the background and the store is updated when fresh data arrives.
  * 
+ * On page reload, data is fetched with cache bypass to ensure freshness.
+ * During SPA navigation, cached data is used when still fresh.
+ * 
  * Pattern:
  * 1. Access store data - returns immediately with cached data or undefined
  * 2. Call fetch function - updates store in background without blocking
@@ -12,6 +15,7 @@
 
 import { createStore } from 'solid-js/store';
 import { authFetch } from './authFetch';
+import { isFirstLoad } from './appState';
 
 // Projects store
 interface Project {
@@ -44,7 +48,7 @@ export const projectsCache = {
     
     // Skip fetch if cache is fresh and not forced
     if (!force && cacheAge < maxAge && projectsStore.projects.length > 0) {
-      console.log('[DataStore] Using cached projects (age: ${Math.round(cacheAge / 1000)}s)');
+      console.log(`[DataStore] Using cached projects (age: ${Math.round(cacheAge / 1000)}s)`);
       return;
     }
     
@@ -54,7 +58,13 @@ export const projectsCache = {
       ? '/api/projects?includeLanguages=true' 
       : '/api/projects';
     
-    authFetch(url, { credentials: 'include' })
+    // On page reload, bypass cache to ensure fresh data
+    const fetchOptions: RequestInit = { 
+      credentials: 'include',
+      ...(force ? { cache: 'reload' } : {})
+    };
+    
+    authFetch(url, fetchOptions)
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json() as { projects: Project[] };
