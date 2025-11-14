@@ -3,6 +3,7 @@ import { PrismaClient } from '../generated/prisma/';
 import { requireAuth } from '../lib/auth';
 import { logTranslationHistory } from '../lib/database';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
+import { generateTranslationsETag, generateHistoryETag, checkETagMatch, create304Response } from '../lib/etag-db';
 
 interface Env {
   JWT_SECRET: string;
@@ -49,9 +50,19 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       take: 100,
     });
 
-    // Short cache - translations can change during active editing
+    // Generate ETag from translation timestamps
+    const translationTimestamps = translations.map(t => t.updatedAt);
+    const etag = generateTranslationsETag(translationTimestamps);
+    
+    // Check if client has current version
+    const cacheControl = buildCacheControl(CACHE_CONFIGS.translations);
+    if (checkETagMatch(c.req.raw, etag)) {
+      return create304Response(etag, cacheControl);
+    }
+
     const response = c.json({ translations });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translations));
+    response.headers.set('Cache-Control', cacheControl);
+    response.headers.set('ETag', etag);
     return response;
   });
 
@@ -75,9 +86,19 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Short cache - history can change during active editing
+    // Generate ETag from history timestamps
+    const historyTimestamps = history.map(h => h.createdAt);
+    const etag = generateHistoryETag(historyTimestamps);
+    
+    // Check if client has current version
+    const cacheControl = buildCacheControl(CACHE_CONFIGS.translations);
+    if (checkETagMatch(c.req.raw, etag)) {
+      return create304Response(etag, cacheControl);
+    }
+
     const response = c.json({ history });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translations));
+    response.headers.set('Cache-Control', cacheControl);
+    response.headers.set('ETag', etag);
     return response;
   });
 
@@ -111,6 +132,16 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       take: 500,
     });
 
+    // Generate ETag from suggestion timestamps
+    const suggestionTimestamps = suggestions.map(s => s.updatedAt);
+    const etag = generateTranslationsETag(suggestionTimestamps);
+    
+    // Check if client has current version
+    const cacheControl = buildCacheControl(CACHE_CONFIGS.translationSuggestions);
+    if (checkETagMatch(c.req.raw, etag)) {
+      return create304Response(etag, cacheControl);
+    }
+
     // Flatten user data for frontend compatibility
     const flattenedSuggestions = suggestions.map(s => ({
       id: s.id,
@@ -127,9 +158,9 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       updatedAt: s.updatedAt.toISOString(),
     }));
 
-    // No cache - suggestions show real-time pending/approved translations
     const response = c.json({ suggestions: flattenedSuggestions });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translationSuggestions));
+    response.headers.set('Cache-Control', cacheControl);
+    response.headers.set('ETag', etag);
     return response;
   });
 

@@ -62,7 +62,7 @@ export default function JoinProjectPage() {
 
   onMount(() => {
     // Fetch my projects in background
-    projectsCache.fetch();
+    projectsCache.fetch(false);
     // Fetch all available projects
     loadAllProjects();
   });

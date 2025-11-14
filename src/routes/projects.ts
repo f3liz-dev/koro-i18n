@@ -3,6 +3,7 @@ import { PrismaClient } from '../generated/prisma/';
 import { requireAuth, verifyJWT } from '../lib/auth';
 import { checkProjectAccess, flattenObject } from '../lib/database';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
+import { generateProjectsETag, checkETagMatch, create304Response } from '../lib/etag-db';
 
 interface Env {
   JWT_SECRET: string;
@@ -64,6 +65,9 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
+    // Optional query parameter to include languages (expensive operation)
+    const includeLanguages = c.req.query('includeLanguages') === 'true';
+
     const owned = await prisma.project.findMany({
       where: { userId: payload.userId },
       select: {
@@ -97,7 +101,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
         createdAt: true,
         members: {
           where: { userId: payload.userId },
-          select: { role: true },
+          select: { role: true, updatedAt: true },
         },
       },
     });
@@ -109,36 +113,56 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
 
     const allProjects = [...ownedWithRole, ...memberWithRole];
     
-    // Fetch languages for each project efficiently
-    const projectsWithLanguages = await Promise.all(
-      allProjects.map(async (project) => {
-        try {
-          // Query distinct languages for this project's repository
-          const languages = await prisma.projectFile.findMany({
-            where: { 
-              projectId: project.repository,
-              branch: 'main'
-            },
-            select: { lang: true },
-            distinct: ['lang'],
-          });
-          
-          return {
-            ...project,
-            languages: languages.map(l => l.lang),
-          };
-        } catch (error) {
-          console.error(`Failed to load languages for project ${project.name}:`, error);
-          return {
-            ...project,
-            languages: [],
-          };
+    // Generate ETag from project and member timestamps
+    const projectTimestamps = allProjects.map(p => p.createdAt);
+    const memberTimestamps = member.flatMap(p => p.members.map(m => m.updatedAt));
+    const etag = generateProjectsETag(projectTimestamps, memberTimestamps);
+    
+    // Check if client has current version
+    const cacheControl = buildCacheControl(CACHE_CONFIGS.projects);
+    if (checkETagMatch(c.req.raw, etag)) {
+      return create304Response(etag, cacheControl);
+    }
+    
+    // Conditionally fetch languages - this is expensive (N+1 queries)
+    // Frontend should only request this when needed
+    if (includeLanguages) {
+      // Optimize: Fetch all languages for all repositories in one query
+      const repositories = allProjects.map(p => p.repository);
+      const allLanguages = await prisma.projectFile.findMany({
+        where: { 
+          projectId: { in: repositories },
+          branch: 'main'
+        },
+        select: { projectId: true, lang: true },
+        distinct: ['projectId', 'lang'],
+      });
+      
+      // Group languages by repository
+      const languagesByRepo = new Map<string, string[]>();
+      for (const item of allLanguages) {
+        if (!languagesByRepo.has(item.projectId)) {
+          languagesByRepo.set(item.projectId, []);
         }
-      })
-    );
+        languagesByRepo.get(item.projectId)!.push(item.lang);
+      }
+      
+      // Add languages to projects
+      const projectsWithLanguages = allProjects.map(project => ({
+        ...project,
+        languages: languagesByRepo.get(project.repository) || [],
+      }));
+      
+      const response = c.json({ projects: projectsWithLanguages });
+      response.headers.set('Cache-Control', cacheControl);
+      response.headers.set('ETag', etag);
+      return response;
+    }
 
-    const response = c.json({ projects: projectsWithLanguages });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projects));
+    // Return projects without languages for better performance
+    const response = c.json({ projects: allProjects });
+    response.headers.set('Cache-Control', cacheControl);
+    response.headers.set('ETag', etag);
     return response;
   });
 
@@ -161,6 +185,16 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Generate ETag from project timestamps
+    const projectTimestamps = projects.map(p => p.createdAt);
+    const etag = generateProjectsETag(projectTimestamps);
+    
+    // Check if client has current version
+    const cacheControl = buildCacheControl(CACHE_CONFIGS.projects);
+    if (checkETagMatch(c.req.raw, etag)) {
+      return create304Response(etag, cacheControl);
+    }
+
     // Flatten the membership status into the project object
     const projectsWithStatus = projects.map(p => ({
       id: p.id,
@@ -172,7 +206,8 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     }));
 
     const response = c.json({ projects: projectsWithStatus });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projects));
+    response.headers.set('Cache-Control', cacheControl);
+    response.headers.set('ETag', etag);
     return response;
   });
 
@@ -272,6 +307,16 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Generate ETag from member timestamps
+    const memberTimestamps = members.map(m => m.updatedAt);
+    const etag = generateProjectsETag([], memberTimestamps);
+    
+    // Check if client has current version
+    const cacheControl = buildCacheControl(CACHE_CONFIGS.projects);
+    if (checkETagMatch(c.req.raw, etag)) {
+      return create304Response(etag, cacheControl);
+    }
+
     // Flatten the user data into the member object
     const flattenedMembers = members.map(member => ({
       id: member.id,
@@ -285,7 +330,8 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
 
     // Cache project members - changes infrequently
     const response = c.json({ members: flattenedMembers });
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projects));
+    response.headers.set('Cache-Control', cacheControl);
+    response.headers.set('ETag', etag);
     return response;
   });
 

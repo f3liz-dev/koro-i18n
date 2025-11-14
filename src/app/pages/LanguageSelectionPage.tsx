@@ -124,7 +124,7 @@ export default function LanguageSelectionPage() {
     auth.refresh();
     
     // Fetch data in background - will update stores when data arrives
-    projectsCache.fetch();
+    projectsCache.fetch(false);
     
     const projectId = params.id;
     if (projectId) {

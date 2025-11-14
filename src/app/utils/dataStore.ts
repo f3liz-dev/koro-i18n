@@ -37,9 +37,14 @@ const [projectsStore, setProjectsStore] = createStore<ProjectsState>({
 export const projectsCache = {
   get: () => projectsStore,
   
-  async fetch() {
+  async fetch(includeLanguages = true) {
     // Fetch in background, don't block
-    authFetch('/api/projects', { credentials: 'include' })
+    // includeLanguages: whether to include language list (more expensive)
+    const url = includeLanguages 
+      ? '/api/projects?includeLanguages=true' 
+      : '/api/projects';
+    
+    authFetch(url, { credentials: 'include' })
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json() as { projects: Project[] };
