@@ -423,13 +423,16 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       filesByLang[row.lang][row.filename] = JSON.parse(row.contents);
     }
 
-    return c.json({
+    // Cache download endpoint - files are stable between uploads
+    const response = c.json({
       project: projectName,
       repository: project.repository,
       branch,
       files: filesByLang,
       generatedAt: new Date().toISOString()
     });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+    return response;
   });
 
   // Optimized endpoint for UI listing - returns only keys without values for statistics

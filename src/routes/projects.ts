@@ -283,7 +283,10 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       createdAt: member.createdAt.toISOString(),
     }));
 
-    return c.json({ members: flattenedMembers });
+    // Cache project members - changes infrequently
+    const response = c.json({ members: flattenedMembers });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projects));
+    return response;
   });
 
   app.post('/:id/members/:memberId/approve', async (c) => {

@@ -112,6 +112,7 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
     
+    // No cache - always fetch fresh auth status for security
     const response = c.json({ 
       user: { 
         id: payload.userId, 

@@ -8,6 +8,7 @@ import { createAuthRoutes } from './routes/auth';
 import { createTranslationRoutes } from './routes/translations';
 import { createProjectRoutes } from './routes/projects';
 import { createProjectFileRoutes } from './routes/project-files';
+import { CACHE_CONFIGS, buildCacheControl } from './lib/cache-headers';
 
 interface Env {
   DB: D1Database;
@@ -51,10 +52,18 @@ export function createWorkerApp(env: Env) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return c.json({ history });
+    // Real-time data - no caching for translation logs
+    const response = c.json({ history });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.noCache));
+    return response;
   });
 
-  app.get('/health', (c) => c.json({ status: 'ok', runtime: 'cloudflare-workers' }));
+  app.get('/health', (c) => {
+    // Static health check - can be cached for long periods
+    const response = c.json({ status: 'ok', runtime: 'cloudflare-workers' });
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.static));
+    return response;
+  });
 
   app.get('/api/prisma/users', async (c) => {
     try {
@@ -68,7 +77,10 @@ export function createWorkerApp(env: Env) {
         },
         take: 10,
       });
-      return c.json({ users, source: 'prisma-orm' });
+      // Debug endpoint - no caching for development use
+      const response = c.json({ users, source: 'prisma-orm' });
+      response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.noCache));
+      return response;
     } catch (error) {
       console.error('Prisma error:', error);
       return c.json({ error: 'Failed to fetch users' }, 500);
