@@ -15,7 +15,10 @@ export async function logTranslationHistory(
   value: string,
   userId: string,
   action: string,
-  commitSha?: string
+  commitSha?: string,
+  sourceContent?: string,
+  commitAuthor?: string,
+  commitEmail?: string
 ) {
   await prisma.translationHistory.create({
     data: {
@@ -28,6 +31,9 @@ export async function logTranslationHistory(
       userId,
       action,
       commitSha: commitSha || null,
+      sourceContent: sourceContent || null,
+      commitAuthor: commitAuthor || null,
+      commitEmail: commitEmail || null,
     },
   });
 }

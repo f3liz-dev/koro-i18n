@@ -2,6 +2,20 @@
 
 Client library for I18n Platform - processes and uploads translation files from your repository.
 
+## ⚠️ Important Changes
+
+### Upload Mode Deprecation
+
+The `mode: json` option for uploads is **deprecated**. Please use `mode: structured` (default) for all new integrations.
+
+**Why?** The structured mode now includes:
+- Git commit history tracking for each translation
+- Structure mapping to preserve original file structure
+- Source content validation for translation quality
+- Co-author attribution on download
+
+See [TRANSLATION_HISTORY.md](../docs/TRANSLATION_HISTORY.md) for full details.
+
 ## Installation
 
 ```bash
@@ -184,6 +198,31 @@ Parsed to:
 ## Authentication
 
 The client library uses OIDC tokens for authentication when used in GitHub Actions. The reusable actions handle this automatically.
+
+## New Features
+
+### Git History Tracking
+
+The client library now automatically extracts git commit history for each file:
+- Commit SHA, author, email, and timestamp
+- Uses `git log --follow` and `git blame` for detailed tracking
+- Stored in platform for co-author attribution on download
+
+### Structure Mapping
+
+Files are processed with structure mapping to preserve original nested structure:
+- Maps flattened keys (e.g., `app.settings.theme`) back to original paths
+- Enables faithful reconstruction on download
+- Use `unflatten=true` parameter on download endpoint
+
+### Source Validation
+
+Each translation tracks the source content it was translated from:
+- SHA-256 hash of source values
+- Platform validates if source has changed
+- Use `/validate` endpoint to check translation status
+
+For detailed documentation, see [TRANSLATION_HISTORY.md](../docs/TRANSLATION_HISTORY.md).
 
 ## License
 

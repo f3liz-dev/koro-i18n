@@ -64,8 +64,8 @@ runs:
         LANGUAGE: ${{ inputs.language }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
       run: |
-        # Download translations from platform using OIDC token
-        DOWNLOAD_URL="$I18N_PLATFORM_URL/api/projects/$PROJECT_NAME/download?branch=$BRANCH"
+        # Download translations from platform using OIDC token with unflatten option
+        DOWNLOAD_URL="$I18N_PLATFORM_URL/api/projects/$PROJECT_NAME/download?branch=$BRANCH&unflatten=true"
         
         if [ -n "$LANGUAGE" ]; then
           DOWNLOAD_URL="$DOWNLOAD_URL&language=$LANGUAGE"
@@ -100,33 +100,11 @@ runs:
           for filename in $(echo "$RESPONSE" | jq -r ".files[\"$lang\"] | keys[]"); do
             echo "  Writing file: $filename"
             
-            # Extract and unflatten the content
+            # Extract content (already unflattened by the server)
             CONTENT=$(echo "$RESPONSE" | jq -c ".files[\"$lang\"][\"$filename\"]")
             
-            # Unflatten dot notation back to nested structure
-            UNFLATTENED=$(node -e "
-              const content = $CONTENT;
-              const result = {};
-              
-              for (const [key, value] of Object.entries(content)) {
-                const parts = key.split('.');
-                let current = result;
-                
-                for (let i = 0; i < parts.length - 1; i++) {
-                  const part = parts[i];
-                  if (!current[part]) {
-                    current[part] = {};
-                  }
-                  current = current[part];
-                }
-                
-                current[parts[parts.length - 1]] = value;
-              }
-              
-              console.log(JSON.stringify(result, null, 2));
-            ")
-            
-            echo "$UNFLATTENED" > "$LANG_DIR/$filename"
+            # Write the already-unflattened content
+            echo "$CONTENT" | jq '.' > "$LANG_DIR/$filename"
             FILE_COUNT=$((FILE_COUNT + 1))
           done
           
@@ -145,17 +123,51 @@ runs:
     - name: Commit changes
       if: inputs.commit-changes == 'true'
       shell: bash
+      env:
+        I18N_PLATFORM_URL: ${{ inputs.platform-url }}
+        OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        PROJECT_NAME: ${{ inputs.project-name }}
+        BRANCH: ${{ inputs.branch }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         
-        git add ${{ inputs.output-dir }}
+        git add $OUTPUT_DIR
         
         # Only commit if there are changes
         if git diff --staged --quiet; then
           echo "No translation changes to commit"
         else
-          git commit -m "${{ inputs.commit-message }}"
+          # Fetch translation history to get co-authors
+          echo "Fetching translation history for co-authoring..."
+          
+          HISTORY_RESPONSE=$(curl -sS -H "Authorization: Bearer $OIDC_TOKEN" \
+            "$I18N_PLATFORM_URL/api/translations/history?projectId=$PROJECT_NAME&language=all&key=all" || echo '{"history":[]}')
+          
+          # Extract unique authors from history
+          CO_AUTHORS=$(echo "$HISTORY_RESPONSE" | jq -r '
+            .history[] 
+            | select(.commitAuthor != null and .commitEmail != null) 
+            | "Co-authored-by: \(.commitAuthor) <\(.commitEmail)>"
+          ' | sort -u)
+          
+          # Build commit message with co-authors
+          COMMIT_MSG="${{ inputs.commit-message }}"
+          
+          if [ -n "$CO_AUTHORS" ]; then
+            echo "Adding co-authors to commit message:"
+            echo "$CO_AUTHORS"
+            COMMIT_MSG=$(cat <<EOF
+${{ inputs.commit-message }}
+
+$CO_AUTHORS
+EOF
+)
+          fi
+          
+          # Create the commit with co-authors
+          git commit -m "$COMMIT_MSG"
           git push
-          echo "Translation changes committed and pushed"
+          echo "Translation changes committed and pushed with co-author attribution"
         fi

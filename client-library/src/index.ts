@@ -2,6 +2,26 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { glob } from 'glob';
 import * as toml from 'toml';
+import { execSync } from 'child_process';
+import * as crypto from 'crypto';
+
+export interface GitCommitInfo {
+  author: string;
+  email: string;
+  commitSha: string;
+  timestamp: string;
+}
+
+export interface KeyHistory {
+  key: string;
+  commits: GitCommitInfo[];
+}
+
+export interface StructureMapEntry {
+  flattenedKey: string;
+  originalPath: string[];
+  sourceHash: string;
+}
 
 export interface TranslationFile {
   filetype: 'json' | 'markdown' | 'yaml';
@@ -14,6 +34,9 @@ export interface TranslationFile {
     lastModified?: string;
     lastAuthor?: string;
   };
+  history?: KeyHistory[];
+  structureMap?: StructureMapEntry[];
+  sourceHash?: string;
 }
 
 export interface ProjectMetadata {
@@ -98,9 +121,153 @@ function flattenObject(obj: any, prefix = ''): Record<string, string> {
 }
 
 /**
+ * Calculate SHA-256 hash of content
+ */
+function calculateHash(content: string): string {
+  return crypto.createHash('sha256').update(content).digest('hex');
+}
+
+/**
+ * Build structure map that tracks the relationship between original nested structure and flattened keys
+ */
+function buildStructureMap(obj: any, sourceContent: string, prefix = ''): StructureMapEntry[] {
+  const map: StructureMapEntry[] = [];
+  const sourceHash = calculateHash(sourceContent);
+
+  function traverse(current: any, path: string[], flatPrefix: string) {
+    for (const [key, value] of Object.entries(current)) {
+      const newPath = [...path, key];
+      const flatKey = flatPrefix ? `${flatPrefix}.${key}` : key;
+      
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        traverse(value, newPath, flatKey);
+      } else {
+        map.push({
+          flattenedKey: flatKey,
+          originalPath: newPath,
+          sourceHash: calculateHash(String(value)),
+        });
+      }
+    }
+  }
+
+  traverse(obj, [], prefix);
+  return map;
+}
+
+/**
+ * Extract git commit history for a file
+ */
+function extractGitHistory(filePath: string): KeyHistory[] {
+  try {
+    // Check if git is available and we're in a git repository
+    try {
+      execSync('git rev-parse --git-dir', { stdio: 'ignore' });
+    } catch {
+      console.warn(`[git-history] Not in a git repository, skipping history extraction for ${filePath}`);
+      return [];
+    }
+
+    // Get git log with author, email, commit sha, and timestamp
+    const gitLog = execSync(
+      `git log --follow --format="%H|%an|%ae|%ai" -- "${filePath}"`,
+      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 }
+    ).trim();
+
+    if (!gitLog) {
+      return [];
+    }
+
+    const commits: GitCommitInfo[] = gitLog.split('\n').map(line => {
+      const [commitSha, author, email, timestamp] = line.split('|');
+      return { commitSha, author, email, timestamp };
+    });
+
+    // For now, return file-level history
+    // In a more advanced implementation, we could use git blame to get per-line/per-key history
+    return [{
+      key: '__file__',
+      commits,
+    }];
+  } catch (error: any) {
+    console.warn(`[git-history] Failed to extract git history for ${filePath}:`, error.message);
+    return [];
+  }
+}
+
+/**
+ * Extract per-key git history using git blame
+ */
+function extractPerKeyGitHistory(filePath: string, flattenedKeys: string[]): KeyHistory[] {
+  try {
+    // Check if git is available
+    try {
+      execSync('git rev-parse --git-dir', { stdio: 'ignore' });
+    } catch {
+      return [];
+    }
+
+    const histories: KeyHistory[] = [];
+    
+    // Use git blame to get line-by-line commit information
+    const blameOutput = execSync(
+      `git blame --line-porcelain "${filePath}"`,
+      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 }
+    ).trim();
+
+    if (!blameOutput) {
+      return [];
+    }
+
+    // Parse git blame porcelain format
+    const lines = blameOutput.split('\n');
+    const commitInfo: Map<string, GitCommitInfo> = new Map();
+    
+    let currentCommit = '';
+    for (const line of lines) {
+      if (line.match(/^[0-9a-f]{40}/)) {
+        currentCommit = line.split(' ')[0];
+      } else if (line.startsWith('author ')) {
+        const author = line.substring(7);
+        if (!commitInfo.has(currentCommit)) {
+          commitInfo.set(currentCommit, { commitSha: currentCommit, author, email: '', timestamp: '' });
+        } else {
+          commitInfo.get(currentCommit)!.author = author;
+        }
+      } else if (line.startsWith('author-mail ')) {
+        const email = line.substring(12).replace(/[<>]/g, '');
+        if (commitInfo.has(currentCommit)) {
+          commitInfo.get(currentCommit)!.email = email;
+        }
+      } else if (line.startsWith('author-time ')) {
+        const timestamp = new Date(parseInt(line.substring(12)) * 1000).toISOString();
+        if (commitInfo.has(currentCommit)) {
+          commitInfo.get(currentCommit)!.timestamp = timestamp;
+        }
+      }
+    }
+
+    // For simplicity, create a history entry for each unique commit
+    const uniqueCommits = Array.from(commitInfo.values());
+    
+    if (uniqueCommits.length > 0) {
+      histories.push({
+        key: '__all_keys__',
+        commits: uniqueCommits,
+      });
+    }
+
+    return histories;
+  } catch (error: any) {
+    console.warn(`[git-blame] Failed to extract per-key history for ${filePath}:`, error.message);
+    return [];
+  }
+}
+
+/**
  * Process a single translation file
  */
-export function processFile(filePath: string, format: string): TranslationFile | null {
+export function processFile(filePath: string, format: string, includeHistory = true): TranslationFile | null {
   try {
     const content = fs.readFileSync(filePath, 'utf-8');
     const stats = fs.statSync(filePath);
@@ -126,6 +293,22 @@ export function processFile(filePath: string, format: string): TranslationFile |
     const langMatch = filePath.match(/\/([a-z]{2}(-[A-Z]{2})?)\//);
     const lang = langMatch ? langMatch[1] : 'unknown';
 
+    // Build structure map to track original structure
+    const structureMap = buildStructureMap(parsed, content);
+    
+    // Calculate source hash for the entire file
+    const sourceHash = calculateHash(content);
+    
+    // Extract git history if requested
+    let history: KeyHistory[] = [];
+    if (includeHistory) {
+      history = extractPerKeyGitHistory(filePath, Object.keys(flattened));
+      if (history.length === 0) {
+        // Fallback to file-level history if per-key history is not available
+        history = extractGitHistory(filePath);
+      }
+    }
+
     return {
       filetype: format as 'json' | 'markdown',
       filename: path.basename(filePath),
@@ -136,6 +319,9 @@ export function processFile(filePath: string, format: string): TranslationFile |
         keys: Object.keys(flattened).length,
         lastModified: stats.mtime.toISOString(),
       },
+      history,
+      structureMap,
+      sourceHash,
     };
   } catch (error) {
     console.error(`Error processing file ${filePath}:`, error);
