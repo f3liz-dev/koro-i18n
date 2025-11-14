@@ -68,7 +68,7 @@ If you want to review changes before committing:
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `platform-url` | URL of the i18n platform | No | `https://i18n-platform.workers.dev` |
+| `platform-url` | URL of the i18n platform | No | `https://koro.f3liz.workers.dev` |
 | `project-name` | Project name on the platform | Yes | - |
 | `branch` | Branch to download from | No | `main` |
 | `language` | Specific language to download | No | (all) |
@@ -85,10 +85,14 @@ If you want to review changes before committing:
 
 ## Features
 
+- **Approved translations only**: Downloads only approved translations from the platform
 - **Automatic flattening reversal**: Converts flattened keys back to nested structure
 - **Smart commits**: Only commits if there are actual changes
 - **Language filtering**: Download specific languages or all at once
 - **Flexible output**: Configure output directory for your project structure
+- **Co-author attribution**: Automatically adds translation contributors as co-authors
+- **Enhanced error handling**: Comprehensive validation and error messages
+- **HTTP status checking**: Validates server responses before processing
 
 ## Complete Workflow Example
 

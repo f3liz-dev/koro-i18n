@@ -10,7 +10,7 @@ inputs:
   platform-url:
     description: 'The URL of the i18n platform'
     required: false
-    default: 'https://i18n-platform.workers.dev'
+    default: 'https://koro.f3liz.workers.dev'
   project-name:
     description: 'Project name on the platform'
     required: true
@@ -64,61 +64,105 @@ runs:
         LANGUAGE: ${{ inputs.language }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
       run: |
-        # Download translations from platform using OIDC token with unflatten option
+        set -e  # Exit on error
+        
+        # Validate required inputs
+        if [ -z "$PROJECT_NAME" ]; then
+          echo "Error: project-name is required"
+          exit 1
+        fi
+        
+        if [ -z "$OIDC_TOKEN" ]; then
+          echo "Error: Failed to get OIDC token"
+          exit 1
+        fi
+        
+        # Build download URL with parameters
         DOWNLOAD_URL="$I18N_PLATFORM_URL/api/projects/$PROJECT_NAME/download?branch=$BRANCH&unflatten=true"
         
         if [ -n "$LANGUAGE" ]; then
           DOWNLOAD_URL="$DOWNLOAD_URL&language=$LANGUAGE"
+          echo "Downloading translations for language: $LANGUAGE"
+        else
+          echo "Downloading translations for all languages"
         fi
         
-        echo "Downloading from: $DOWNLOAD_URL"
+        echo "Download URL: $DOWNLOAD_URL"
         
-        RESPONSE=$(curl -sS -H "Authorization: Bearer $OIDC_TOKEN" "$DOWNLOAD_URL")
+        # Download translations with error handling
+        HTTP_CODE=$(curl -sS -w "%{http_code}" -o /tmp/download_response.json \
+          -H "Authorization: Bearer $OIDC_TOKEN" \
+          "$DOWNLOAD_URL")
         
-        # Check if download was successful
-        if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
-          echo "Error: $(echo "$RESPONSE" | jq -r '.error')"
+        # Check HTTP status code
+        if [ "$HTTP_CODE" != "200" ]; then
+          echo "Error: HTTP $HTTP_CODE - Download failed"
+          if [ -f /tmp/download_response.json ]; then
+            ERROR_MSG=$(jq -r '.error // "Unknown error"' /tmp/download_response.json 2>/dev/null || echo "Unable to parse error")
+            echo "Server response: $ERROR_MSG"
+          fi
           exit 1
         fi
         
-        echo "Download successful!"
+        # Validate response is valid JSON
+        if ! jq empty /tmp/download_response.json 2>/dev/null; then
+          echo "Error: Invalid JSON response from server"
+          exit 1
+        fi
         
-        # Create output directory if it doesn't exist
+        # Check for error field in response
+        if jq -e '.error' /tmp/download_response.json > /dev/null 2>&1; then
+          ERROR_MSG=$(jq -r '.error' /tmp/download_response.json)
+          echo "Error: $ERROR_MSG"
+          exit 1
+        fi
+        
+        # Validate response has files
+        if ! jq -e '.files' /tmp/download_response.json > /dev/null 2>&1; then
+          echo "Error: No files found in response"
+          exit 1
+        fi
+        
+        echo "✓ Download successful"
+        
+        # Create output directory
         mkdir -p "$OUTPUT_DIR"
         
-        # Parse and write files
+        # Process and write files
         FILE_COUNT=0
-        LANGUAGES=""
+        LANGUAGES=()
         
-        # Extract files by language
-        for lang in $(echo "$RESPONSE" | jq -r '.files | keys[]'); do
+        # Extract and process each language
+        while IFS= read -r lang; do
           echo "Processing language: $lang"
           LANG_DIR="$OUTPUT_DIR/$lang"
           mkdir -p "$LANG_DIR"
           
-          # Get all files for this language
-          for filename in $(echo "$RESPONSE" | jq -r ".files[\"$lang\"] | keys[]"); do
-            echo "  Writing file: $filename"
-            
-            # Extract content (already unflattened by the server)
-            CONTENT=$(echo "$RESPONSE" | jq -c ".files[\"$lang\"][\"$filename\"]")
-            
-            # Write the already-unflattened content
-            echo "$CONTENT" | jq '.' > "$LANG_DIR/$filename"
-            FILE_COUNT=$((FILE_COUNT + 1))
-          done
+          LANGUAGES+=("$lang")
           
-          if [ -z "$LANGUAGES" ]; then
-            LANGUAGES="$lang"
-          else
-            LANGUAGES="$LANGUAGES, $lang"
-          fi
-        done
+          # Extract and write each file for this language
+          while IFS= read -r filename; do
+            echo "  Writing: $filename"
+            
+            # Extract and write file content
+            jq -c ".files[\"$lang\"][\"$filename\"]" /tmp/download_response.json | \
+              jq '.' > "$LANG_DIR/$filename"
+            
+            FILE_COUNT=$((FILE_COUNT + 1))
+          done < <(jq -r ".files[\"$lang\"] | keys[]" /tmp/download_response.json)
+        done < <(jq -r '.files | keys[]' /tmp/download_response.json)
         
+        # Build comma-separated language list
+        LANG_LIST=$(IFS=, ; echo "${LANGUAGES[*]}")
+        
+        # Set outputs
         echo "files-downloaded=$FILE_COUNT" >> $GITHUB_OUTPUT
-        echo "languages-updated=$LANGUAGES" >> $GITHUB_OUTPUT
+        echo "languages-updated=$LANG_LIST" >> $GITHUB_OUTPUT
         
-        echo "Downloaded $FILE_COUNT files for languages: $LANGUAGES"
+        echo "✓ Downloaded $FILE_COUNT file(s) for ${#LANGUAGES[@]} language(s): $LANG_LIST"
+        
+        # Cleanup
+        rm -f /tmp/download_response.json
 
     - name: Commit changes
       if: inputs.commit-changes == 'true'
@@ -129,45 +173,60 @@ runs:
         PROJECT_NAME: ${{ inputs.project-name }}
         BRANCH: ${{ inputs.branch }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
+        COMMIT_MESSAGE: ${{ inputs.commit-message }}
       run: |
+        set -e  # Exit on error
+        
+        # Configure git
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         
-        git add $OUTPUT_DIR
+        # Stage translation files
+        git add "$OUTPUT_DIR"
         
-        # Only commit if there are changes
+        # Check if there are changes to commit
         if git diff --staged --quiet; then
-          echo "No translation changes to commit"
-        else
-          # Fetch translation history to get co-authors
-          echo "Fetching translation history for co-authoring..."
-          
-          HISTORY_RESPONSE=$(curl -sS -H "Authorization: Bearer $OIDC_TOKEN" \
-            "$I18N_PLATFORM_URL/api/translations/history?projectId=$PROJECT_NAME&language=all&key=all" || echo '{"history":[]}')
-          
-          # Extract unique authors from history
-          CO_AUTHORS=$(echo "$HISTORY_RESPONSE" | jq -r '
+          echo "ℹ No translation changes to commit"
+          exit 0
+        fi
+        
+        echo "✓ Changes detected, preparing commit..."
+        
+        # Fetch translation history for co-authoring
+        echo "Fetching translation history..."
+        
+        HTTP_CODE=$(curl -sS -w "%{http_code}" -o /tmp/history_response.json \
+          -H "Authorization: Bearer $OIDC_TOKEN" \
+          "$I18N_PLATFORM_URL/api/translations/history?projectId=$PROJECT_NAME&language=all&key=all" \
+          2>/dev/null || echo "000")
+        
+        # Extract co-authors if history fetch succeeded
+        CO_AUTHORS=""
+        if [ "$HTTP_CODE" = "200" ] && [ -f /tmp/history_response.json ]; then
+          CO_AUTHORS=$(jq -r '
             .history[] 
             | select(.commitAuthor != null and .commitEmail != null) 
             | "Co-authored-by: \(.commitAuthor) <\(.commitEmail)>"
-          ' | sort -u)
-          
-          # Build commit message with co-authors
-          COMMIT_MSG="${{ inputs.commit-message }}"
-          
-          if [ -n "$CO_AUTHORS" ]; then
-            echo "Adding co-authors to commit message:"
-            echo "$CO_AUTHORS"
-            COMMIT_MSG=$(cat <<EOF
-${{ inputs.commit-message }}
-
-$CO_AUTHORS
-EOF
-)
-          fi
-          
-          # Create the commit with co-authors
-          git commit -m "$COMMIT_MSG"
-          git push
-          echo "Translation changes committed and pushed with co-author attribution"
+          ' /tmp/history_response.json 2>/dev/null | sort -u || echo "")
+        else
+          echo "⚠ Warning: Could not fetch translation history (HTTP $HTTP_CODE)"
         fi
+        
+        # Build commit message
+        if [ -n "$CO_AUTHORS" ]; then
+          echo "✓ Adding $(echo "$CO_AUTHORS" | wc -l) co-author(s)"
+          COMMIT_MSG="$COMMIT_MESSAGE
+
+$CO_AUTHORS"
+        else
+          COMMIT_MSG="$COMMIT_MESSAGE"
+        fi
+        
+        # Create and push commit
+        git commit -m "$COMMIT_MSG"
+        git push
+        
+        echo "✓ Translation changes committed and pushed successfully"
+        
+        # Cleanup
+        rm -f /tmp/history_response.json
