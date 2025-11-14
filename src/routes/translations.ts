@@ -49,6 +49,7 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       take: 100,
     });
 
+    // Short cache - translations can change during active editing
     const response = c.json({ translations });
     response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translations));
     return response;
@@ -74,6 +75,7 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Short cache - history can change during active editing
     const response = c.json({ history });
     response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translations));
     return response;
@@ -125,6 +127,7 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       updatedAt: s.updatedAt.toISOString(),
     }));
 
+    // No cache - suggestions show real-time pending/approved translations
     const response = c.json({ suggestions: flattenedSuggestions });
     response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translationSuggestions));
     return response;
