@@ -379,38 +379,94 @@ export async function processProject(
 }
 
 /**
- * Upload metadata to I18n Platform using structured format
+ * Upload metadata to I18n Platform using structured format with chunking support
  */
 export async function uploadToPlatform(
   projectName: string,
   metadata: ProjectMetadata,
   platformUrl: string,
-  token: string
+  token: string,
+  chunkSize: number = 30
 ): Promise<void> {
-  const payload = {
-    branch: metadata.branch,
-    commitSha: metadata.commit,
-    sourceLanguage: metadata.sourceLanguage,
-    targetLanguages: metadata.targetLanguages,
-    files: metadata.files,
-  };
+  const totalFiles = metadata.files.length;
+  
+  // If total files are within chunk size, upload in one request
+  if (totalFiles <= chunkSize) {
+    const payload = {
+      branch: metadata.branch,
+      commitSha: metadata.commit,
+      sourceLanguage: metadata.sourceLanguage,
+      targetLanguages: metadata.targetLanguages,
+      files: metadata.files,
+    };
 
-  const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
-  });
+    const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Upload failed (${response.status}): ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Upload failed (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('Upload successful:', result);
+    return;
   }
 
-  const result = await response.json();
-  console.log('Upload successful:', result);
+  // Split files into chunks and upload sequentially
+  console.log(`Uploading ${totalFiles} files in chunks of ${chunkSize}...`);
+  
+  const chunks: TranslationFile[][] = [];
+  for (let i = 0; i < totalFiles; i += chunkSize) {
+    chunks.push(metadata.files.slice(i, i + chunkSize));
+  }
+
+  let totalUploaded = 0;
+  let totalKeys = 0;
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const chunkNum = i + 1;
+    const filesInChunk = chunk.length;
+    
+    console.log(`Uploading chunk ${chunkNum}/${chunks.length} (${filesInChunk} files)...`);
+
+    const payload = {
+      branch: metadata.branch,
+      commitSha: metadata.commit,
+      sourceLanguage: metadata.sourceLanguage,
+      targetLanguages: metadata.targetLanguages,
+      files: chunk,
+    };
+
+    const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Upload failed for chunk ${chunkNum}/${chunks.length} (${response.status}): ${errorText}`);
+    }
+
+    const result: any = await response.json();
+    totalUploaded += result.filesUploaded || filesInChunk;
+    totalKeys += result.totalKeys || 0;
+    
+    console.log(`Chunk ${chunkNum}/${chunks.length} uploaded successfully (${result.filesUploaded || filesInChunk} files, ${result.totalKeys || 0} keys)`);
+  }
+
+  console.log(`All chunks uploaded successfully! Total: ${totalUploaded} files, ${totalKeys} keys`);
 }
 
 /**
@@ -489,11 +545,13 @@ function parseArgs(): {
   apiKey?: string;
   projectName?: string;
   platformUrl: string;
+  chunkSize: number;
 } {
   const args = process.argv.slice(2);
   const result: any = {
     configPath: '.koro-i18n.repo.config.toml',
     platformUrl: process.env.I18N_PLATFORM_URL || 'https://koro.f3liz.workers.dev',
+    chunkSize: 30, // Default chunk size
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -514,6 +572,12 @@ function parseArgs(): {
       i++;
     } else if (arg === '--platform-url' && nextArg) {
       result.platformUrl = nextArg;
+      i++;
+    } else if (arg === '--chunk-size' && nextArg) {
+      const parsed = parseInt(nextArg, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        result.chunkSize = parsed;
+      }
       i++;
     }
   }
@@ -573,8 +637,9 @@ export async function main() {
   
   console.log(`Project name: ${projectName}`);
   console.log(`Uploading to: ${args.platformUrl}`);
+  console.log(`Chunk size: ${args.chunkSize} files per request`);
   
-  await uploadToPlatform(projectName, metadata, args.platformUrl, token);
+  await uploadToPlatform(projectName, metadata, args.platformUrl, token, args.chunkSize);
   
   console.log('Done!');
 }
