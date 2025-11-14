@@ -84,7 +84,7 @@ export default function ProjectManagementPage() {
 
       if (res.ok) {
         // Refetch projects to update the store
-        projectsCache.fetch();
+        projectsCache.fetch(false);
       }
     } catch (error) {
       console.error('Failed to update access control:', error);
@@ -93,7 +93,7 @@ export default function ProjectManagementPage() {
 
   onMount(() => {
     // Fetch data in background - will update stores when data arrives
-    projectsCache.fetch();
+    projectsCache.fetch(false);
     membersCache.fetch(params.id || '');
   });
 

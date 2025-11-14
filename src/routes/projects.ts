@@ -65,6 +65,9 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
+    // Optional query parameter to include languages (expensive operation)
+    const includeLanguages = c.req.query('includeLanguages') === 'true';
+
     const owned = await prisma.project.findMany({
       where: { userId: payload.userId },
       select: {
@@ -121,35 +124,43 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       return create304Response(etag, cacheControl);
     }
     
-    // Fetch languages for each project efficiently
-    const projectsWithLanguages = await Promise.all(
-      allProjects.map(async (project) => {
-        try {
-          // Query distinct languages for this project's repository
-          const languages = await prisma.projectFile.findMany({
-            where: { 
-              projectId: project.repository,
-              branch: 'main'
-            },
-            select: { lang: true },
-            distinct: ['lang'],
-          });
-          
-          return {
-            ...project,
-            languages: languages.map(l => l.lang),
-          };
-        } catch (error) {
-          console.error(`Failed to load languages for project ${project.name}:`, error);
-          return {
-            ...project,
-            languages: [],
-          };
+    // Conditionally fetch languages - this is expensive (N+1 queries)
+    // Frontend should only request this when needed
+    if (includeLanguages) {
+      // Optimize: Fetch all languages for all repositories in one query
+      const repositories = allProjects.map(p => p.repository);
+      const allLanguages = await prisma.projectFile.findMany({
+        where: { 
+          projectId: { in: repositories },
+          branch: 'main'
+        },
+        select: { projectId: true, lang: true },
+        distinct: ['projectId', 'lang'],
+      });
+      
+      // Group languages by repository
+      const languagesByRepo = new Map<string, string[]>();
+      for (const item of allLanguages) {
+        if (!languagesByRepo.has(item.projectId)) {
+          languagesByRepo.set(item.projectId, []);
         }
-      })
-    );
+        languagesByRepo.get(item.projectId)!.push(item.lang);
+      }
+      
+      // Add languages to projects
+      const projectsWithLanguages = allProjects.map(project => ({
+        ...project,
+        languages: languagesByRepo.get(project.repository) || [],
+      }));
+      
+      const response = c.json({ projects: projectsWithLanguages });
+      response.headers.set('Cache-Control', cacheControl);
+      response.headers.set('ETag', etag);
+      return response;
+    }
 
-    const response = c.json({ projects: projectsWithLanguages });
+    // Return projects without languages for better performance
+    const response = c.json({ projects: allProjects });
     response.headers.set('Cache-Control', cacheControl);
     response.headers.set('ETag', etag);
     return response;

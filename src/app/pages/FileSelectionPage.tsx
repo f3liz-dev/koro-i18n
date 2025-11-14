@@ -110,7 +110,7 @@ export default function FileSelectionPage() {
     auth.refresh();
     
     // Fetch data in background - will update stores when data arrives
-    projectsCache.fetch();
+    projectsCache.fetch(false);
     
     const projectId = params.id;
     const targetLanguage = language();

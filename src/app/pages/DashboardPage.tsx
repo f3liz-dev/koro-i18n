@@ -47,8 +47,8 @@ export default function DashboardPage() {
     // Use smart prefetch for dashboard route
     void prefetchForRoute('dashboard');
     
-    // Fetch projects in background - will update store when data arrives
-    projectsCache.fetch();
+    // Fetch projects with languages (needed for dashboard display)
+    projectsCache.fetch(true);
   });
 
   createEffect(() => {
@@ -69,8 +69,8 @@ export default function DashboardPage() {
       });
 
       if (res.ok) {
-        // Refetch projects to update the store
-        projectsCache.fetch();
+        // Refetch projects with languages to update the store
+        projectsCache.fetch(true);
       } else {
         const data = await res.json() as { error?: string };
         alert(data.error || 'Failed to delete project');

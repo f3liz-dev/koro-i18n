@@ -98,7 +98,7 @@ export default function ProjectSettingsPage() {
 
       if (res.ok) {
         // Refetch projects to update cache
-        projectsCache.fetch();
+        projectsCache.fetch(false);
       }
     } catch (error) {
       console.error('Failed to update access control:', error);
@@ -130,7 +130,7 @@ export default function ProjectSettingsPage() {
 
   onMount(() => {
     // Fetch data in background - will update stores when data arrives
-    projectsCache.fetch();
+    projectsCache.fetch(false);
     membersCache.fetch(projectId());
   });
 

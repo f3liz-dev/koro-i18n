@@ -167,7 +167,7 @@ export default function TranslationEditorPage() {
     }
     
     // Fetch data in background - will update stores when data arrives
-    projectsCache.fetch();
+    projectsCache.fetch(false);
     
     const pid = projectId();
     const lang = language();
