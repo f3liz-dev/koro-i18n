@@ -463,7 +463,7 @@ export async function uploadToPlatform(
   metadata: ProjectMetadata,
   platformUrl: string,
   token: string,
-  chunkSize: number = 30
+  chunkSize: number = 1
 ): Promise<void> {
   const totalFiles = metadata.files.length;
   
