@@ -16,48 +16,52 @@ CREATE TABLE "OauthState" (
 );
 
 -- CreateTable
-CREATE TABLE "ProjectFile" (
+CREATE TABLE "R2File" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "projectId" TEXT NOT NULL,
     "branch" TEXT NOT NULL,
     "commitSha" TEXT NOT NULL,
-    "filename" TEXT NOT NULL,
-    "filetype" TEXT NOT NULL,
     "lang" TEXT NOT NULL,
-    "contents" TEXT NOT NULL,
-    "metadata" TEXT,
-    "uploadedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "filename" TEXT NOT NULL,
+    "r2Key" TEXT NOT NULL,
+    "sourceHash" TEXT NOT NULL,
+    "totalKeys" INTEGER NOT NULL,
+    "uploadedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastUpdated" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
-CREATE TABLE "Translation" (
+CREATE TABLE "WebTranslation" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "projectId" TEXT NOT NULL,
     "language" TEXT NOT NULL,
+    "filename" TEXT NOT NULL,
     "key" TEXT NOT NULL,
     "value" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'pending',
-    "commitSha" TEXT,
+    "sourceHash" TEXT,
+    "isValid" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Translation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "WebTranslation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
-CREATE TABLE "TranslationHistory" (
+CREATE TABLE "WebTranslationHistory" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "translationId" TEXT NOT NULL,
     "projectId" TEXT NOT NULL,
     "language" TEXT NOT NULL,
+    "filename" TEXT NOT NULL,
     "key" TEXT NOT NULL,
     "value" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "action" TEXT NOT NULL,
-    "commitSha" TEXT,
+    "sourceHash" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "TranslationHistory_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "TranslationHistory_translationId_fkey" FOREIGN KEY ("translationId") REFERENCES "Translation" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "WebTranslationHistory_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "WebTranslationHistory_translationId_fkey" FOREIGN KEY ("translationId") REFERENCES "WebTranslation" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -67,6 +71,7 @@ CREATE TABLE "Project" (
     "name" TEXT NOT NULL,
     "repository" TEXT NOT NULL,
     "accessControl" TEXT NOT NULL DEFAULT 'whitelist',
+    "sourceLanguage" TEXT NOT NULL DEFAULT 'en',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Project_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -96,34 +101,40 @@ CREATE INDEX "User_githubId_idx" ON "User"("githubId");
 CREATE INDEX "OauthState_expiresAt_idx" ON "OauthState"("expiresAt");
 
 -- CreateIndex
-CREATE INDEX "ProjectFile_projectId_branch_idx" ON "ProjectFile"("projectId", "branch");
+CREATE INDEX "R2File_projectId_branch_idx" ON "R2File"("projectId", "branch");
 
 -- CreateIndex
-CREATE INDEX "ProjectFile_projectId_lang_idx" ON "ProjectFile"("projectId", "lang");
+CREATE INDEX "R2File_projectId_lang_idx" ON "R2File"("projectId", "lang");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ProjectFile_projectId_branch_filename_lang_key" ON "ProjectFile"("projectId", "branch", "filename", "lang");
+CREATE INDEX "R2File_lastUpdated_idx" ON "R2File"("lastUpdated");
 
 -- CreateIndex
-CREATE INDEX "Translation_projectId_language_idx" ON "Translation"("projectId", "language");
+CREATE UNIQUE INDEX "R2File_projectId_branch_lang_filename_key" ON "R2File"("projectId", "branch", "lang", "filename");
 
 -- CreateIndex
-CREATE INDEX "Translation_status_idx" ON "Translation"("status");
+CREATE INDEX "WebTranslation_projectId_language_filename_idx" ON "WebTranslation"("projectId", "language", "filename");
 
 -- CreateIndex
-CREATE INDEX "Translation_projectId_language_key_idx" ON "Translation"("projectId", "language", "key");
+CREATE INDEX "WebTranslation_status_idx" ON "WebTranslation"("status");
 
 -- CreateIndex
-CREATE INDEX "Translation_createdAt_idx" ON "Translation"("createdAt");
+CREATE INDEX "WebTranslation_projectId_language_filename_key_idx" ON "WebTranslation"("projectId", "language", "filename", "key");
 
 -- CreateIndex
-CREATE INDEX "TranslationHistory_translationId_idx" ON "TranslationHistory"("translationId");
+CREATE INDEX "WebTranslation_updatedAt_idx" ON "WebTranslation"("updatedAt");
 
 -- CreateIndex
-CREATE INDEX "TranslationHistory_projectId_language_key_idx" ON "TranslationHistory"("projectId", "language", "key");
+CREATE INDEX "WebTranslation_isValid_idx" ON "WebTranslation"("isValid");
 
 -- CreateIndex
-CREATE INDEX "TranslationHistory_createdAt_idx" ON "TranslationHistory"("createdAt");
+CREATE INDEX "WebTranslationHistory_translationId_idx" ON "WebTranslationHistory"("translationId");
+
+-- CreateIndex
+CREATE INDEX "WebTranslationHistory_projectId_language_filename_key_idx" ON "WebTranslationHistory"("projectId", "language", "filename", "key");
+
+-- CreateIndex
+CREATE INDEX "WebTranslationHistory_createdAt_idx" ON "WebTranslationHistory"("createdAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Project_name_key" ON "Project"("name");
