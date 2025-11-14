@@ -183,11 +183,11 @@ function extractGitHistory(filePath: string): KeyHistory[] {
       return { commitSha, author, email, timestamp };
     });
 
-    // For now, return file-level history
-    // In a more advanced implementation, we could use git blame to get per-line/per-key history
+    // Return only the latest commit (first in the log)
+    const latestCommit = commits.length > 0 ? [commits[0]] : [];
     return [{
       key: '__file__',
-      commits,
+      commits: latestCommit,
     }];
   } catch (error: any) {
     console.warn(`[git-history] Failed to extract git history for ${filePath}:`, error.message);
@@ -247,13 +247,18 @@ function extractPerKeyGitHistory(filePath: string, flattenedKeys: string[]): Key
       }
     }
 
-    // For simplicity, create a history entry for each unique commit
+    // Return only the latest commit (most recent)
+    // Sort by timestamp descending to get the latest
     const uniqueCommits = Array.from(commitInfo.values());
+    const sortedCommits = uniqueCommits.sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
     
-    if (uniqueCommits.length > 0) {
+    const latestCommit = sortedCommits.length > 0 ? [sortedCommits[0]] : [];
+    if (latestCommit.length > 0) {
       histories.push({
         key: '__all_keys__',
-        commits: uniqueCommits,
+        commits: latestCommit,
       });
     }
 
