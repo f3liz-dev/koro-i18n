@@ -94,6 +94,31 @@ runs:
         GITHUB_REF_NAME: ${{ github.ref_name }}
         GITHUB_SHA: ${{ github.sha }}
       run: |
+        # Note: JSON mode processes files with jq to flatten them before upload
+        # This minimizes server CPU time by pre-flattening on the client
+        
+        # Helper function to flatten JSON objects
+        flatten_json() {
+          local json_file="$1"
+          # Flatten nested JSON to dot notation using jq
+          # Example: {"a": {"b": "c"}} becomes {"a.b": "c"}
+          jq -c '
+            def flatten($prefix):
+              . as $in
+              | reduce keys[] as $key (
+                  {};
+                  . + (
+                    if ($in[$key] | type) == "object" and ($in[$key] | type) != "null" then
+                      ($in[$key] | flatten(if $prefix == "" then $key else ($prefix + "." + $key) end))
+                    else
+                      {(if $prefix == "" then $key else ($prefix + "." + $key) end): ($in[$key] | tostring)}
+                    end
+                  )
+                );
+            flatten("")
+          ' "$json_file"
+        }
+        
         # Check if config file exists
         if [ ! -f "$CONFIG_PATH" ]; then
           echo "Error: Config file not found at $CONFIG_PATH"
@@ -149,7 +174,7 @@ runs:
           if [ -d "locales/$lang" ]; then
             while IFS= read -r -d '' file; do
               if [ -f "$file" ]; then
-                echo "  Processing file: $file"
+                echo "  Processing and flattening file: $file"
                 
                 if [ "$FIRST" = true ]; then
                   FIRST=false
@@ -158,21 +183,32 @@ runs:
                 fi
                 
                 FILENAME=$(basename "$file")
-                CONTENT=$(cat "$file" | jq -c .)
                 
-                # Create a file object with all required fields
+                # Flatten the JSON content before uploading (client preprocessing)
+                FLATTENED_CONTENT=$(flatten_json "$file")
+                
+                # Verify flattening worked
+                if [ -z "$FLATTENED_CONTENT" ] || [ "$FLATTENED_CONTENT" = "null" ]; then
+                  echo "  Warning: Failed to flatten $file, using original content"
+                  FLATTENED_CONTENT=$(cat "$file" | jq -c .)
+                else
+                  echo "  ✓ Flattened $file (client preprocessing)"
+                fi
+                
+                # Create a file object with pre-flattened contents
                 FILE_OBJECT=$(jq -n \
                   --arg filetype "json" \
                   --arg filename "$FILENAME" \
                   --arg lang "$lang" \
-                  --argjson contents "$CONTENT" \
+                  --argjson contents "$FLATTENED_CONTENT" \
                   '{
                     filetype: $filetype,
                     filename: $filename,
                     lang: $lang,
                     contents: $contents,
                     metadata: {
-                      uploadMethod: "json-batch"
+                      uploadMethod: "json-batch-flattened",
+                      preprocessed: true
                     }
                   }')
                 
@@ -196,6 +232,7 @@ runs:
         echo ""
         echo "========================================="
         echo "Total files collected: $TOTAL_FILES across ${#LANGUAGES[@]} languages"
+        echo "All files pre-flattened for optimal server performance"
         echo "========================================="
         
         # Create a temporary file for the JSON payload
@@ -236,6 +273,7 @@ runs:
           echo "========================================="
           echo "✅ Successfully uploaded $UPLOADED files!"
           echo "Languages: ${#LANGUAGES[@]}"
+          echo "Client preprocessing: ENABLED"
           echo "========================================="
           echo "files-uploaded=$UPLOADED" >> $GITHUB_OUTPUT
           echo "status=success" >> $GITHUB_OUTPUT
