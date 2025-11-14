@@ -19,6 +19,13 @@ describe('Cache Headers', () => {
       expect(result).toContain('private');
     });
 
+    it('should include no-store when provided', () => {
+      const result = buildCacheControl({ maxAge: 0, noStore: true });
+      expect(result).toContain('max-age=0');
+      expect(result).toContain('no-store');
+      expect(result).toContain('private');
+    });
+
     it('should include must-revalidate when provided', () => {
       const result = buildCacheControl({ maxAge: 0, mustRevalidate: true });
       expect(result).toContain('max-age=0');
@@ -67,6 +74,14 @@ describe('Cache Headers', () => {
       expect(result).toContain('no-cache');
       expect(result).toContain('must-revalidate');
       expect(result).toContain('private');
+    });
+
+    it('should build cache control for noStore config', () => {
+      const result = buildCacheControl(CACHE_CONFIGS.noStore);
+      expect(result).toContain('max-age=0');
+      expect(result).toContain('no-store');
+      expect(result).toContain('private');
+      expect(result).not.toContain('no-cache');
     });
   });
 });

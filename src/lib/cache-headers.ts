@@ -16,6 +16,7 @@
 export interface CacheConfig {
   maxAge: number; // seconds
   noCache?: boolean; // add no-cache directive
+  noStore?: boolean; // add no-store directive (prevents any caching)
   mustRevalidate?: boolean;
 }
 
@@ -40,6 +41,7 @@ export const CACHE_CONFIGS = {
   translationSuggestions: { maxAge: 0, noCache: true },
   user: { maxAge: 0, noCache: true },
   noCache: { maxAge: 0, noCache: true, mustRevalidate: true },
+  noStore: { maxAge: 0, noStore: true }, // Prevents any caching - for sensitive auth data
   static: { maxAge: 0, noCache: true },
 } as const;
 
@@ -55,6 +57,10 @@ export function buildCacheControl(config: CacheConfig): string {
   
   if (config.maxAge !== undefined) {
     parts.push(`max-age=${config.maxAge}`);
+  }
+  
+  if (config.noStore) {
+    parts.push('no-store');
   }
   
   if (config.noCache) {
