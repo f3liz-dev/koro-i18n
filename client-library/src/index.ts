@@ -4,101 +4,48 @@ import { glob } from 'glob';
 import * as toml from 'toml';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
+import { encode } from '@msgpack/msgpack';
 
-export interface GitCommitInfo {
+export interface Config {
+  project: {
+    name: string;
+    platform_url: string;
+  };
+  source: {
+    language: string;
+    files: string[];
+  };
+  target: {
+    languages: string[];
+  };
+}
+
+export interface GitBlameInfo {
+  commit: string;
   author: string;
   email: string;
-  commitSha: string;
-  timestamp: string;
+  date: string;
 }
 
-export interface KeyHistory {
-  key: string;
-  commits: GitCommitInfo[];
-}
-
-export interface StructureMapEntry {
-  flattenedKey: string;
-  originalPath: string[];
-  sourceHash: string;
+export interface Metadata {
+  gitBlame: Record<string, GitBlameInfo>;
+  charRanges: Record<string, { start: [number, number]; end: [number, number] }>;
+  sourceHashes: Record<string, string>;
 }
 
 export interface TranslationFile {
-  filetype: 'json' | 'markdown' | 'yaml';
-  filename: string;
   lang: string;
+  filename: string;
   contents: Record<string, any>;
-  metadata?: {
-    size: number;
-    keys: number;
-    lastModified?: string;
-    lastAuthor?: string;
-  };
-  history?: KeyHistory[];
-  structureMap?: StructureMapEntry[];
-  sourceHash?: string;
-}
-
-export interface ProjectMetadata {
-  repository: string;
-  branch: string;
-  commit: string;
-  sourceLanguage: string;
-  targetLanguages: string[];
-  files: TranslationFile[];
-  generatedAt: string;
-}
-
-export interface Config {
-  projectName?: string;
-  sourceLanguage: string;
-  targetLanguages: string[];
-  outputPattern: string;
-  includePatterns: string[];
-  excludePatterns: string[];
-  sourceFiles: Array<{
-    path: string;
-    format: string;
-    keyPattern?: string;
-  }>;
+  metadata: string; // Base64-encoded MessagePack
+  sourceHash: string;
 }
 
 /**
- * Parse JSON translation file
+ * Hash a value for validation
  */
-function parseJSON(content: string): Record<string, any> {
-  return JSON.parse(content);
-}
-
-/**
- * Parse Markdown translation file
- * Format: # Section\n- key: value
- */
-function parseMarkdown(content: string): Record<string, any> {
-  const result: Record<string, any> = {};
-  const lines = content.split('\n');
-  let currentSection = '';
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    
-    // Section header
-    if (trimmed.startsWith('#')) {
-      currentSection = trimmed.replace(/^#+\s*/, '').toLowerCase().replace(/\s+/g, '_');
-      continue;
-    }
-
-    // Key-value pair
-    const match = trimmed.match(/^-\s*([^:]+):\s*(.+)$/);
-    if (match) {
-      const key = match[1].trim();
-      const value = match[2].trim();
-      const fullKey = currentSection ? `${currentSection}.${key}` : key;
-      result[fullKey] = value;
-    }
-  }
-
-  return result;
+function hashValue(value: string): string {
+  return crypto.createHash('sha256').update(value).digest('hex').substring(0, 16);
 }
 
 /**
@@ -121,293 +68,159 @@ function flattenObject(obj: any, prefix = ''): Record<string, string> {
 }
 
 /**
- * Calculate SHA-256 hash of content
+ * Extract git blame for a file
  */
-function calculateHash(content: string): string {
-  return crypto.createHash('sha256').update(content).digest('hex');
-}
-
-/**
- * Build structure map that tracks the relationship between original nested structure and flattened keys
- */
-function buildStructureMap(obj: any, sourceContent: string, prefix = ''): StructureMapEntry[] {
-  const map: StructureMapEntry[] = [];
-  const sourceHash = calculateHash(sourceContent);
-
-  function traverse(current: any, path: string[], flatPrefix: string) {
-    for (const [key, value] of Object.entries(current)) {
-      const newPath = [...path, key];
-      const flatKey = flatPrefix ? `${flatPrefix}.${key}` : key;
-      
-      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-        traverse(value, newPath, flatKey);
-      } else {
-        map.push({
-          flattenedKey: flatKey,
-          originalPath: newPath,
-          sourceHash: calculateHash(String(value)),
-        });
-      }
-    }
+function getGitBlame(filePath: string): Map<number, GitBlameInfo> {
+  try {
+    execSync('git rev-parse --git-dir', { stdio: 'ignore' });
+  } catch {
+    console.warn(`[git-blame] Not in a git repository, skipping for ${filePath}`);
+    return new Map();
   }
 
-  traverse(obj, [], prefix);
-  return map;
-}
-
-/**
- * Extract git commit history for a file
- */
-function extractGitHistory(filePath: string): KeyHistory[] {
   try {
-    // Check if git is available and we're in a git repository
-    try {
-      execSync('git rev-parse --git-dir', { stdio: 'ignore' });
-    } catch {
-      console.warn(`[git-history] Not in a git repository, skipping history extraction for ${filePath}`);
-      return [];
-    }
+    const blameOutput = execSync(`git blame --line-porcelain "${filePath}"`, {
+      encoding: 'utf-8',
+      maxBuffer: 10 * 1024 * 1024,
+    }).trim();
 
-    // Get git log with author, email, commit sha, and timestamp
-    const gitLog = execSync(
-      `git log --follow --format="%H|%an|%ae|%ai" -- "${filePath}"`,
-      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 }
-    ).trim();
-
-    if (!gitLog) {
-      return [];
-    }
-
-    const commits: GitCommitInfo[] = gitLog.split('\n').map(line => {
-      const [commitSha, author, email, timestamp] = line.split('|');
-      return { commitSha, author, email, timestamp };
-    });
-
-    // Return only the latest commit (first in the log)
-    const latestCommit = commits.length > 0 ? [commits[0]] : [];
-    return [{
-      key: '__file__',
-      commits: latestCommit,
-    }];
-  } catch (error: any) {
-    console.warn(`[git-history] Failed to extract git history for ${filePath}:`, error.message);
-    return [];
-  }
-}
-
-/**
- * Extract per-key git history using git blame
- */
-function extractPerKeyGitHistory(filePath: string, flattenedKeys: string[]): KeyHistory[] {
-  try {
-    // Check if git is available
-    try {
-      execSync('git rev-parse --git-dir', { stdio: 'ignore' });
-    } catch {
-      return [];
-    }
-
-    // Read the file content to map keys to line numbers
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const fileLines = fileContent.split('\n');
-    
-    // Build a map of flattened keys to their line numbers in the file
-    const keyToLineMap: Map<string, number> = new Map();
-    
-    // For JSON files, we need to find which line contains each key
-    // We'll search for the key name (as a quoted string) in the file
-    for (const key of flattenedKeys) {
-      // Split nested keys to find the actual property name
-      const keyParts = key.split('.');
-      const leafKey = keyParts[keyParts.length - 1];
-      
-      // Search for the line containing this key
-      // Look for patterns like: "key": or "key" :
-      const keyPattern = `"${leafKey}"`;
-      
-      for (let i = 0; i < fileLines.length; i++) {
-        const line = fileLines[i];
-        if (line.includes(keyPattern)) {
-          // Check if this is actually a key definition (has a colon after it)
-          const colonIndex = line.indexOf(keyPattern) + keyPattern.length;
-          const afterKey = line.substring(colonIndex).trim();
-          if (afterKey.startsWith(':')) {
-            // Found the key definition line
-            if (!keyToLineMap.has(key)) {
-              // Line numbers in git blame are 1-indexed
-              keyToLineMap.set(key, i + 1);
-              break;
-            }
-          }
-        }
-      }
-    }
-    
-    // Use git blame to get line-by-line commit information
-    const blameOutput = execSync(
-      `git blame --line-porcelain "${filePath}"`,
-      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 }
-    ).trim();
-
-    if (!blameOutput) {
-      return [];
-    }
-
-    // Parse git blame porcelain format
-    // Map line numbers to commit info
     const lines = blameOutput.split('\n');
-    const lineToCommitMap: Map<number, string> = new Map();
-    const commitInfo: Map<string, GitCommitInfo> = new Map();
+    const lineToCommitMap = new Map<number, GitBlameInfo>();
     
     let currentCommit = '';
     let currentLineNumber = 0;
     let currentAuthor = '';
     let currentEmail = '';
-    let currentTimestamp = '';
+    let currentDate = '';
     
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      
+    for (const line of lines) {
       if (line.match(/^[0-9a-f]{40}/)) {
-        // This is a commit header line
         const parts = line.split(' ');
         currentCommit = parts[0];
         currentLineNumber = parseInt(parts[2], 10);
-        
-        // Initialize commit info if not exists
-        if (!commitInfo.has(currentCommit)) {
-          commitInfo.set(currentCommit, { 
-            commitSha: currentCommit, 
-            author: '', 
-            email: '', 
-            timestamp: '' 
-          });
-        }
-        
-        // Map this line to this commit
-        lineToCommitMap.set(currentLineNumber, currentCommit);
       } else if (line.startsWith('author ')) {
         currentAuthor = line.substring(7);
-        if (commitInfo.has(currentCommit)) {
-          commitInfo.get(currentCommit)!.author = currentAuthor;
-        }
       } else if (line.startsWith('author-mail ')) {
         currentEmail = line.substring(12).replace(/[<>]/g, '');
-        if (commitInfo.has(currentCommit)) {
-          commitInfo.get(currentCommit)!.email = currentEmail;
-        }
       } else if (line.startsWith('author-time ')) {
-        currentTimestamp = new Date(parseInt(line.substring(12)) * 1000).toISOString();
-        if (commitInfo.has(currentCommit)) {
-          commitInfo.get(currentCommit)!.timestamp = currentTimestamp;
-        }
-      }
-    }
-
-    // Build per-key history
-    const histories: KeyHistory[] = [];
-    
-    for (const [key, lineNumber] of keyToLineMap.entries()) {
-      const commitSha = lineToCommitMap.get(lineNumber);
-      if (commitSha && commitInfo.has(commitSha)) {
-        const commit = commitInfo.get(commitSha)!;
-        histories.push({
-          key,
-          commits: [commit],
+        currentDate = new Date(parseInt(line.substring(12)) * 1000).toISOString();
+        
+        // Store complete info
+        lineToCommitMap.set(currentLineNumber, {
+          commit: currentCommit,
+          author: currentAuthor,
+          email: currentEmail,
+          date: currentDate,
         });
       }
     }
 
-    // If we couldn't map any keys, fall back to file-level history
-    if (histories.length === 0 && commitInfo.size > 0) {
-      const uniqueCommits = Array.from(commitInfo.values());
-      const sortedCommits = uniqueCommits.sort((a, b) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      );
-      
-      const latestCommit = sortedCommits.length > 0 ? [sortedCommits[0]] : [];
-      if (latestCommit.length > 0) {
-        histories.push({
-          key: '__all_keys__',
-          commits: latestCommit,
-        });
-      }
-    }
-
-    return histories;
+    return lineToCommitMap;
   } catch (error: any) {
-    console.warn(`[git-blame] Failed to extract per-key history for ${filePath}:`, error.message);
-    return [];
+    console.warn(`[git-blame] Failed for ${filePath}:`, error.message);
+    return new Map();
   }
 }
 
 /**
- * Process a single translation file
+ * Build metadata for a file
  */
-export function processFile(filePath: string, format: string, includeHistory = true): TranslationFile | null {
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const stats = fs.statSync(filePath);
-    
-    let parsed: Record<string, any>;
-    
-    switch (format) {
-      case 'json':
-        parsed = parseJSON(content);
-        break;
-      case 'markdown':
-        parsed = parseMarkdown(content);
-        break;
-      default:
-        console.warn(`Unsupported format: ${format}`);
-        return null;
-    }
+function buildMetadata(
+  filePath: string,
+  flattenedContents: Record<string, string>
+): Metadata {
+  const fileContent = fs.readFileSync(filePath, 'utf-8');
+  const lines = fileContent.split('\n');
+  const blameMap = getGitBlame(filePath);
 
-    // Flatten nested structures
-    const flattened = flattenObject(parsed);
+  const metadata: Metadata = {
+    gitBlame: {},
+    charRanges: {},
+    sourceHashes: {},
+  };
 
-    // Extract language from path (e.g., locales/en/common.json -> en)
-    const langMatch = filePath.match(/\/([a-z]{2}(-[A-Z]{2})?)\//);
-    const lang = langMatch ? langMatch[1] : 'unknown';
-
-    // Build structure map to track original structure
-    const structureMap = buildStructureMap(parsed, content);
+  // For each flattened key, find its position in the file
+  for (const [key, value] of Object.entries(flattenedContents)) {
+    // Find the line containing this key
+    const keyParts = key.split('.');
+    const leafKey = keyParts[keyParts.length - 1];
+    const keyPattern = `"${leafKey}"`;
     
-    // Calculate source hash for the entire file
-    const sourceHash = calculateHash(content);
+    let lineNum = 0;
+    let charStart = 0;
+    let charEnd = 0;
     
-    // Extract git history if requested
-    let history: KeyHistory[] = [];
-    if (includeHistory) {
-      history = extractPerKeyGitHistory(filePath, Object.keys(flattened));
-      if (history.length === 0) {
-        // Fallback to file-level history if per-key history is not available
-        history = extractGitHistory(filePath);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.includes(keyPattern)) {
+        const colonIndex = line.indexOf(keyPattern) + keyPattern.length;
+        const afterKey = line.substring(colonIndex).trim();
+        if (afterKey.startsWith(':')) {
+          lineNum = i + 1;
+          charStart = line.indexOf(keyPattern);
+          charEnd = charStart + keyPattern.length;
+          break;
+        }
       }
     }
 
+    // Get git blame for this line
+    const blame = blameMap.get(lineNum);
+    if (blame) {
+      metadata.gitBlame[key] = blame;
+    }
+
+    // Store char range
+    metadata.charRanges[key] = {
+      start: [lineNum, charStart],
+      end: [lineNum, charEnd],
+    };
+
+    // Store source hash
+    metadata.sourceHashes[key] = hashValue(value);
+  }
+
+  return metadata;
+}
+
+/**
+ * Process a single file
+ */
+export function processFile(filePath: string): TranslationFile | null {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(content);
+    const flattened = flattenObject(parsed);
+
+    // Extract language from path
+    const langMatch = filePath.match(/\/([a-z]{2}(-[A-Z]{2})?)\//);
+    const lang = langMatch ? langMatch[1] : 'unknown';
+
+    // Build metadata
+    const metadata = buildMetadata(filePath, flattened);
+
+    // Compress metadata with MessagePack
+    const metadataPacked = encode(metadata);
+    const metadataBase64 = Buffer.from(metadataPacked).toString('base64');
+
+    // Calculate source hash
+    const sourceHash = hashValue(content);
+
     return {
-      filetype: format as 'json' | 'markdown',
-      filename: path.basename(filePath),
       lang,
+      filename: path.basename(filePath),
       contents: flattened,
-      metadata: {
-        size: stats.size,
-        keys: Object.keys(flattened).length,
-        lastModified: stats.mtime.toISOString(),
-      },
-      history,
-      structureMap,
+      metadata: metadataBase64,
       sourceHash,
     };
-  } catch (error) {
-    console.error(`Error processing file ${filePath}:`, error);
+  } catch (error: any) {
+    console.error(`Error processing ${filePath}:`, error.message);
     return null;
   }
 }
 
 /**
- * Load configuration from .koro-i18n.repo.config.toml
+ * Load configuration
  */
 export function loadConfig(configPath = '.koro-i18n.repo.config.toml'): Config {
   const content = fs.readFileSync(configPath, 'utf-8');
@@ -415,157 +228,44 @@ export function loadConfig(configPath = '.koro-i18n.repo.config.toml'): Config {
 }
 
 /**
- * Process all translation files in the project
+ * Get current commit SHA
  */
-export async function processProject(
-  repository: string,
-  branch: string,
-  commit: string,
-  configPath = '.koro-i18n.repo.config.toml'
-): Promise<ProjectMetadata> {
-  const config = loadConfig(configPath);
-  const files: TranslationFile[] = [];
-
-  // Process each source file pattern
-  for (const pattern of config.includePatterns || []) {
-    const matchedFiles = await glob(pattern, {
-      ignore: config.excludePatterns || [],
-    });
-
-    for (const filePath of matchedFiles) {
-      // Determine format from extension or config
-      const ext = path.extname(filePath).slice(1);
-      const format = ext === 'json' ? 'json' : ext === 'md' ? 'markdown' : 'json';
-
-      const processed = processFile(filePath, format);
-      if (processed) {
-        files.push(processed);
-      }
-    }
+function getCommitSha(): string {
+  try {
+    return execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+  } catch {
+    return `upload-${Date.now()}`;
   }
-
-  return {
-    repository,
-    branch,
-    commit,
-    sourceLanguage: config.sourceLanguage,
-    targetLanguages: config.targetLanguages,
-    files,
-    generatedAt: new Date().toISOString(),
-  };
 }
 
 /**
- * Upload metadata to I18n Platform using structured format with chunking support
+ * Get current branch
  */
-export async function uploadToPlatform(
-  projectName: string,
-  metadata: ProjectMetadata,
-  platformUrl: string,
-  token: string,
-  chunkSize: number = 1
-): Promise<void> {
-  const totalFiles = metadata.files.length;
-  
-  // If total files are within chunk size, upload in one request
-  if (totalFiles <= chunkSize) {
-    const payload = {
-      branch: metadata.branch,
-      commitSha: metadata.commit,
-      sourceLanguage: metadata.sourceLanguage,
-      targetLanguages: metadata.targetLanguages,
-      files: metadata.files,
-    };
-
-    const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Upload failed (${response.status}): ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('Upload successful:', result);
-    return;
+function getBranch(): string {
+  try {
+    return execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
+  } catch {
+    return 'main';
   }
-
-  // Split files into chunks and upload sequentially
-  console.log(`Uploading ${totalFiles} files in chunks of ${chunkSize}...`);
-  
-  const chunks: TranslationFile[][] = [];
-  for (let i = 0; i < totalFiles; i += chunkSize) {
-    chunks.push(metadata.files.slice(i, i + chunkSize));
-  }
-
-  let totalUploaded = 0;
-  let totalKeys = 0;
-
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    const chunkNum = i + 1;
-    const filesInChunk = chunk.length;
-    
-    console.log(`Uploading chunk ${chunkNum}/${chunks.length} (${filesInChunk} files)...`);
-
-    const payload = {
-      branch: metadata.branch,
-      commitSha: metadata.commit,
-      sourceLanguage: metadata.sourceLanguage,
-      targetLanguages: metadata.targetLanguages,
-      files: chunk,
-    };
-
-    const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Upload failed for chunk ${chunkNum}/${chunks.length} (${response.status}): ${errorText}`);
-    }
-
-    const result: any = await response.json();
-    totalUploaded += result.filesUploaded || filesInChunk;
-    totalKeys += result.totalKeys || 0;
-    
-    console.log(`Chunk ${chunkNum}/${chunks.length} uploaded successfully (${result.filesUploaded || filesInChunk} files, ${result.totalKeys || 0} keys)`);
-  }
-
-  console.log(`All chunks uploaded successfully! Total: ${totalUploaded} files, ${totalKeys} keys`);
 }
 
 /**
- * Upload JSON files directly to I18n Platform (native JSON mode)
+ * Upload to platform
  */
-export async function uploadJSONDirectly(
+export async function upload(
   projectName: string,
-  branch: string,
-  commit: string,
-  language: string,
-  files: Record<string, any>,
+  files: TranslationFile[],
   platformUrl: string,
   token: string
 ): Promise<void> {
   const payload = {
-    branch,
-    commitSha: commit,
-    language,
+    branch: process.env.GITHUB_REF_NAME || getBranch(),
+    commitSha: process.env.GITHUB_SHA || getCommitSha(),
+    sourceLanguage: files.find(f => f.lang)?.lang || 'en',
     files,
   };
 
-  const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload-json`, {
+  const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -576,147 +276,43 @@ export async function uploadJSONDirectly(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`JSON upload failed (${response.status}): ${errorText}`);
+    throw new Error(`Upload failed (${response.status}): ${errorText}`);
   }
 
   const result = await response.json();
-  console.log('JSON upload successful:', result);
+  console.log('✅ Upload successful:', result);
 }
 
 /**
- * Download translations from I18n Platform
+ * Main CLI function
  */
-export async function downloadFromPlatform(
-  projectName: string,
-  branch: string,
-  language: string | undefined,
-  platformUrl: string,
-  token: string
-): Promise<any> {
-  let url = `${platformUrl}/api/projects/${projectName}/download?branch=${branch}`;
-  if (language) {
-    url += `&language=${language}`;
+export async function main() {
+  const configPath = process.argv[2] || '.koro-i18n.repo.config.toml';
+  const config = loadConfig(configPath);
+
+  const token = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN || process.env.JWT_TOKEN;
+  if (!token) {
+    throw new Error('No token found. Set ACTIONS_ID_TOKEN_REQUEST_TOKEN or JWT_TOKEN');
   }
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
+  console.log(`📦 Processing files for ${config.project.name}...`);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Download failed (${response.status}): ${errorText}`);
-  }
+  const allFiles: TranslationFile[] = [];
 
-  return await response.json();
-}
+  for (const pattern of config.source.files) {
+    const files = await glob(pattern);
+    console.log(`Found ${files.length} files matching ${pattern}`);
 
-/**
- * Parse command-line arguments
- */
-function parseArgs(): {
-  configPath: string;
-  oidcToken?: string;
-  apiKey?: string;
-  projectName?: string;
-  platformUrl: string;
-  chunkSize: number;
-} {
-  const args = process.argv.slice(2);
-  const result: any = {
-    configPath: '.koro-i18n.repo.config.toml',
-    platformUrl: process.env.I18N_PLATFORM_URL || 'https://koro.f3liz.workers.dev',
-    chunkSize: 10, // Default chunk size
-  };
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    const nextArg = args[i + 1];
-
-    if (arg === '--config-path' && nextArg) {
-      result.configPath = nextArg;
-      i++;
-    } else if (arg === '--oidc-token' && nextArg) {
-      result.oidcToken = nextArg;
-      i++;
-    } else if (arg === '--api-key' && nextArg) {
-      result.apiKey = nextArg;
-      i++;
-    } else if (arg === '--project-name' && nextArg) {
-      result.projectName = nextArg;
-      i++;
-    } else if (arg === '--platform-url' && nextArg) {
-      result.platformUrl = nextArg;
-      i++;
-    } else if (arg === '--chunk-size' && nextArg) {
-      const parsed = parseInt(nextArg, 10);
-      if (!isNaN(parsed) && parsed > 0) {
-        result.chunkSize = parsed;
+    for (const filePath of files) {
+      const processed = processFile(filePath);
+      if (processed) {
+        allFiles.push(processed);
+        console.log(`  ✓ ${filePath} (${Object.keys(processed.contents).length} keys)`);
       }
-      i++;
     }
   }
 
-  // Fall back to environment variables
-  if (!result.oidcToken) {
-    result.oidcToken = process.env.OIDC_TOKEN;
-  }
-  if (!result.apiKey) {
-    result.apiKey = process.env.I18N_PLATFORM_API_KEY;
-  }
-  if (!result.projectName) {
-    result.projectName = process.env.PROJECT_NAME;
-  }
-
-  return result;
-}
-
-/**
- * Main function for CLI
- */
-export async function main() {
-  const args = parseArgs();
-  
-  const token = args.oidcToken || args.apiKey;
-  if (!token) {
-    throw new Error('Either OIDC_TOKEN or I18N_PLATFORM_API_KEY environment variable is required, or pass --oidc-token or --api-key');
-  }
-
-  const repository = process.env.GITHUB_REPOSITORY || 'unknown/unknown';
-  const branch = process.env.GITHUB_REF_NAME || 'main';
-  const commit = process.env.GITHUB_SHA || 'unknown';
-
-  console.log('Processing translation files...');
-  console.log(`Repository: ${repository}`);
-  console.log(`Branch: ${branch}`);
-  console.log(`Commit: ${commit}`);
-  console.log(`Config path: ${args.configPath}`);
-  
-  const metadata = await processProject(repository, branch, commit, args.configPath);
-  
-  console.log(`Found ${metadata.files.length} translation files`);
-  console.log(`Source language: ${metadata.sourceLanguage}`);
-  console.log(`Target languages: ${metadata.targetLanguages.join(', ')}`);
-  
-  // Determine project name
-  let projectName = args.projectName;
-  if (!projectName) {
-    // Try to load from config
-    const config = loadConfig(args.configPath);
-    projectName = config.projectName || repository.split('/')[1] || repository;
-  }
-  
-  if (!projectName) {
-    throw new Error('Project name is required. Set PROJECT_NAME environment variable, pass --project-name, or add projectName to config file');
-  }
-  
-  console.log(`Project name: ${projectName}`);
-  console.log(`Uploading to: ${args.platformUrl}`);
-  console.log(`Chunk size: ${args.chunkSize} files per request`);
-  
-  await uploadToPlatform(projectName, metadata, args.platformUrl, token, args.chunkSize);
-  
-  console.log('Done!');
+  console.log(`\n📤 Uploading ${allFiles.length} files...`);
+  await upload(config.project.name, allFiles, config.project.platform_url, token);
+  console.log('✨ Done!');
 }

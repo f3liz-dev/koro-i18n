@@ -1,28 +1,10 @@
-# I18n Platform Configuration
-# This file configures how translation files are processed and uploaded
+[project]
+name = "example-project"
+platform_url = "http://localhost:8787"
 
-# Project name on the platform (optional, defaults to repository name)
-projectName = "example-project"
+[source]
+language = "en"
+files = ["locales/**/*.json"]
 
-# Source language (the language you write your app in)
-sourceLanguage = "en"
-
-# Target languages (languages you want to translate to)
-targetLanguages = ["ja", "es", "fr", "de", "zh", "ko"]
-
-# File patterns to include (glob patterns)
-includePatterns = [
-  "locales/**/*.json"
-]
-
-# File patterns to exclude
-excludePatterns = [
-  "**/node_modules/**",
-  "**/dist/**",
-  "**/.git/**"
-]
-
-# Output pattern for committed translations
-# {lang} = language code (e.g., "ja", "es")
-# {file} = filename (e.g., "common.json")
-outputPattern = "locales/{lang}/{file}"
+[target]
+languages = ["ja", "es", "fr", "de", "zh"]

@@ -21,11 +21,11 @@ model User {
   createdAt DateTime @default(now())
 
   // Relations
-  projects           Project[]
-  translations       Translation[]
-  translationHistory TranslationHistory[]
-  projectMemberships ProjectMember[]
-  addedMembers       ProjectMember[] @relation("AddedBy")
+  projects              Project[]
+  webTranslations       WebTranslation[]
+  webTranslationHistory WebTranslationHistory[]
+  projectMemberships    ProjectMember[]
+  addedMembers          ProjectMember[] @relation("AddedBy")
 
   @@index([githubId])
 }
@@ -39,72 +39,81 @@ model OauthState {
   @@index([expiresAt])
 }
 
-// Project source files (uploaded by client)
-model ProjectFile {
-  id           String   @id
-  projectId    String
-  branch       String
-  commitSha    String
-  filename     String
-  filetype     String
-  lang         String
-  contents     String   // JSON string of flattened key-value pairs
-  metadata     String?  // JSON string of file metadata
-  sourceHash   String?  // Hash of source content to validate translations
-  structureMap String?  // JSON string mapping original structure to flattened keys
-  uploadedAt   DateTime @default(now())
+// R2 File Index (GitHub imports - mutable, stored in R2)
+// This table stores metadata and pointers to R2, not the actual file contents
+// Files are OVERWRITTEN on each upload, git history is in the metadata
+model R2File {
+  id          String   @id
+  projectId   String
+  branch      String
+  commitSha   String   // Latest commit that modified this file
+  lang        String
+  filename    String
+  r2Key       String   // R2 object key: [project]-[lang]-[filename] (no commit hash)
+  sourceHash  String   // Hash of source content
+  totalKeys   Int      // Total number of translation keys
+  uploadedAt  DateTime @default(now())
+  lastUpdated DateTime @default(now()) @updatedAt // For ETag
 
-  @@unique([projectId, branch, filename, lang])
+  @@unique([projectId, branch, lang, filename])
   @@index([projectId, branch])
   @@index([projectId, lang])
+  @@index([lastUpdated])
 }
 
-// Translations table (pending translations to be batched and committed)
-model Translation {
-  id        String   @id
-  projectId String
-  language  String
-  key       String
-  value     String
-  userId    String
-  status    String   @default("pending") // pending, approved, committed, rejected, deleted
-  commitSha String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+// Web Translations (user-submitted translations via web UI)
+// GitHub imports are NOT stored here - they're in R2
+model WebTranslation {
+  id              String   @id
+  projectId       String
+  language        String
+  filename        String
+  key             String   // Flattened key (e.g., "common.welcome")
+  value           String
+  userId          String
+  status          String   @default("pending") // pending, approved, rejected, deleted
+  
+  // Source tracking (for validation)
+  sourceHash      String?  // Hash of source value when translated (for detecting changes)
+  isValid         Boolean  @default(true) // False if source changed
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
 
   // Relations
-  user    User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  history TranslationHistory[]
+  user    User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  history WebTranslationHistory[]
 
-  @@index([projectId, language])
+  @@index([projectId, language, filename])
   @@index([status])
-  @@index([projectId, language, key])
-  @@index([projectId, language, status])
-  @@index([createdAt])
+  @@index([projectId, language, filename, key])
+  @@index([updatedAt])
+  @@index([isValid])
 }
 
-// Translation history log (audit trail for each translation key)
-model TranslationHistory {
+// Web Translation History (audit trail for web translations only)
+model WebTranslationHistory {
   id            String   @id
   translationId String
   projectId     String
   language      String
+  filename      String
   key           String
   value         String
   userId        String
-  action        String   // submitted, approved, rejected, deleted, committed, imported
-  commitSha     String?
-  sourceContent String?  // Source content at time of translation for validation
-  commitAuthor  String?  // Git commit author name for co-authoring
-  commitEmail   String?  // Git commit author email for co-authoring
+  action        String   // submitted, approved, rejected, deleted, invalidated
+  
+  // Source tracking at time of action
+  sourceHash    String?  // Hash of source value at time of action
+  
   createdAt     DateTime @default(now())
 
   // Relations
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  translation Translation @relation(fields: [translationId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  translation WebTranslation @relation(fields: [translationId], references: [id], onDelete: Cascade)
 
   @@index([translationId])
-  @@index([projectId, language, key])
+  @@index([projectId, language, filename, key])
   @@index([createdAt])
 }
 

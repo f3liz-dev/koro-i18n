@@ -1,214 +1,102 @@
-# I18n Platform Documentation
+# koro-i18n Documentation
 
-Production-ready internationalization platform with GitHub OAuth, project management, and automated batch commits.
+Lightweight i18n platform using Cloudflare Workers, D1, and R2.
+
+## Features
+
+- **R2 Storage**: GitHub imports stored in R2 (unlimited size)
+- **Source Validation**: Auto-detect outdated translations
+- **Git Integration**: Full git blame + commit info preserved
+- **Web Translations**: User translations stored in D1
+- **Separate APIs**: R2 (GitHub imports) + D1 (web translations)
+- **Free Tier Optimized**: <1GB storage, minimal operations
+
+## Architecture
+
+```
+GitHub → Client (preprocess) → Worker → R2 (files) + D1 (index)
+Web UI → Worker → D1 (web translations)
+Display → R2 API + D1 API → Merge in UI
+```
+
+**Key Concepts:**
+- R2 files are mutable (overwrite on upload)
+- Git history preserved in metadata
+- Source validation via hash comparison
+- Individual file storage: `[project]-[lang]-[filename]`
 
 ## Quick Start
 
 ```bash
-# 1. Create database
-wrangler d1 create koro-i18n-db
-# Update wrangler.toml with database_id
+# Install dependencies
+pnpm install
 
-# 2. Apply Prisma migrations
-pnpm run prisma:migrate:remote
+# Generate Prisma client
+pnpm run prisma:generate
 
-# 3. Set secrets
-wrangler secret put GITHUB_CLIENT_ID
-wrangler secret put GITHUB_CLIENT_SECRET
-wrangler secret put JWT_SECRET
-wrangler secret put GITHUB_BOT_TOKEN
+# Create R2 bucket
+wrangler r2 bucket create koro-i18n-translations
 
-# 4. Deploy
-npm run deploy
-npm run deploy:pages
+# Apply migrations
+pnpm run prisma:migrate:local
+
+# Run development
+pnpm run dev:all
+
+# Deploy
+pnpm run deploy
 ```
 
-## Features
+## Documentation
 
-- **GitHub OAuth** - Secure authentication
-- **Project Management** - Multi-user projects with whitelist/blacklist
-- **User Approval** - Approve users to join projects
-- **Translation Approval** - Review and approve translations
-- **Batch Commits** - Auto-commit every 5 minutes
-- **Complete History** - Full audit trail
-- **Native JSON Upload** - Direct JSON file upload support
-- **GitHub Actions** - Reusable actions for upload/download
-- **Edge Deployment** - Cloudflare Workers + D1 + Pages
+- **[Architecture](ARCHITECTURE.md)** - System design & data flow
+- **[Setup Guide](SETUP.md)** - Installation & configuration
+- **[Client Library](CLIENT_LIBRARY.md)** - Client implementation guide
+- **[Deployment](DEPLOYMENT.md)** - Production deployment
+- **[Testing](TESTING.md)** - Testing guide
+- **[Prisma](PRISMA.md)** - Database ORM guide
 
-## Architecture
+## Tech Stack
 
-### Stateless Design
-- No session storage
-- JWT contains user info + encrypted GitHub token
-- Horizontal scaling ready
-
-### Project Management
-- Users can create projects
-- Users can request to join projects
-- Project owners approve/reject join requests
-- Whitelist mode: only approved users
-- Blacklist mode: all except rejected users
-
-### Translation Workflow
-1. **Submit** → User submits translation (pending)
-2. **Approve** → Reviewer approves (approved)
-3. **Commit** → Cron commits to GitHub every 5 min (committed)
-4. **History** → All actions logged
-
-## Configuration
-
-### GitHub OAuth App
-1. Go to https://github.com/settings/developers
-2. Create OAuth App
-3. Callback: `https://your-worker.workers.dev/api/auth/callback`
-
-### Cron Frequency
-Edit `wrangler.cron.toml`:
-```toml
-[triggers]
-crons = ["*/5 * * * *"]  # Every 5 minutes
-```
-
-### CORS Origins
-Edit `src/workers.ts`:
-```typescript
-origin: ['https://your-pages.pages.dev']
-```
+- **Frontend**: SolidJS + Vite + UnoCSS
+- **Backend**: Cloudflare Workers + Hono
+- **Storage**: D1 (SQLite) + R2 (Object Storage)
+- **ORM**: Prisma
+- **Auth**: GitHub OAuth + JWT
+- **Compression**: MessagePack
 
 ## API Endpoints
 
+### D1 API - Metadata & Web Translations
 ```
-Authentication:
-  GET  /api/auth/github
-  GET  /api/auth/callback
-  GET  /api/auth/me
-  POST /api/auth/logout
-
-Projects:
-  GET    /api/projects              - List user's projects
-  GET    /api/projects/all          - List all projects (for joining)
-  POST   /api/projects              - Create project
-  PATCH  /api/projects/:id          - Update access control
-  DELETE /api/projects/:id          - Delete project
-  POST   /api/projects/:id/join     - Request to join
-  GET    /api/projects/:id/members  - List members
-  POST   /api/projects/:id/members/:memberId/approve - Approve/reject
-  DELETE /api/projects/:id/members/:memberId - Remove member
-  POST   /api/projects/:projectName/upload        - Upload structured files
-  POST   /api/projects/:projectName/upload-json   - Upload JSON files natively
-  GET    /api/projects/:projectName/download      - Download translations
-
-Translations:
-  POST   /api/translations
-  GET    /api/translations
-  GET    /api/translations/history
-  POST   /api/translations/:id/approve
-  DELETE /api/translations/:id
+POST /api/projects/:project/upload          - Upload files to R2
+GET  /api/projects/:project/files/list      - List files (metadata)
+GET  /api/projects/:project/files/summary   - File summaries
+GET  /api/translations                      - Get web translations
+POST /api/translations                      - Create web translation
 ```
 
-## GitHub Actions
-
-Koro i18n provides reusable GitHub Actions for easy integration:
-
-### Upload Translations Action
-
-Upload source translations automatically:
-
-```yaml
-- uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
-  with:
-    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
-    project-name: my-project
-    mode: json  # or 'structured'
+### R2 API - GitHub Imports
+```
+GET /api/r2/:project/:lang/:filename        - Get file from R2
+GET /api/r2/by-key/:r2Key                   - Get by R2 key
 ```
 
-### Download Translations Action
+## Performance
 
-Download completed translations and commit them:
+### Free Tier Usage
+- R2 writes: ~100/month
+- R2 reads: ~1000/month (cached)
+- D1 writes: ~200/month
+- D1 reads: ~10K/month
+- Storage: <1GB total
 
-```yaml
-- uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
-  with:
-    api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
-    project-name: my-project
-```
+### Optimizations
+- In-memory caching (1 hour TTL)
+- ETag support (304 Not Modified)
+- MessagePack compression
+- Individual file storage
 
-See [GITHUB_ACTIONS.md](./GITHUB_ACTIONS.md) for complete documentation.
+## License
 
-## Database Schema
-
-```sql
-users              -- GitHub user profiles
-oauth_states       -- OAuth CSRF tokens
-projects           -- Projects with access control
-project_members    -- User access to projects
-translations       -- Current/pending translations
-translation_history -- Immutable audit log
-project_files      -- Uploaded translation files
-```
-
-## Monitoring
-
-```bash
-# View logs
-wrangler tail
-wrangler tail --config wrangler.cron.toml
-
-# Check database
-wrangler d1 execute koro-i18n-db --command="SELECT * FROM translations"
-
-# Check stats
-wrangler d1 execute koro-i18n-db \
-  --command="SELECT status, COUNT(*) FROM translations GROUP BY status"
-```
-
-## Cost
-
-**FREE** on Cloudflare free tier:
-- Workers: 100K requests/day
-- D1: 5M reads/day, 100K writes/day
-- Pages: Unlimited requests
-- Cron: 288 executions/day
-
-Expected usage for 1000 daily users: **Completely FREE!**
-
-## Troubleshooting
-
-### OAuth Fails
-```bash
-wrangler secret list  # Check secrets
-```
-
-### Cron Not Running
-```bash
-wrangler tail --config wrangler.cron.toml
-```
-
-### Database Errors
-```bash
-# Apply Prisma migrations
-pnpm run prisma:migrate:remote
-```
-
-## Security
-
-- HTTPS enforced
-- Secrets stored securely
-- CORS restricted
-- JWT signed and verified
-- OAuth state validation
-- HttpOnly cookies
-- Minimal GitHub permissions (users: `user:email`, bot: `repo`)
-
-## Documentation Files
-
-- `README.md` - This file (Platform overview)
-- `DEPLOYMENT.md` - Detailed deployment guide
-- `CLIENT_SETUP.md` - Client repository setup
-- `GITHUB_ACTIONS.md` - GitHub Actions integration guide
-- `GETTING_TRANSLATIONS.md` - Guide for getting translations in different languages
-- `PRISMA.md` - Prisma ORM integration documentation
-
----
-
-**Ready to deploy!** 🚀
+MIT

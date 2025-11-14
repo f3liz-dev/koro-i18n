@@ -1,15 +1,10 @@
-import { Show } from 'solid-js';
+import { Show, createSignal } from 'solid-js';
 import TranslationList from './TranslationList';
-
-interface TranslationString {
-  key: string;
-  sourceValue: string;
-  currentValue?: string;
-}
+import type { MergedTranslation } from '../utils/translationApi';
 
 interface MobileMenuOverlayProps {
   show: boolean;
-  translationStrings: TranslationString[];
+  translationStrings: MergedTranslation[];
   selectedKey: string | null;
   language: string;
   isLoading: boolean;
@@ -53,6 +48,10 @@ export default function MobileMenuOverlay(props: MobileMenuOverlayProps) {
             translationStrings={props.translationStrings}
             selectedKey={props.selectedKey}
             language={props.language}
+            searchQuery=""
+            filterStatus="all"
+            onSearchChange={() => {}}
+            onFilterChange={() => {}}
             isLoading={props.isLoading}
             onSelectKey={handleSelectKey}
           />

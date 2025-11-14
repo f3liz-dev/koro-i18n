@@ -1,322 +1,87 @@
 # Client Repository Setup
 
-Guide for configuring your translation repository to work with the I18n Platform.
+Quick guide to integrate koro-i18n with your project.
 
-## Quick Setup
+## 1. Install Client Library
 
-### 1. Recommended: Use GitHub Actions
+```bash
+npm install @koro-i18n/client
+```
 
-The easiest way to integrate with Koro i18n is to use the provided reusable GitHub Actions:
+## 2. Configure Project
 
-Create `.github/workflows/i18n-sync.yml`:
+Create `.koro-i18n.repo.config.toml`:
+
+```toml
+[project]
+name = "my-project"
+platform_url = "https://koro.workers.dev"
+
+[source]
+language = "en"
+files = ["locales/en/**/*.json"]
+
+[target]
+languages = ["ja", "es", "fr"]
+```
+
+## 3. Add GitHub Action
+
+Create `.github/workflows/i18n-upload.yml`:
 
 ```yaml
-name: i18n Sync
+name: Upload Translations
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'locales/en/**'  # Source language
-  schedule:
-    - cron: '0 */6 * * *'  # Download translations every 6 hours
-  workflow_dispatch:
+    paths: ['locales/**']
 
 jobs:
-  upload-source:
-    if: github.event_name == 'push'
+  upload:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
+      id-token: write  # For OIDC
       contents: read
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
         with:
-          project-name: my-project
-
-  download-translations:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
+          fetch-depth: 0  # Full history for git blame
       
-      - uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
+      - uses: actions/setup-node@v4
         with:
-          project-name: my-project
+          node-version: '20'
+      
+      - name: Install client
+        run: npm install -g @koro-i18n/client
+      
+      - name: Upload translations
+        run: koro-i18n upload
+        env:
+          I18N_PLATFORM_URL: ${{ secrets.I18N_PLATFORM_URL }}
 ```
 
-**No secrets needed!** The actions use GitHub OIDC for secure authentication.
+## 4. Configure Secrets
 
-See [GITHUB_ACTIONS.md](./GITHUB_ACTIONS.md) for more details.
+Add to GitHub repository secrets:
+- `I18N_PLATFORM_URL`: Your platform URL
 
-### 2. Alternative: Manual Client Library Setup
+## Development Upload
 
-If you need to use the client library directly (not recommended for most users):
-
-The `@i18n-platform/client` package is **not published to npm**. Instead, you need to build it from the repository:
-
-```yaml
-- name: Checkout koro-i18n client library
-  uses: actions/checkout@v4
-  with:
-    repository: f3liz-dev/koro-i18n
-    path: .koro-i18n-client
-    sparse-checkout: |
-      client-library
-    sparse-checkout-cone-mode: false
-
-- name: Build and install client
-  run: |
-    cd .koro-i18n-client/client-library
-    npm install
-    npm run build
-    npm link
-    cd ../..
-
-- name: Upload translations
-  env:
-    I18N_PLATFORM_URL: https://koro.f3liz.workers.dev
-    OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
-  run: i18n-upload
-```
-
-### 3. Create Configuration
-
-Create `.koro-i18n.repo.config.toml` in repository root:
-
-```toml
-sourceLanguage = "en"
-targetLanguages = ["ja", "es", "fr", "de"]
-
-includePatterns = [
-  "locales/**/*.json",
-  "src/locales/**/*.json"
-]
-
-excludePatterns = [
-  "**/node_modules/**",
-  "**/dist/**"
-]
-
-outputPattern = "locales/{lang}/{file}"
-```
-
-**Important:** This configuration file is **required** and must be:
-- ✅ Committed to your repository
-- ✅ Included in the workflow trigger paths (see step 1)
-- ✅ Updated whenever you change file locations or add new translation files
-
-**Ensure all JSON sources are included:**
-- Review your project structure
-- Add all translation file patterns to `includePatterns`
-- Test the patterns match all your files (use `git ls-files locales/` to verify)
-
-### 4. Get Project Set Up
-
-1. Go to Koro i18n Platform
-2. Sign in with GitHub
-3. Create a project
-4. Set the repository to match your GitHub repository (e.g., `owner/repo`)
-5. Note your project name
-
-### 5. Push and Test
+For local testing:
 
 ```bash
-git add .koro-i18n.repo.config.toml .github/workflows/i18n-sync.yml
-git commit -m "feat: Add i18n platform integration"
-git push
+# Get JWT token (see GET_JWT_TOKEN.md)
+JWT_TOKEN=<your-token> node upload-dev.js
 ```
 
-## How It Works
+## Client Library Requirements
 
-### File Processing
+The client must preprocess files before upload:
 
-1. **Reads** files matching `includePatterns`
-2. **Parses** JSON/Markdown into key-value pairs
-3. **Flattens** nested structures:
-   ```json
-   // Before
-   {"buttons": {"save": "Save"}}
-   
-   // After
-   {"buttons.save": "Save"}
-   ```
-4. **Uploads** to platform API
+1. **Git Blame**: Extract commit info for each line
+2. **Source Hashes**: Generate hash for each key's value
+3. **Char Ranges**: Calculate character positions
+4. **MessagePack**: Compress metadata
 
-### Translation Workflow
-
-```
-1. Client uploads source files
-   ↓
-2. Platform stores in D1
-   ↓
-3. User translates in web UI
-   ↓
-4. Reviewer approves
-   ↓
-5. Cron commits to GitHub (every 5 min)
-   ↓
-6. Client workflow runs again
-   ↓
-7. Updated files uploaded
-```
-
-## Supported File Formats
-
-### JSON
-
-```json
-{
-  "welcome": "Welcome",
-  "buttons": {
-    "save": "Save",
-    "cancel": "Cancel"
-  }
-}
-```
-
-Uploaded as:
-```json
-{
-  "welcome": "Welcome",
-  "buttons.save": "Save",
-  "buttons.cancel": "Cancel"
-}
-```
-
-### Markdown
-
-```markdown
-# Buttons
-- save: Save
-- cancel: Cancel
-```
-
-Uploaded as:
-```json
-{
-  "buttons.save": "Save",
-  "buttons.cancel": "Cancel"
-}
-```
-
-## API Endpoints
-
-### Upload Files
-
-```http
-POST /api/projects/:projectName/upload
-Authorization: Bearer YOUR_API_KEY
-Content-Type: application/json
-
-{
-  "branch": "main",
-  "commitSha": "abc123",
-  "files": [...]
-}
-```
-
-### Get Files
-
-```http
-GET /api/projects/:projectId/files?branch=main&lang=en
-Authorization: Bearer YOUR_JWT_TOKEN
-```
-
-## Checking Current Status
-
-After setting up the integration, verify everything is working:
-
-### 1. Verify Upload Status
-
-Check GitHub Actions to confirm files were uploaded:
-
-```bash
-# List recent workflow runs
-gh run list --workflow=i18n-sync.yml
-
-# View detailed logs
-gh run view <run-id> --log
-```
-
-Look for:
-- ✅ Number of files processed
-- ✅ Upload success confirmation
-- ✅ No error messages
-
-### 2. View on Platform Dashboard
-
-1. Sign in to Koro i18n platform
-2. Navigate to your project
-3. Verify all languages appear
-4. Check file counts match your repository
-5. Review completion percentages
-
-### 3. Ensure All Sources Are Tracked
-
-To verify all JSON files are being uploaded:
-
-```bash
-# List all JSON files in your project
-find . -name "*.json" -path "*/locales/*" -not -path "*/node_modules/*"
-
-# Compare with includePatterns in .koro-i18n.repo.config.toml
-cat .koro-i18n.repo.config.toml | grep -A5 includePatterns
-```
-
-If files are missing:
-1. Update `includePatterns` in `.koro-i18n.repo.config.toml`
-2. Commit and push the config file
-3. Workflow will run automatically
-4. Verify files appear on platform
-
-### 4. Test Workflow Trigger
-
-The workflow should trigger when:
-- ✅ Translation JSON files change (`locales/**`)
-- ✅ Config file changes (`.koro-i18n.repo.config.toml`)
-
-Test by making a small change and pushing.
-
-## Troubleshooting
-
-### Upload Fails
-
-```bash
-# Check workflow logs
-gh run list --workflow=i18n-upload.yml
-gh run view <run-id> --log
-
-# Test locally
-export I18N_PLATFORM_API_KEY=your-key
-i18n-upload
-```
-
-### Files Not Showing
-
-1. Check upload succeeded in GitHub Actions
-2. Verify API key is correct
-3. Check file patterns in `.koro-i18n.repo.config.toml`
-4. View platform logs: `wrangler tail`
-
-### Commits Not Working
-
-1. Verify platform has `GITHUB_BOT_TOKEN`
-2. Check token has `repo` scope
-3. View cron logs: `wrangler tail --config wrangler.cron.toml`
-
-## Security
-
-- API key stored in repository secrets
-- Files uploaded over HTTPS
-- Platform authenticates all requests
-- Commits use bot token (not user tokens)
-
----
-
-**Setup complete!** Start translating in the platform. 🌍
+See [CLIENT_LIBRARY.md](CLIENT_LIBRARY.md) for implementation details.

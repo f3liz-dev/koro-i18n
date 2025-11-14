@@ -11,34 +11,18 @@ on:
 jobs:
   upload:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # For OIDC
+      contents: read
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      
-      - name: Checkout koro-i18n client library
-        uses: actions/checkout@v4
-        with:
-          repository: f3liz-dev/koro-i18n
-          path: .koro-i18n-client
-          sparse-checkout: |
-            client-library
-          sparse-checkout-cone-mode: false
-      
-      - name: Build and install i18n client
-        run: |
-          cd .koro-i18n-client/client-library
-          npm install
-          npm run build
-          npm link
-          cd ../..
+          fetch-depth: 0  # Full history for git blame
       
       - name: Upload translations
-        env:
-          I18N_PLATFORM_URL: ${{ secrets.I18N_PLATFORM_URL }}
-          I18N_PLATFORM_API_KEY: ${{ secrets.I18N_PLATFORM_API_KEY }}
-        run: i18n-upload
+        uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
+        with:
+          project-name: 'example-project'
+          platform-url: ${{ secrets.I18N_PLATFORM_URL || 'https://koro.f3liz.workers.dev' }}

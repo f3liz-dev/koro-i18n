@@ -8,11 +8,13 @@ import { createAuthRoutes } from './routes/auth';
 import { createTranslationRoutes } from './routes/translations';
 import { createProjectRoutes } from './routes/projects';
 import { createProjectFileRoutes } from './routes/project-files';
+import { createR2FileRoutes } from './routes/r2-files';
 import { CACHE_CONFIGS, buildCacheControl } from './lib/cache-headers';
 import { etagMiddleware } from './lib/etag-middleware';
 
 interface Env {
   DB: D1Database;
+  TRANSLATION_BUCKET: R2Bucket;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
   JWT_SECRET: string;
@@ -42,6 +44,7 @@ export function createWorkerApp(env: Env) {
   app.route('/api/translations', createTranslationRoutes(prisma, env));
   app.route('/api/projects', createProjectRoutes(prisma, env));
   app.route('/api/projects', createProjectFileRoutes(prisma, env));
+  app.route('/api/r2', createR2FileRoutes(prisma, env));
 
   app.get('/api/logs/history', async (c) => {
     const projectId = c.req.query('projectId');

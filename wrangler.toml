@@ -16,7 +16,12 @@ PLATFORM_URL = "https://koro.f3liz.workers.dev"
 [[d1_databases]]
 binding = "DB"
 database_name = "koro-i18n-db"
-database_id = "c8f2819b-7f7f-482e-9ac7-8235c0573e10"
+database_id = "bed11b2a-88f2-4a83-b0f3-f77ab3ca1050"
+
+# R2 Bucket Configuration (for GitHub imports)
+[[r2_buckets]]
+binding = "TRANSLATION_BUCKET"
+bucket_name = "koro-i18n-bucket"
 
 # # Development Environment
 # [env.development]

@@ -1,35 +1,21 @@
-name: 'Upload Translations to Koro i18n'
-description: 'Process and upload translation files to Koro i18n platform'
-author: 'Koro i18n'
-
+name: 'Upload Translations to koro-i18n'
+description: 'Upload translation files to koro-i18n platform with git blame'
 branding:
-  icon: 'globe'
+  icon: 'upload-cloud'
   color: 'blue'
 
 inputs:
+  project-name:
+    description: 'Project name on koro-i18n platform'
+    required: true
   platform-url:
-    description: 'The URL of the i18n platform'
+    description: 'Platform URL'
     required: false
     default: 'https://koro.f3liz.workers.dev'
-  project-name:
-    description: 'Project name on the platform'
-    required: true
   config-path:
-    description: 'Path to .koro-i18n.repo.config.toml configuration file'
-    required: true
-    default: '.koro-i18n.repo.config.toml'
-  mode:
-    description: 'Upload mode: "structured" (default) or "json" for direct JSON upload'
+    description: 'Path to .koro-i18n.repo.config.toml'
     required: false
-    default: 'structured'
-
-outputs:
-  files-uploaded:
-    description: 'Number of files uploaded'
-    value: ${{ steps.upload.outputs.files-uploaded }}
-  upload-status:
-    description: 'Status of the upload operation'
-    value: ${{ steps.upload.outputs.status }}
+    default: '.koro-i18n.repo.config.toml'
 
 runs:
   using: 'composite'
@@ -38,265 +24,13 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-
-    - name: Get OIDC Token
-      id: oidc
+    
+    - name: Install koro-i18n client
       shell: bash
-      run: |
-        OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-          "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${{ inputs.platform-url }}" | jq -r .value)
-        echo "token=$OIDC_TOKEN" >> $GITHUB_OUTPUT
-
-    - name: Checkout koro-i18n client library
-      uses: actions/checkout@v4
-      with:
-        repository: f3liz-dev/koro-i18n
-        path: .koro-i18n-client
-        sparse-checkout: |
-          client-library
-        sparse-checkout-cone-mode: false
-
-    - name: Build and install i18n client
+      run: npm install -g @koro-i18n/client
+    
+    - name: Upload translations
       shell: bash
-      run: |
-        cd .koro-i18n-client/client-library
-        npm install
-        npm run build
-        npm link
-        cd ../..
-
-    - name: Upload translations (structured mode)
-      if: inputs.mode == 'structured'
-      id: upload-structured
-      shell: bash
+      run: koro-i18n ${{ inputs.config-path }}
       env:
         I18N_PLATFORM_URL: ${{ inputs.platform-url }}
-        OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
-        PROJECT_NAME: ${{ inputs.project-name }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
-        GITHUB_REF_NAME: ${{ github.ref_name }}
-        GITHUB_SHA: ${{ github.sha }}
-      run: |
-        i18n-upload --oidc-token "$OIDC_TOKEN" --project-name "$PROJECT_NAME" --config-path "${{ inputs.config-path }}" --platform-url "$I18N_PLATFORM_URL"
-        echo "files-uploaded=0" >> $GITHUB_OUTPUT
-        echo "status=success" >> $GITHUB_OUTPUT
-
-    - name: Upload translations (JSON mode)
-      if: inputs.mode == 'json'
-      id: upload-json
-      shell: bash
-      env:
-        I18N_PLATFORM_URL: ${{ inputs.platform-url }}
-        OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
-        PROJECT_NAME: ${{ inputs.project-name }}
-        CONFIG_PATH: ${{ inputs.config-path }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
-        GITHUB_REF_NAME: ${{ github.ref_name }}
-        GITHUB_SHA: ${{ github.sha }}
-      run: |
-        # Note: JSON mode processes files with jq to flatten them before upload
-        # This minimizes server CPU time by pre-flattening on the client
-        
-        # Helper function to flatten JSON objects
-        flatten_json() {
-          local json_file="$1"
-          # Flatten nested JSON to dot notation using jq
-          # Example: {"a": {"b": "c"}} becomes {"a.b": "c"}
-          jq -c '
-            def flatten($prefix):
-              . as $in
-              | reduce keys[] as $key (
-                  {};
-                  . + (
-                    if ($in[$key] | type) == "object" and ($in[$key] | type) != "null" then
-                      ($in[$key] | flatten(if $prefix == "" then $key else ($prefix + "." + $key) end))
-                    else
-                      {(if $prefix == "" then $key else ($prefix + "." + $key) end): ($in[$key] | tostring)}
-                    end
-                  )
-                );
-            flatten("")
-          ' "$json_file"
-        }
-        
-        # Check if config file exists
-        if [ ! -f "$CONFIG_PATH" ]; then
-          echo "Error: Config file not found at $CONFIG_PATH"
-          echo "JSON mode requires .koro-i18n.repo.config.toml to be present"
-          exit 1
-        fi
-        
-        echo "Reading configuration from $CONFIG_PATH"
-        
-        # Extract sourceLanguage from config
-        SOURCE_LANG=$(grep -E "^sourceLanguage" "$CONFIG_PATH" | sed -E 's/.*=\s*"([^"]+)".*/\1/')
-        
-        if [ -z "$SOURCE_LANG" ]; then
-          echo "Error: Could not find sourceLanguage in config file"
-          exit 1
-        fi
-        
-        echo "Source language: $SOURCE_LANG"
-        
-        # Find all language directories in locales/
-        echo "Scanning for languages in locales/ directory..."
-        LANGUAGES=()
-        if [ -d "locales" ]; then
-          for lang_dir in locales/*/; do
-            if [ -d "$lang_dir" ]; then
-              lang=$(basename "$lang_dir")
-              LANGUAGES+=("$lang")
-              echo "  Found language: $lang"
-            fi
-          done
-        fi
-        
-        if [ ${#LANGUAGES[@]} -eq 0 ]; then
-          echo "Error: No language directories found in locales/"
-          exit 1
-        fi
-        
-        echo "Total languages found: ${#LANGUAGES[@]}"
-        
-        # Collect all files from all languages into a single array
-        FILES_JSON="["
-        FIRST=true
-        TOTAL_FILES=0
-        
-        # Process all languages
-        for lang in "${LANGUAGES[@]}"; do
-          echo ""
-          echo "Processing language: $lang"
-          
-          FILE_COUNT=0
-          
-          # Find all JSON files in the language directory
-          if [ -d "locales/$lang" ]; then
-            while IFS= read -r -d '' file; do
-              if [ -f "$file" ]; then
-                echo "  Processing and flattening file: $file"
-                
-                if [ "$FIRST" = true ]; then
-                  FIRST=false
-                else
-                  FILES_JSON="$FILES_JSON,"
-                fi
-                
-                FILENAME=$(basename "$file")
-                
-                # Flatten the JSON content before uploading (client preprocessing)
-                FLATTENED_CONTENT=$(flatten_json "$file")
-                
-                # Verify flattening worked
-                if [ -z "$FLATTENED_CONTENT" ] || [ "$FLATTENED_CONTENT" = "null" ]; then
-                  echo "  Warning: Failed to flatten $file, using original content"
-                  FLATTENED_CONTENT=$(cat "$file" | jq -c .)
-                else
-                  echo "  ✓ Flattened $file (client preprocessing)"
-                fi
-                
-                # Create a file object with pre-flattened contents
-                FILE_OBJECT=$(jq -n \
-                  --arg filetype "json" \
-                  --arg filename "$FILENAME" \
-                  --arg lang "$lang" \
-                  --argjson contents "$FLATTENED_CONTENT" \
-                  '{
-                    filetype: $filetype,
-                    filename: $filename,
-                    lang: $lang,
-                    contents: $contents,
-                    metadata: {
-                      uploadMethod: "json-batch-flattened",
-                      preprocessed: true
-                    }
-                  }')
-                
-                FILES_JSON="$FILES_JSON$FILE_OBJECT"
-                FILE_COUNT=$((FILE_COUNT + 1))
-                TOTAL_FILES=$((TOTAL_FILES + 1))
-              fi
-            done < <(find "locales/$lang" -name "*.json" -type f -print0 2>/dev/null)
-          fi
-          
-          echo "  Found $FILE_COUNT files for language $lang"
-        done
-        
-        FILES_JSON="$FILES_JSON]"
-        
-        if [ $TOTAL_FILES -eq 0 ]; then
-          echo "Error: No JSON files found in any language directory"
-          exit 1
-        fi
-        
-        echo ""
-        echo "========================================="
-        echo "Total files collected: $TOTAL_FILES across ${#LANGUAGES[@]} languages"
-        echo "All files pre-flattened for optimal server performance"
-        echo "========================================="
-        
-        # Create a temporary file for the JSON payload
-        TEMP_PAYLOAD=$(mktemp)
-        echo "{\"branch\":\"$GITHUB_REF_NAME\",\"commitSha\":\"$GITHUB_SHA\",\"sourceLanguage\":\"$SOURCE_LANG\",\"files\":$FILES_JSON}" > "$TEMP_PAYLOAD"
-        
-        # Check payload size
-        PAYLOAD_SIZE=$(stat -f%z "$TEMP_PAYLOAD" 2>/dev/null || stat -c%s "$TEMP_PAYLOAD" 2>/dev/null)
-        PAYLOAD_SIZE_MB=$((PAYLOAD_SIZE / 1024 / 1024))
-        echo "Payload size: ${PAYLOAD_SIZE_MB}MB"
-        
-        if [ $PAYLOAD_SIZE_MB -gt 10 ]; then
-          echo "Warning: Payload size exceeds 10MB, upload may fail"
-        fi
-        
-        # Upload to platform using OIDC token
-        echo "Uploading all files in a single request..."
-        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-          "$I18N_PLATFORM_URL/api/projects/$PROJECT_NAME/upload" \
-          -H "Authorization: Bearer $OIDC_TOKEN" \
-          -H "Content-Type: application/json" \
-          --data-binary "@$TEMP_PAYLOAD")
-        
-        # Extract HTTP status code and response body
-        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-        RESPONSE_BODY=$(echo "$RESPONSE" | head -n-1)
-        
-        # Clean up temporary file
-        rm -f "$TEMP_PAYLOAD"
-        
-        echo "HTTP Status: $HTTP_CODE"
-        echo "Response: $RESPONSE_BODY"
-        
-        # Check if upload was successful
-        if [ "$HTTP_CODE" = "200" ] && echo "$RESPONSE_BODY" | jq -e '.success' > /dev/null 2>&1; then
-          UPLOADED=$(echo "$RESPONSE_BODY" | jq -r '.filesUploaded // 0')
-          echo ""
-          echo "========================================="
-          echo "✅ Successfully uploaded $UPLOADED files!"
-          echo "Languages: ${#LANGUAGES[@]}"
-          echo "Client preprocessing: ENABLED"
-          echo "========================================="
-          echo "files-uploaded=$UPLOADED" >> $GITHUB_OUTPUT
-          echo "status=success" >> $GITHUB_OUTPUT
-        else
-          echo ""
-          echo "========================================="
-          echo "❌ Upload failed"
-          echo "HTTP Status: $HTTP_CODE"
-          echo "Response: $RESPONSE_BODY"
-          echo "========================================="
-          echo "files-uploaded=0" >> $GITHUB_OUTPUT
-          echo "status=failed" >> $GITHUB_OUTPUT
-          exit 1
-        fi
-
-    - name: Set upload outputs
-      id: upload
-      shell: bash
-      run: |
-        if [ "${{ inputs.mode }}" = "structured" ]; then
-          echo "files-uploaded=${{ steps.upload-structured.outputs.files-uploaded }}" >> $GITHUB_OUTPUT
-          echo "status=${{ steps.upload-structured.outputs.status }}" >> $GITHUB_OUTPUT
-        else
-          echo "files-uploaded=${{ steps.upload-json.outputs.files-uploaded }}" >> $GITHUB_OUTPUT
-          echo "status=${{ steps.upload-json.outputs.status }}" >> $GITHUB_OUTPUT
-        fi

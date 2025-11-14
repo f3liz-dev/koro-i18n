@@ -1,64 +1,29 @@
+/// <reference types="@cloudflare/workers-types" />
 import { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { PrismaClient } from '../generated/prisma/';
 import { verifyJWT, requireAuth } from '../lib/auth';
-import { checkProjectAccess, flattenObject } from '../lib/database';
+import { checkProjectAccess } from '../lib/database';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
-import { generateFilesETag, checkETagMatch, create304Response } from '../lib/etag-db';
+import { storeFile, generateR2Key } from '../lib/r2-storage';
+import { invalidateOutdatedTranslations } from '../lib/translation-validation';
 
 interface Env {
+  TRANSLATION_BUCKET: R2Bucket;
   JWT_SECRET: string;
   ENVIRONMENT: string;
   PLATFORM_URL?: string;
 }
 
 const MAX_FILES = 500;
-const MAX_PAYLOAD_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_FILE_CONTENT_SIZE = 1 * 1024 * 1024; // 1MB per file content (D1 parameter limit)
-
-/**
- * Safely parse JSON with error handling and validation
- */
-function safeJSONParse<T = any>(jsonString: string, fallback: T, context: string): T {
-  try {
-    return JSON.parse(jsonString) as T;
-  } catch (error: any) {
-    console.error(`[${context}] JSON parse error:`, error.message);
-    console.error(`[${context}] Problematic JSON (first 200 chars):`, jsonString.substring(0, 200));
-    return fallback;
-  }
-}
-
-/**
- * Safely stringify JSON with validation to ensure it can be parsed back
- */
-function safeJSONStringify(data: any, context: string): string {
-  try {
-    const jsonString = JSON.stringify(data);
-    
-    // Validate that it can be parsed back
-    JSON.parse(jsonString);
-    
-    // Check size limit
-    if (jsonString.length > MAX_FILE_CONTENT_SIZE) {
-      throw new Error(`JSON string exceeds size limit: ${jsonString.length} > ${MAX_FILE_CONTENT_SIZE}`);
-    }
-    
-    return jsonString;
-  } catch (error: any) {
-    console.error(`[${context}] JSON stringify error:`, error.message);
-    throw error;
-  }
-}
 
 export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
 
   async function validateUploadAuth(token: string, projectId: string, repository: string, jwtSecret: string) {
-    // Try OIDC verification first (OIDC tokens are more specific with GitHub issuer)
+    // Try OIDC verification first
     try {
       const { verifyGitHubOIDCToken } = await import('../oidc.js');
-      // Use platform URL as audience for OIDC token verification
       const platformUrl = env.PLATFORM_URL || 'https://koro.f3liz.workers.dev';
       const oidcPayload = await verifyGitHubOIDCToken(token, platformUrl, repository);
 
@@ -72,26 +37,21 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         };
       }
       
-      // OIDC token is valid but repository doesn't match
       return {
         authorized: false,
         error: `Repository mismatch: token is for ${oidcPayload.repository}, but project repository is ${repository}`
       };
     } catch (oidcError: any) {
-      // OIDC verification failed, try JWT verification as fallback
+      // Try JWT as fallback (development only)
       const jwtPayload = await verifyJWT(token, jwtSecret);
       
-      if (jwtPayload) {
-        // JWT upload is only allowed in development environment
-        if (env.ENVIRONMENT === 'development') {
-          const hasAccess = await checkProjectAccess(prisma, projectId, jwtPayload.userId);
-          if (hasAccess) {
-            return { authorized: true, method: 'JWT', userId: jwtPayload.userId, username: jwtPayload.username };
-          }
+      if (jwtPayload && env.ENVIRONMENT === 'development') {
+        const hasAccess = await checkProjectAccess(prisma, projectId, jwtPayload.userId);
+        if (hasAccess) {
+          return { authorized: true, method: 'JWT', userId: jwtPayload.userId, username: jwtPayload.username };
         }
       }
       
-      // If we get here, both OIDC and JWT verification failed
       return {
         authorized: false,
         error: `Authentication failed: ${oidcError.message}`
@@ -99,6 +59,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     }
   }
 
+  // Upload files to R2 (GitHub imports)
   app.post('/:projectName/upload', async (c) => {
     const token = c.req.header('Authorization')?.replace('Bearer ', '');
     if (!token) {
@@ -107,7 +68,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const projectName = c.req.param('projectName');
     const body = await c.req.json();
-    const { branch, commitSha, sourceLanguage, targetLanguages, files } = body;
+    const { branch, commitSha, sourceLanguage, files } = body;
 
     if (!files || !Array.isArray(files)) {
       return c.json({ error: 'Missing required field: files' }, 400);
@@ -117,10 +78,6 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       return c.json({ error: `Too many files. Max ${MAX_FILES} files per upload` }, 400);
     }
 
-    if (JSON.stringify(body).length > MAX_PAYLOAD_SIZE) {
-      return c.json({ error: `Payload too large. Max ${MAX_PAYLOAD_SIZE / 1024 / 1024}MB` }, 400);
-    }
-
     const project = await prisma.project.findUnique({
       where: { name: projectName },
       select: { id: true, userId: true, repository: true, sourceLanguage: true },
@@ -133,18 +90,29 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     try {
       const authResult = await validateUploadAuth(token, project.id, project.repository, env.JWT_SECRET);
       if (!authResult.authorized) {
-        const errorMessage = authResult.error || 'Unauthorized to upload to this project';
-        console.error(`[upload] Authorization failed: ${errorMessage}`);
-        return c.json({ error: errorMessage }, 403);
+        console.error(`[upload] Authorization failed: ${authResult.error}`);
+        return c.json({ error: authResult.error || 'Unauthorized' }, 403);
       }
 
-      // Update project sourceLanguage if provided in the upload payload
+      // Validate that files have required fields for R2 storage
+      for (const file of files) {
+        if (!file.metadata || typeof file.metadata !== 'string') {
+          return c.json({ 
+            error: `File ${file.filename} (${file.lang}) missing preprocessed metadata. Client must send base64-encoded MessagePack metadata.` 
+          }, 400);
+        }
+        if (!file.sourceHash) {
+          return c.json({ 
+            error: `File ${file.filename} (${file.lang}) missing sourceHash` 
+          }, 400);
+        }
+      }
+
+      // Update project sourceLanguage if provided
       if (sourceLanguage && sourceLanguage !== project.sourceLanguage) {
-        // Validate sourceLanguage format (e.g., "en", "en-US", "zh-CN")
         if (!/^[a-z]{2,3}(-[A-Z]{2})?$/.test(sourceLanguage)) {
           return c.json({ error: 'Invalid sourceLanguage format. Expected format: "en" or "en-US"' }, 400);
         }
-        
         await prisma.project.update({
           where: { id: project.id },
           data: { sourceLanguage },
@@ -153,797 +121,103 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       }
 
       const projectId = project.repository;
-      
-      // Get userId for creating translation entries
-      const uploadUserId = authResult.userId || project.userId;
+      const branchName = branch || 'main';
+      const commitHash = commitSha || `upload-${Date.now()}`;
 
-      // Pre-validate all files for size limits before processing
-      // NOTE: Client should send pre-flattened contents to minimize server CPU
-      const fileSizeErrors: string[] = [];
-      for (const file of files) {
-        const { filename, lang, contents, metadata, structureMap } = file;
-        
-        // Expect pre-flattened contents from client - just validate size
-        const contentsStr = typeof contents === 'string' ? contents : JSON.stringify(contents);
-        if (contentsStr.length > MAX_FILE_CONTENT_SIZE) {
-          const sizeMB = (contentsStr.length / 1024 / 1024).toFixed(2);
-          const maxMB = (MAX_FILE_CONTENT_SIZE / 1024 / 1024).toFixed(2);
-          fileSizeErrors.push(`${filename} (${lang}): contents ${sizeMB}MB exceeds ${maxMB}MB limit`);
-        }
-        
-        // Check metadata size
-        if (metadata) {
-          const metadataStr = typeof metadata === 'string' ? metadata : JSON.stringify(metadata);
-          if (metadataStr.length > MAX_FILE_CONTENT_SIZE) {
-            const sizeMB = (metadataStr.length / 1024 / 1024).toFixed(2);
-            const maxMB = (MAX_FILE_CONTENT_SIZE / 1024 / 1024).toFixed(2);
-            fileSizeErrors.push(`${filename} (${lang}): metadata ${sizeMB}MB exceeds ${maxMB}MB limit`);
-          }
-        }
-        
-        // Check structureMap size
-        if (structureMap) {
-          const structureMapStr = typeof structureMap === 'string' ? structureMap : JSON.stringify(structureMap);
-          if (structureMapStr.length > MAX_FILE_CONTENT_SIZE) {
-            const sizeMB = (structureMapStr.length / 1024 / 1024).toFixed(2);
-            const maxMB = (MAX_FILE_CONTENT_SIZE / 1024 / 1024).toFixed(2);
-            fileSizeErrors.push(`${filename} (${lang}): structureMap ${sizeMB}MB exceeds ${maxMB}MB limit`);
-          }
-        }
-      }
+      console.log(`[upload] Storing ${files.length} files to R2 for ${projectId}#${commitHash}...`);
+
+      const uploadedFiles: string[] = [];
       
-      // If any files exceed size limits, return error before processing
-      if (fileSizeErrors.length > 0) {
-        console.error(`[upload] File size limit exceeded for ${fileSizeErrors.length} file(s):`, fileSizeErrors);
-        return c.json({ 
-          error: 'One or more files exceed the size limit',
-          details: fileSizeErrors,
-          maxSizePerFile: `${MAX_FILE_CONTENT_SIZE / 1024 / 1024}MB`
-        }, 400);
+      // Store each file individually to R2
+      for (const file of files) {
+        const r2Key = await storeFile(
+          env.TRANSLATION_BUCKET,
+          projectId,
+          file.lang,
+          file.filename,
+          commitHash,
+          file.contents,
+          file.metadata,
+          file.sourceHash
+        );
+
+        uploadedFiles.push(r2Key);
+
+        // Store file metadata in D1
+        await prisma.r2File.upsert({
+          where: {
+            projectId_branch_lang_filename: {
+              projectId,
+              branch: branchName,
+              lang: file.lang,
+              filename: file.filename,
+            },
+          },
+          update: {
+            commitSha: commitHash,
+            r2Key,
+            sourceHash: file.sourceHash,
+            totalKeys: Object.keys(file.contents).length,
+            lastUpdated: new Date(),
+          },
+          create: {
+            id: crypto.randomUUID(),
+            projectId,
+            branch: branchName,
+            commitSha: commitHash,
+            lang: file.lang,
+            filename: file.filename,
+            r2Key,
+            sourceHash: file.sourceHash,
+            totalKeys: Object.keys(file.contents).length,
+          },
+        });
+
+        console.log(`[upload] Stored ${file.lang}/${file.filename} -> ${r2Key}`);
       }
 
-      // First pass: Prepare file data and collect translation keys to check
-      // Client should send pre-flattened contents to minimize CPU time
-      const translationKeysToCheck: Array<{ lang: string; key: string }> = [];
-      const fileDataMap = new Map<string, {
-        file: any;
-        flattened: Record<string, string>;
-        contentsStr: string;
-        metadataStr: string;
-        structureMapStr: string | null;
-      }>();
+      console.log(`[upload] All files stored to R2 and indexed in D1`);
+
+      // Invalidate outdated web translations for source language files
+      const invalidationResults: Record<string, { invalidated: number; checked: number }> = {};
       
       for (const file of files) {
-        const { filetype, filename, lang, contents, metadata, history, structureMap, sourceHash } = file;
-        
-        // Handle pre-flattened contents from client OR flatten if needed (backward compatibility)
-        // Client should ideally send flattened data to minimize server CPU
-        let flattened: Record<string, string>;
-        if (typeof contents === 'string') {
-          // Already stringified by client
-          try {
-            flattened = JSON.parse(contents);
-          } catch {
-            return c.json({ error: `Invalid JSON in contents for ${filename} (${lang})` }, 400);
-          }
-        } else if (typeof contents === 'object' && contents !== null) {
-          // Check if already flattened (all values are strings/primitives)
-          const isFlattened = Object.values(contents).every(v => 
-            typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
+        if (file.lang === project.sourceLanguage || file.lang === sourceLanguage) {
+          const result = await invalidateOutdatedTranslations(
+            prisma,
+            env.TRANSLATION_BUCKET,
+            projectId,
+            file.lang,
+            file.filename
           );
           
-          if (isFlattened) {
-            // Already flattened by client - use directly
-            flattened = contents as Record<string, string>;
-          } else {
-            // Need to flatten - this is CPU intensive, client should do this
-            flattened = flattenObject(contents);
-          }
-        } else {
-          return c.json({ error: `Invalid contents format for ${filename} (${lang})` }, 400);
-        }
-        
-        const keyCount = Object.keys(flattened).length;
-        console.log(`[upload] Processing file: ${filename} (${lang}), keys: ${keyCount}`);
-        
-        if (keyCount === 0) {
-          console.warn(`[upload] Warning: File ${filename} (${lang}) has 0 keys`);
-        }
-        
-        // Stringify once - client should send pre-stringified to save CPU
-        const contentsStr = typeof contents === 'string' ? contents : JSON.stringify(flattened);
-        const metadataStr = typeof metadata === 'string' ? metadata : JSON.stringify(metadata || {});
-        const structureMapStr = structureMap 
-          ? (typeof structureMap === 'string' ? structureMap : JSON.stringify(structureMap))
-          : null;
-        
-        // Store file data for later processing
-        fileDataMap.set(`${filename}:${lang}`, {
-          file,
-          flattened,
-          contentsStr,
-          metadataStr,
-          structureMapStr,
-        });
-        
-        // Collect translation keys to check for non-source language files
-        if (lang !== project.sourceLanguage && lang !== sourceLanguage) {
-          for (const key of Object.keys(flattened)) {
-            const translationKey = `${filename}:${key}`;
-            translationKeysToCheck.push({ lang, key: translationKey });
+          if (result.invalidated > 0) {
+            invalidationResults[`${file.lang}/${file.filename}`] = result;
+            console.log(`[upload] Invalidated ${result.invalidated}/${result.checked} translations for ${file.lang}/${file.filename}`);
           }
         }
-      }
-      
-      // Bulk query: Check which translations already exist
-      const existingTranslationsSet = new Set<string>();
-      if (translationKeysToCheck.length > 0) {
-        console.log(`[upload] Checking ${translationKeysToCheck.length} translations in bulk...`);
-        
-        // Get all unique languages
-        const uniqueLangs = [...new Set(translationKeysToCheck.map(t => t.lang))];
-        
-        // Query existing translations for all languages at once
-        const existingTranslations = await prisma.translation.findMany({
-          where: {
-            projectId: project.id,
-            language: { in: uniqueLangs },
-            status: { in: ['approved', 'committed'] }
-          },
-          select: {
-            language: true,
-            key: true,
-          },
-        });
-        
-        // Build a set of existing translation keys for quick lookup
-        for (const trans of existingTranslations) {
-          existingTranslationsSet.add(`${trans.language}:${trans.key}`);
-        }
-        
-        console.log(`[upload] Found ${existingTranslations.length} existing translations`);
-      }
-      
-      // Second pass: Process files and prepare bulk inserts
-      const translationsToCreate: Array<{
-        id: string;
-        projectId: string;
-        language: string;
-        key: string;
-        value: string;
-        userId: string;
-        status: string;
-      }> = [];
-      
-      const historyToCreate: Array<{
-        id: string;
-        translationId: string;
-        projectId: string;
-        language: string;
-        key: string;
-        value: string;
-        userId: string;
-        action: string;
-        commitSha: string | null;
-        sourceContent: string | null;
-        commitAuthor: string | null;
-        commitEmail: string | null;
-      }> = [];
-      
-      // Collect all ProjectFile records to upsert
-      const projectFilesToUpsert: Array<{
-        fileKey: string;
-        filename: string;
-        lang: string;
-        filetype: string;
-        contentsJson: string;
-        metadataJson: string;
-        sourceHash: string | null;
-        structureMapJson: string | null;
-      }> = [];
-      
-      for (const file of files) {
-        const { filetype, filename, lang, contents, metadata, history, structureMap, sourceHash } = file;
-        const fileKey = `${filename}:${lang}`;
-        const fileData = fileDataMap.get(fileKey);
-        
-        if (!fileData) continue;
-        
-        const { flattened, contentsStr, metadataStr, structureMapStr } = fileData;
-        
-        // Collect file for batch upsert
-        projectFilesToUpsert.push({
-          fileKey,
-          filename,
-          lang,
-          filetype,
-          contentsJson: contentsStr,
-          metadataJson: metadataStr,
-          sourceHash: sourceHash || null,
-          structureMapJson: structureMapStr,
-        });
-      }
-      
-      // Batch upsert all project files using transaction
-      console.log(`[upload] Batch upserting ${projectFilesToUpsert.length} project files...`);
-      const startTime = Date.now();
-      
-      await prisma.$transaction(
-        projectFilesToUpsert.map(fileInfo => 
-          prisma.projectFile.upsert({
-            where: {
-              projectId_branch_filename_lang: {
-                projectId,
-                branch: branch || 'main',
-                filename: fileInfo.filename,
-                lang: fileInfo.lang,
-              },
-            },
-            update: {
-              commitSha: commitSha || '',
-              filetype: fileInfo.filetype,
-              contents: fileInfo.contentsJson,
-              metadata: fileInfo.metadataJson,
-              sourceHash: fileInfo.sourceHash,
-              structureMap: fileInfo.structureMapJson,
-              uploadedAt: new Date(),
-            },
-            create: {
-              id: crypto.randomUUID(),
-              projectId,
-              branch: branch || 'main',
-              commitSha: commitSha || '',
-              filename: fileInfo.filename,
-              filetype: fileInfo.filetype,
-              lang: fileInfo.lang,
-              contents: fileInfo.contentsJson,
-              metadata: fileInfo.metadataJson,
-              sourceHash: fileInfo.sourceHash,
-              structureMap: fileInfo.structureMapJson,
-            },
-          })
-        )
-      );
-      
-      const elapsedTime = Date.now() - startTime;
-      console.log(`[upload] Batch upsert completed in ${elapsedTime}ms (${(elapsedTime / projectFilesToUpsert.length).toFixed(2)}ms per file)`);
-      
-      // Now process translations for non-source language files
-      for (const file of files) {
-        const { filename, lang, history, structureMap } = file;
-        const fileKey = `${filename}:${lang}`;
-        const fileData = fileDataMap.get(fileKey);
-        
-        if (!fileData) continue;
-        
-        const { flattened } = fileData;
-        
-        // Prepare translation entries for non-source language files
-        if (lang !== project.sourceLanguage && lang !== sourceLanguage) {
-          for (const [key, value] of Object.entries(flattened)) {
-            const translationKey = `${filename}:${key}`;
-            const lookupKey = `${lang}:${translationKey}`;
-            
-            // Skip if translation already exists
-            if (existingTranslationsSet.has(lookupKey)) {
-              continue;
-            }
-            
-            const translationId = crypto.randomUUID();
-            
-            // Add to bulk insert list
-            translationsToCreate.push({
-              id: translationId,
-              projectId: project.id,
-              language: lang,
-              key: translationKey,
-              value: String(value),
-              userId: uploadUserId,
-              status: 'approved',
-            });
-            
-            // Extract git commit info for this key from history if available
-            let gitAuthor: string | undefined;
-            let gitEmail: string | undefined;
-            let sourceContentHash: string | undefined;
-            
-            if (history && history.length > 0) {
-              // Get the most recent commit info for this file
-              const fileHistory = history.find(h => h.key === '__file__' || h.key === '__all_keys__' || h.key === key);
-              if (fileHistory && fileHistory.commits.length > 0) {
-                const mostRecentCommit = fileHistory.commits[0];
-                gitAuthor = mostRecentCommit.author;
-                gitEmail = mostRecentCommit.email;
-              }
-            }
-            
-            // Get source content hash from structure map if available
-            if (structureMap) {
-              const mapEntry = structureMap.find((entry: any) => entry.flattenedKey === key);
-              if (mapEntry) {
-                sourceContentHash = mapEntry.sourceHash;
-              }
-            }
-            
-            // Add to bulk history insert list
-            historyToCreate.push({
-              id: crypto.randomUUID(),
-              translationId,
-              projectId: project.id,
-              language: lang,
-              key: translationKey,
-              value: String(value),
-              userId: uploadUserId,
-              action: 'imported',
-              commitSha: commitSha || null,
-              sourceContent: sourceContentHash || null,
-              commitAuthor: gitAuthor || null,
-              commitEmail: gitEmail || null,
-            });
-          }
-        }
-      }
-      
-      // Bulk insert translations and history in chunks to avoid database limits
-      const CHUNK_SIZE = 500; // Process 500 records at a time
-      
-      if (translationsToCreate.length > 0) {
-        console.log(`[upload] Bulk creating ${translationsToCreate.length} translations in chunks of ${CHUNK_SIZE}...`);
-        const translationStartTime = Date.now();
-        
-        // Process in chunks
-        for (let i = 0; i < translationsToCreate.length; i += CHUNK_SIZE) {
-          const chunk = translationsToCreate.slice(i, i + CHUNK_SIZE);
-          await prisma.translation.createMany({
-            data: chunk,
-          });
-          console.log(`[upload] Created translations ${i + 1}-${Math.min(i + CHUNK_SIZE, translationsToCreate.length)} of ${translationsToCreate.length}`);
-        }
-        
-        const translationElapsed = Date.now() - translationStartTime;
-        console.log(`[upload] All translations created in ${translationElapsed}ms (${(translationElapsed / translationsToCreate.length).toFixed(2)}ms per translation)`);
-      }
-      
-      if (historyToCreate.length > 0) {
-        console.log(`[upload] Bulk creating ${historyToCreate.length} history entries in chunks of ${CHUNK_SIZE}...`);
-        const historyStartTime = Date.now();
-        
-        // Process in chunks
-        for (let i = 0; i < historyToCreate.length; i += CHUNK_SIZE) {
-          const chunk = historyToCreate.slice(i, i + CHUNK_SIZE);
-          await prisma.translationHistory.createMany({
-            data: chunk,
-          });
-          console.log(`[upload] Created history entries ${i + 1}-${Math.min(i + CHUNK_SIZE, historyToCreate.length)} of ${historyToCreate.length}`);
-        }
-        
-        const historyElapsed = Date.now() - historyStartTime;
-        console.log(`[upload] All history entries created in ${historyElapsed}ms (${(historyElapsed / historyToCreate.length).toFixed(2)}ms per entry)`);
       }
 
       return c.json({
         success: true,
         projectId,
+        commitSha: commitHash,
         filesUploaded: files.length,
-        totalKeys: files.reduce((sum, f) => {
-          const flattened = flattenObject(f.contents || {});
-          return sum + Object.keys(flattened).length;
-        }, 0),
-        uploadedAt: new Date().toISOString()
+        r2Keys: uploadedFiles,
+        invalidationResults,
+        uploadedAt: new Date().toISOString(),
       });
     } catch (error: any) {
-      console.error('[upload] Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      
-      // Provide more specific error messages for known error types
-      let errorMessage = 'Failed to store files';
-      
-      if (error.message && error.message.includes('exceeds size limit')) {
-        errorMessage = error.message;
-        return c.json({ 
-          error: errorMessage,
-          details: env.ENVIRONMENT === 'development' ? error.stack : undefined
-        }, 400);
-      } else if (error.message && error.message.includes('JSON')) {
-        errorMessage = 'Invalid JSON data in one or more files';
-        return c.json({ 
-          error: errorMessage,
-          details: env.ENVIRONMENT === 'development' ? error.stack : undefined
-        }, 400);
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
+      console.error('[upload] Error:', error);
       return c.json({ 
-        error: errorMessage,
-        details: env.ENVIRONMENT === 'development' ? error.stack : undefined
+        error: 'Failed to upload files',
+        details: env.ENVIRONMENT === 'development' ? error.message : undefined
       }, 500);
     }
   });
 
-  app.post('/:projectName/upload-json', async (c) => {
-    const token = c.req.header('Authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return c.json({ error: 'Authorization token required' }, 401);
-    }
-
-    // Add deprecation warning
-    console.warn(`[DEPRECATED] /upload-json endpoint is deprecated. Please use /upload with structured format instead.`);
-
-    const projectName = c.req.param('projectName');
-    const body = await c.req.json();
-    const { branch, commitSha, language, files } = body;
-
-    if (!files || typeof files !== 'object') {
-      return c.json({ error: 'Missing required field: files' }, 400);
-    }
-
-    if (Object.keys(files).length > MAX_FILES) {
-      return c.json({ error: `Too many files. Max ${MAX_FILES} files per upload` }, 400);
-    }
-
-    if (JSON.stringify(body).length > MAX_PAYLOAD_SIZE) {
-      return c.json({ error: `Payload too large. Max ${MAX_PAYLOAD_SIZE / 1024 / 1024}MB` }, 400);
-    }
-
-    const project = await prisma.project.findUnique({
-      where: { name: projectName },
-      select: { id: true, userId: true, repository: true, sourceLanguage: true },
-    });
-
-    if (!project) {
-      return c.json({ error: `Project '${projectName}' not found` }, 404);
-    }
-
-    try {
-      const authResult = await validateUploadAuth(token, project.id, project.repository, env.JWT_SECRET);
-      if (!authResult.authorized) {
-        const errorMessage = authResult.error || 'Unauthorized to upload to this project';
-        console.error(`[upload-json] Authorization failed: ${errorMessage}`);
-        return c.json({ error: errorMessage }, 403);
-      }
-
-      const projectId = project.repository;
-      
-      // Get userId for creating translation entries
-      const uploadUserId = authResult.userId || project.userId;
-
-      // Pre-validate all files for size limits before processing
-      // Client should send pre-flattened contents to minimize server CPU
-      const fileSizeErrors: string[] = [];
-      for (const [filename, content] of Object.entries(files)) {
-        // Expect pre-flattened contents from client - just validate size
-        const contentsStr = typeof content === 'string' ? content : JSON.stringify(content);
-        if (contentsStr.length > MAX_FILE_CONTENT_SIZE) {
-          const sizeMB = (contentsStr.length / 1024 / 1024).toFixed(2);
-          const maxMB = (MAX_FILE_CONTENT_SIZE / 1024 / 1024).toFixed(2);
-          fileSizeErrors.push(`${filename}: contents ${sizeMB}MB exceeds ${maxMB}MB limit`);
-        }
-      }
-      
-      // If any files exceed size limits, return error before processing
-      if (fileSizeErrors.length > 0) {
-        console.error(`[upload-json] File size limit exceeded for ${fileSizeErrors.length} file(s):`, fileSizeErrors);
-        return c.json({ 
-          error: 'One or more files exceed the size limit',
-          details: fileSizeErrors,
-          maxSizePerFile: `${MAX_FILE_CONTENT_SIZE / 1024 / 1024}MB`
-        }, 400);
-      }
-
-      // First pass: Parse and prepare file data, collect translation keys to check
-      // Client should send pre-flattened contents to minimize server CPU
-      const fileLang = language || project.sourceLanguage;
-      const translationKeysToCheck: Array<{ key: string }> = [];
-      const fileDataMap = new Map<string, {
-        flattened: Record<string, string>;
-        contentsStr: string;
-        metadataStr: string;
-      }>();
-      
-      for (const [filename, content] of Object.entries(files)) {
-        // Handle pre-flattened contents from client OR flatten if needed (backward compatibility)
-        let flattened: Record<string, string>;
-        if (typeof content === 'string') {
-          // Already stringified by client
-          try {
-            flattened = JSON.parse(content);
-          } catch {
-            return c.json({ error: `Invalid JSON in contents for ${filename}` }, 400);
-          }
-        } else if (typeof content === 'object' && content !== null) {
-          // Check if already flattened (all values are strings/primitives)
-          const isFlattened = Object.values(content).every(v => 
-            typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
-          );
-          
-          if (isFlattened) {
-            // Already flattened by client - use directly
-            flattened = content as Record<string, string>;
-          } else {
-            // Need to flatten - this is CPU intensive, client should do this
-            flattened = flattenObject(content);
-          }
-        } else {
-          return c.json({ error: `Invalid contents format for ${filename}` }, 400);
-        }
-        
-        const keyCount = Object.keys(flattened).length;
-        console.log(`[upload-json] Processing file: ${filename}, keys: ${keyCount}`);
-        
-        if (keyCount === 0) {
-          console.warn(`[upload-json] Warning: File ${filename} has 0 keys`);
-        }
-        
-        // Stringify once - client should send pre-stringified to save CPU
-        const contentsStr = typeof content === 'string' ? content : JSON.stringify(flattened);
-        const metadataStr = JSON.stringify({
-          keys: keyCount,
-          uploadMethod: 'json-direct'
-        });
-        
-        // Store file data for later processing
-        fileDataMap.set(filename, {
-          flattened,
-          contentsStr,
-          metadataStr,
-        });
-        
-        // Collect translation keys to check for non-source language files
-        if (fileLang !== project.sourceLanguage) {
-          for (const key of Object.keys(flattened)) {
-            const translationKey = `${filename}:${key}`;
-            translationKeysToCheck.push({ key: translationKey });
-          }
-        }
-      }
-      
-      // Bulk query: Check which translations already exist
-      const existingTranslationsSet = new Set<string>();
-      if (translationKeysToCheck.length > 0) {
-        console.log(`[upload-json] Checking ${translationKeysToCheck.length} translations in bulk...`);
-        
-        const existingTranslations = await prisma.translation.findMany({
-          where: {
-            projectId: project.id,
-            language: fileLang,
-            status: { in: ['approved', 'committed'] }
-          },
-          select: {
-            key: true,
-          },
-        });
-        
-        // Build a set of existing translation keys for quick lookup
-        for (const trans of existingTranslations) {
-          existingTranslationsSet.add(trans.key);
-        }
-        
-        console.log(`[upload-json] Found ${existingTranslations.length} existing translations`);
-      }
-      
-      // Second pass: Process files and prepare bulk inserts
-      const translationsToCreate: Array<{
-        id: string;
-        projectId: string;
-        language: string;
-        key: string;
-        value: string;
-        userId: string;
-        status: string;
-      }> = [];
-      
-      const historyToCreate: Array<{
-        id: string;
-        translationId: string;
-        projectId: string;
-        language: string;
-        key: string;
-        value: string;
-        userId: string;
-        action: string;
-        commitSha: string | null;
-        sourceContent: string | null;
-        commitAuthor: string | null;
-        commitEmail: string | null;
-      }> = [];
-      
-      // Collect all ProjectFile records to upsert
-      const projectFilesToUpsert: Array<{
-        filename: string;
-        contentsJson: string;
-        metadataJson: string;
-      }> = [];
-      
-      for (const [filename, content] of Object.entries(files)) {
-        const fileData = fileDataMap.get(filename);
-        if (!fileData) continue;
-        
-        const { flattened, contentsStr, metadataStr } = fileData;
-        
-        // Collect file for batch upsert
-        projectFilesToUpsert.push({
-          filename,
-          contentsJson: contentsStr,
-          metadataJson: metadataStr,
-        });
-      }
-      
-      // Batch upsert all project files using transaction
-      console.log(`[upload-json] Batch upserting ${projectFilesToUpsert.length} project files...`);
-      const startTime = Date.now();
-      
-      await prisma.$transaction(
-        projectFilesToUpsert.map(fileInfo => 
-          prisma.projectFile.upsert({
-            where: {
-              projectId_branch_filename_lang: {
-                projectId,
-                branch: branch || 'main',
-                filename: fileInfo.filename,
-                lang: fileLang,
-              },
-            },
-            update: {
-              commitSha: commitSha || '',
-              filetype: 'json',
-              contents: fileInfo.contentsJson,
-              metadata: fileInfo.metadataJson,
-              uploadedAt: new Date(),
-            },
-            create: {
-              id: crypto.randomUUID(),
-              projectId,
-              branch: branch || 'main',
-              commitSha: commitSha || '',
-              filename: fileInfo.filename,
-              filetype: 'json',
-              lang: fileLang,
-              contents: fileInfo.contentsJson,
-              metadata: fileInfo.metadataJson,
-            },
-          })
-        )
-      );
-      
-      const elapsedTime = Date.now() - startTime;
-      console.log(`[upload-json] Batch upsert completed in ${elapsedTime}ms (${(elapsedTime / projectFilesToUpsert.length).toFixed(2)}ms per file)`);
-      
-      // Now process translations for non-source language files
-      for (const [filename, content] of Object.entries(files)) {
-        const fileData = fileDataMap.get(filename);
-        if (!fileData) continue;
-        
-        const { flattened } = fileData;
-        
-        // Prepare translation entries for non-source language files
-        if (fileLang !== project.sourceLanguage) {
-          for (const [key, value] of Object.entries(flattened)) {
-            const translationKey = `${filename}:${key}`;
-            
-            // Skip if translation already exists
-            if (existingTranslationsSet.has(translationKey)) {
-              continue;
-            }
-            
-            const translationId = crypto.randomUUID();
-            
-            // Add to bulk insert list
-            translationsToCreate.push({
-              id: translationId,
-              projectId: project.id,
-              language: fileLang,
-              key: translationKey,
-              value: String(value),
-              userId: uploadUserId,
-              status: 'approved',
-            });
-            
-            // Add to bulk history insert list
-            historyToCreate.push({
-              id: crypto.randomUUID(),
-              translationId,
-              projectId: project.id,
-              language: fileLang,
-              key: translationKey,
-              value: String(value),
-              userId: uploadUserId,
-              action: 'imported',
-              commitSha: null,
-              sourceContent: null,
-              commitAuthor: null,
-              commitEmail: null,
-            });
-          }
-        }
-      }
-      
-      // Bulk insert translations and history in chunks to avoid database limits
-      const CHUNK_SIZE = 500; // Process 500 records at a time
-      
-      if (translationsToCreate.length > 0) {
-        console.log(`[upload-json] Bulk creating ${translationsToCreate.length} translations in chunks of ${CHUNK_SIZE}...`);
-        const translationStartTime = Date.now();
-        
-        // Process in chunks
-        for (let i = 0; i < translationsToCreate.length; i += CHUNK_SIZE) {
-          const chunk = translationsToCreate.slice(i, i + CHUNK_SIZE);
-          await prisma.translation.createMany({
-            data: chunk,
-          });
-          console.log(`[upload-json] Created translations ${i + 1}-${Math.min(i + CHUNK_SIZE, translationsToCreate.length)} of ${translationsToCreate.length}`);
-        }
-        
-        const translationElapsed = Date.now() - translationStartTime;
-        console.log(`[upload-json] All translations created in ${translationElapsed}ms (${(translationElapsed / translationsToCreate.length).toFixed(2)}ms per translation)`);
-      }
-      
-      if (historyToCreate.length > 0) {
-        console.log(`[upload-json] Bulk creating ${historyToCreate.length} history entries in chunks of ${CHUNK_SIZE}...`);
-        const historyStartTime = Date.now();
-        
-        // Process in chunks
-        for (let i = 0; i < historyToCreate.length; i += CHUNK_SIZE) {
-          const chunk = historyToCreate.slice(i, i + CHUNK_SIZE);
-          await prisma.translationHistory.createMany({
-            data: chunk,
-          });
-          console.log(`[upload-json] Created history entries ${i + 1}-${Math.min(i + CHUNK_SIZE, historyToCreate.length)} of ${historyToCreate.length}`);
-        }
-        
-        const historyElapsed = Date.now() - historyStartTime;
-        console.log(`[upload-json] All history entries created in ${historyElapsed}ms (${(historyElapsed / historyToCreate.length).toFixed(2)}ms per entry)`);
-      }
-
-      return c.json({
-        success: true,
-        projectId,
-        filesUploaded: Object.keys(files).length,
-        totalKeys: Object.keys(files).reduce((sum, filename) => {
-          const content = files[filename];
-          const parsedContent = typeof content === 'string' ? JSON.parse(content) : content;
-          const flattened = flattenObject(parsedContent);
-          return sum + Object.keys(flattened).length;
-        }, 0),
-        uploadedAt: new Date().toISOString()
-      });
-    } catch (error: any) {
-      console.error('[upload-json] Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      
-      // Provide more specific error messages for known error types
-      let errorMessage = 'Failed to store files';
-      
-      if (error.message && error.message.includes('exceeds size limit')) {
-        errorMessage = error.message;
-        return c.json({ 
-          error: errorMessage,
-          details: env.ENVIRONMENT === 'development' ? error.stack : undefined
-        }, 400);
-      } else if (error.message && error.message.includes('JSON')) {
-        errorMessage = 'Invalid JSON data in one or more files';
-        return c.json({ 
-          error: errorMessage,
-          details: env.ENVIRONMENT === 'development' ? error.stack : undefined
-        }, 400);
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      return c.json({ 
-        error: errorMessage,
-        details: env.ENVIRONMENT === 'development' ? error.stack : undefined
-      }, 500);
-    }
-  });
-
-  app.get('/:projectName/download', async (c) => {
+  // List files (metadata only from D1)
+  app.get('/:projectName/files/list', async (c) => {
     let token = c.req.header('Authorization')?.replace('Bearer ', '');
     if (!token) {
       const cookieToken = getCookie(c, 'auth_token');
@@ -977,172 +251,63 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       return c.json({ error: 'Access denied to this project' }, 403);
     }
 
+    // Get files from D1 index
     const where: any = { projectId: project.repository, branch };
     if (language) where.lang = language;
 
-    const projectFiles = await prisma.projectFile.findMany({
+    const files = await prisma.r2File.findMany({
       where,
-      orderBy: [{ lang: 'asc' }, { filename: 'asc' }],
+      orderBy: { uploadedAt: 'desc' },
     });
 
-    // Fetch approved translations for this project
-    const translationWhere: any = {
-      projectId: project.id,
-      status: 'approved'
-    };
-    if (language) translationWhere.language = language;
-
-    const approvedTranslations = await prisma.translation.findMany({
-      where: translationWhere,
-    });
-
-    // Build a map of approved translations: language -> filename -> key -> value
-    const translationMap: Record<string, Record<string, Record<string, string>>> = {};
-    for (const trans of approvedTranslations) {
-      // Translation key format: "filename:key"
-      const colonIndex = trans.key.indexOf(':');
-      if (colonIndex === -1) continue;
-      
-      const filename = trans.key.substring(0, colonIndex);
-      const key = trans.key.substring(colonIndex + 1);
-      
-      if (!translationMap[trans.language]) {
-        translationMap[trans.language] = {};
-      }
-      if (!translationMap[trans.language][filename]) {
-        translationMap[trans.language][filename] = {};
-      }
-      translationMap[trans.language][filename][key] = trans.value;
-    }
-
-    // Generate ETag from file upload timestamps and translation updates
-    const fileTimestamps = projectFiles.map(f => f.uploadedAt);
-    const translationTimestamps = approvedTranslations.map(t => t.updatedAt);
-    const etag = generateFilesETag([...fileTimestamps, ...translationTimestamps]);
+    // Generate ETag from latest update
+    const latestUpdate = files.length > 0 
+      ? Math.max(...files.map(f => f.lastUpdated.getTime()))
+      : Date.now();
+    const serverETag = `"${latestUpdate}"`;
     
-    // Check if client has current version
-    const cacheControl = buildCacheControl(CACHE_CONFIGS.projectFiles);
-    if (checkETagMatch(c.req.raw, etag)) {
-      return create304Response(etag, cacheControl);
+    // Check ETag
+    const clientETag = c.req.header('If-None-Match');
+    if (clientETag === serverETag) {
+      return c.body(null, 304, {
+        'ETag': serverETag,
+        'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles),
+      });
     }
 
-    // Check if client wants unflattened structure
-    const unflatten = c.req.query('unflatten') === 'true';
-    const includeMetadata = c.req.query('includeMetadata') === 'true';
-
-    const filesByLang: Record<string, Record<string, any>> = {};
-    const metadataByLang: Record<string, Record<string, any>> = {};
-    
-    for (const row of projectFiles) {
-      if (!filesByLang[row.lang]) {
-        filesByLang[row.lang] = {};
-        metadataByLang[row.lang] = {};
-      }
-      
-      const contents = safeJSONParse(
-        row.contents, 
-        {}, 
-        `download:${row.filename}:${row.lang}`
-      );
-      
-      // Merge approved translations for this file and language
-      const approvedForFile = translationMap[row.lang]?.[row.filename];
-      if (approvedForFile) {
-        Object.assign(contents, approvedForFile);
-      }
-      
-      // If unflatten is requested and structure map is available, reconstruct original structure
-      let finalContents = contents;
-      if (unflatten && row.structureMap) {
-        const structureMap = safeJSONParse(row.structureMap, [], `download:${row.filename}:${row.lang}:structureMap`);
-        finalContents = unflattenWithStructureMap(contents, structureMap);
-      }
-      
-      filesByLang[row.lang][row.filename] = finalContents;
-      
-      // Include metadata if requested
-      if (includeMetadata) {
-        metadataByLang[row.lang][row.filename] = {
-          sourceHash: row.sourceHash,
-          commitSha: row.commitSha,
-          uploadedAt: row.uploadedAt,
-          structureMapAvailable: !!row.structureMap,
-        };
-      }
-    }
-
-    const responseData: any = {
+    const response = c.json({
       project: projectName,
       repository: project.repository,
       branch,
-      files: filesByLang,
-      generatedAt: new Date().toISOString()
-    };
-    
-    if (includeMetadata) {
-      responseData.metadata = metadataByLang;
-    }
+      files: files.map(f => ({
+        lang: f.lang,
+        filename: f.filename,
+        commitSha: f.commitSha,
+        r2Key: f.r2Key,
+        sourceHash: f.sourceHash,
+        totalKeys: f.totalKeys,
+        uploadedAt: f.uploadedAt,
+      })),
+      generatedAt: new Date().toISOString(),
+    });
 
-    const response = c.json(responseData);
-    response.headers.set('Cache-Control', cacheControl);
-    response.headers.set('ETag', etag);
+    response.headers.set('ETag', serverETag);
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+
     return response;
   });
 
-  // Helper function to unflatten using structure map
-  function unflattenWithStructureMap(flattened: Record<string, any>, structureMap: any[]): Record<string, any> {
-    const result: any = {};
-    
-    for (const [key, value] of Object.entries(flattened)) {
-      const mapEntry = structureMap.find((entry: any) => entry.flattenedKey === key);
-      
-      if (mapEntry && mapEntry.originalPath) {
-        // Reconstruct the nested structure using original path
-        let current = result;
-        const path = mapEntry.originalPath;
-        
-        for (let i = 0; i < path.length - 1; i++) {
-          const part = path[i];
-          if (!current[part]) {
-            current[part] = {};
-          }
-          current = current[part];
-        }
-        
-        current[path[path.length - 1]] = value;
-      } else {
-        // Fallback to dot notation unflattening if no structure map entry
-        const parts = key.split('.');
-        let current = result;
-        
-        for (let i = 0; i < parts.length - 1; i++) {
-          const part = parts[i];
-          if (!current[part]) {
-            current[part] = {};
-          }
-          current = current[part];
-        }
-        
-        current[parts[parts.length - 1]] = value;
-      }
-    }
-    
-    return result;
-  }
-
-  // Optimized endpoint for UI listing - returns only keys without values for statistics
+  // Get files summary (metadata from D1)
   app.get('/:projectId/files/summary', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
     const projectIdOrName = c.req.param('projectId');
     const branch = c.req.query('branch') || 'main';
-    let lang = c.req.query('lang');
+    const lang = c.req.query('lang');
     const filename = c.req.query('filename');
 
     let actualProjectId = projectIdOrName;
-    let configuredSourceLanguage = 'en';
-    
     const project = await prisma.project.findUnique({
       where: { name: projectIdOrName },
       select: { repository: true, sourceLanguage: true },
@@ -1150,133 +315,54 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     
     if (project) {
       actualProjectId = project.repository;
-      configuredSourceLanguage = project.sourceLanguage;
     }
 
-    // Detect actual source language from uploaded files if lang is 'source-language'
-    if (lang === 'source-language') {
-      // Get all distinct languages from uploaded files
-      const languages = await prisma.projectFile.findMany({
-        where: { 
-          projectId: actualProjectId,
-          branch 
-        },
-        select: { lang: true },
-        distinct: ['lang'],
-      });
-
-      // Find the actual source language
-      // Priority: 
-      // 1. Exact match with configured sourceLanguage
-      // 2. Language that starts with configured sourceLanguage (e.g., en-US for en)
-      // 3. First language alphabetically (fallback)
-      let actualSourceLanguage = configuredSourceLanguage;
-      
-      if (languages.length > 0) {
-        const languageCodes = languages.map(l => l.lang);
-        
-        // Check for exact match
-        if (languageCodes.includes(configuredSourceLanguage)) {
-          actualSourceLanguage = configuredSourceLanguage;
-        } else {
-          // Check for languages that start with the configured source language
-          const matching = languageCodes.find(l => 
-            l.toLowerCase().startsWith(configuredSourceLanguage.toLowerCase() + '-')
-          );
-          
-          if (matching) {
-            actualSourceLanguage = matching;
-          } else {
-            // Use the first language alphabetically as fallback
-            actualSourceLanguage = languageCodes.sort()[0];
-          }
-        }
-      }
-      
-      lang = actualSourceLanguage;
-    }
-
+    // Get files from D1
     const where: any = { projectId: actualProjectId, branch };
     if (lang) where.lang = lang;
     if (filename) where.filename = filename;
 
-    const projectFiles = await prisma.projectFile.findMany({
+    const files = await prisma.r2File.findMany({
       where,
-      select: {
-        id: true,
-        projectId: true,
-        branch: true,
-        filename: true,
-        filetype: true,
-        lang: true,
-        commitSha: true,
-        uploadedAt: true,
-        contents: true,
-        metadata: true,
-      },
       orderBy: { uploadedAt: 'desc' },
     });
 
-    // Return summary with calculated statistics instead of all keys
-    const filesSummary = projectFiles.map((row) => {
-      const contents = safeJSONParse<Record<string, any>>(
-        row.contents, 
-        {}, 
-        `files-summary:${row.filename}:${row.lang}`
-      );
-      const metadata = safeJSONParse<Record<string, any>>(
-        row.metadata || '{}', 
-        {}, 
-        `files-summary:${row.filename}:${row.lang}:metadata`
-      );
-      
-      // Calculate translation statistics
-      const allKeys = Object.keys(contents);
-      const totalKeys = allKeys.length;
-      let translatedKeys = 0;
-      
-      for (const [key, value] of Object.entries(contents)) {
-        if (value !== null && value !== undefined && String(value).trim() !== '') {
-          translatedKeys++;
-        }
-      }
-      
-      const translationPercentage = totalKeys > 0 
-        ? Math.round((translatedKeys / totalKeys) * 100) 
-        : 0;
-      
-      return {
-        id: row.id,
-        projectId: row.projectId,
-        branch: row.branch,
-        filename: row.filename,
-        filetype: row.filetype,
-        lang: row.lang,
-        commitSha: row.commitSha,
-        uploadedAt: row.uploadedAt,
-        totalKeys,
-        translatedKeys,
-        translationPercentage,
-        metadata,
-      };
-    });
-
-    // Generate ETag from file upload timestamps
-    const fileTimestamps = projectFiles.map(f => f.uploadedAt);
-    const etag = generateFilesETag(fileTimestamps);
-    
-    // Check if client has current version
-    const cacheControl = buildCacheControl(CACHE_CONFIGS.projectFiles);
-    if (checkETagMatch(c.req.raw, etag)) {
-      return create304Response(etag, cacheControl);
+    if (files.length === 0) {
+      return c.json({ files: [] });
     }
 
-    const response = c.json({ files: filesSummary });
-    response.headers.set('Cache-Control', cacheControl);
-    response.headers.set('ETag', etag);
+    // Generate ETag
+    const latestUpdate = Math.max(...files.map(f => f.lastUpdated.getTime()));
+    const serverETag = `"${latestUpdate}"`;
+    
+    // Check ETag
+    const clientETag = c.req.header('If-None-Match');
+    if (clientETag === serverETag) {
+      return c.body(null, 304, {
+        'ETag': serverETag,
+        'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles),
+      });
+    }
+
+    const response = c.json({
+      files: files.map(f => ({
+        filename: f.filename,
+        lang: f.lang,
+        commitSha: f.commitSha,
+        totalKeys: f.totalKeys,
+        sourceHash: f.sourceHash,
+        uploadedAt: f.uploadedAt,
+        r2Key: f.r2Key,
+      })),
+    });
+
+    response.headers.set('ETag', serverETag);
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+
     return response;
   });
 
+  // Get files (metadata only - use /api/r2/* for actual content)
   app.get('/:projectId/files', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
@@ -1296,170 +382,51 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       actualProjectId = project.repository;
     }
 
+    // Get files from D1
     const where: any = { projectId: actualProjectId, branch };
     if (lang) where.lang = lang;
     if (filename) where.filename = filename;
 
-    const projectFiles = await prisma.projectFile.findMany({
+    const files = await prisma.r2File.findMany({
       where,
       orderBy: { uploadedAt: 'desc' },
     });
 
-    // Generate ETag from file upload timestamps
-    const fileTimestamps = projectFiles.map(f => f.uploadedAt);
-    const etag = generateFilesETag(fileTimestamps);
+    if (files.length === 0) {
+      return c.json({ files: [] });
+    }
+
+    // Generate ETag
+    const latestUpdate = Math.max(...files.map(f => f.lastUpdated.getTime()));
+    const serverETag = `"${latestUpdate}"`;
     
-    // Check if client has current version
-    const cacheControl = buildCacheControl(CACHE_CONFIGS.projectFiles);
-    if (checkETagMatch(c.req.raw, etag)) {
-      return create304Response(etag, cacheControl);
-    }
-
-    const files = projectFiles.map((row) => ({
-      ...row,
-      contents: safeJSONParse<Record<string, any>>(
-        row.contents, 
-        {}, 
-        `files:${row.filename}:${row.lang}`
-      ),
-      metadata: safeJSONParse<Record<string, any>>(
-        row.metadata || '{}', 
-        {}, 
-        `files:${row.filename}:${row.lang}:metadata`
-      )
-    }));
-
-    const response = c.json({ files });
-    response.headers.set('Cache-Control', cacheControl);
-    response.headers.set('ETag', etag);
-    return response;
-  });
-
-  // Endpoint to validate translation validity based on source content hash
-  app.get('/:projectName/validate', async (c) => {
-    const payload = await requireAuth(c, env.JWT_SECRET);
-    if (payload instanceof Response) return payload;
-
-    const projectName = c.req.param('projectName');
-    const branch = c.req.query('branch') || 'main';
-    const language = c.req.query('language');
-
-    const project = await prisma.project.findUnique({
-      where: { name: projectName },
-      select: { id: true, repository: true, sourceLanguage: true },
-    });
-
-    if (!project) {
-      return c.json({ error: `Project '${projectName}' not found` }, 404);
-    }
-
-    // Get source language files
-    const sourceFiles = await prisma.projectFile.findMany({
-      where: {
-        projectId: project.repository,
-        branch,
-        lang: project.sourceLanguage,
-      },
-      select: {
-        filename: true,
-        contents: true,
-        sourceHash: true,
-        structureMap: true,
-      },
-    });
-
-    // Get translation files for the specified language
-    const where: any = {
-      projectId: project.repository,
-      branch,
-    };
-    if (language) {
-      where.lang = language;
-    } else {
-      where.lang = { not: project.sourceLanguage };
-    }
-
-    const translationFiles = await prisma.projectFile.findMany({
-      where,
-      select: {
-        filename: true,
-        lang: true,
-        contents: true,
-        structureMap: true,
-      },
-    });
-
-    // Build validation report
-    const validationResults: any[] = [];
-
-    for (const translationFile of translationFiles) {
-      const sourceFile = sourceFiles.find(sf => sf.filename === translationFile.filename);
-      
-      if (!sourceFile) {
-        validationResults.push({
-          filename: translationFile.filename,
-          language: translationFile.lang,
-          status: 'no_source',
-          message: 'Source file not found',
-        });
-        continue;
-      }
-
-      const sourceContents = safeJSONParse(sourceFile.contents, {}, 'validate:source');
-      const translationContents = safeJSONParse(translationFile.contents, {}, 'validate:translation');
-      const sourceMap = sourceFile.structureMap ? safeJSONParse(sourceFile.structureMap, [], 'validate:sourceMap') : [];
-      const translationMap = translationFile.structureMap ? safeJSONParse(translationFile.structureMap, [], 'validate:translationMap') : [];
-
-      const invalidKeys: string[] = [];
-      const validKeys: string[] = [];
-      const missingKeys: string[] = [];
-
-      // Check each key in source
-      for (const [key, sourceValue] of Object.entries(sourceContents)) {
-        const translationValue = translationContents[key];
-        
-        if (translationValue === undefined) {
-          missingKeys.push(key);
-          continue;
-        }
-
-        // Find source hash for this key
-        const sourceMapEntry = sourceMap.find((entry: any) => entry.flattenedKey === key);
-        const translationMapEntry = translationMap.find((entry: any) => entry.flattenedKey === key);
-
-        if (sourceMapEntry && translationMapEntry) {
-          // Compare source hashes to see if source has changed
-          if (sourceMapEntry.sourceHash !== translationMapEntry.sourceHash) {
-            invalidKeys.push(key);
-          } else {
-            validKeys.push(key);
-          }
-        } else {
-          // If no hash available, assume valid
-          validKeys.push(key);
-        }
-      }
-
-      validationResults.push({
-        filename: translationFile.filename,
-        language: translationFile.lang,
-        status: invalidKeys.length === 0 && missingKeys.length === 0 ? 'valid' : 'invalid',
-        totalKeys: Object.keys(sourceContents).length,
-        validKeys: validKeys.length,
-        invalidKeys: invalidKeys.length,
-        missingKeys: missingKeys.length,
-        invalidKeysList: invalidKeys,
-        missingKeysList: missingKeys,
+    // Check ETag
+    const clientETag = c.req.header('If-None-Match');
+    if (clientETag === serverETag) {
+      return c.body(null, 304, {
+        'ETag': serverETag,
+        'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles),
       });
     }
 
-    return c.json({
-      project: projectName,
-      branch,
-      sourceLanguage: project.sourceLanguage,
-      validationResults,
-      generatedAt: new Date().toISOString(),
+    const response = c.json({ 
+      files: files.map(f => ({
+        id: f.id,
+        filename: f.filename,
+        lang: f.lang,
+        commitSha: f.commitSha,
+        r2Key: f.r2Key,
+        sourceHash: f.sourceHash,
+        totalKeys: f.totalKeys,
+        uploadedAt: f.uploadedAt,
+      })),
+      note: 'Use /api/r2/:projectId/:lang/:filename to get actual file contents'
     });
+
+    response.headers.set('ETag', serverETag);
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+
+    return response;
   });
 
   return app;
