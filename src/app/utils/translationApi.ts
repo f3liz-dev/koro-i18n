@@ -70,7 +70,7 @@ export async function fetchWebTranslations(
 }
 
 /**
- * Merge R2 and D1 data
+ * Merge R2 and D1 data (legacy - for backward compatibility)
  */
 export function mergeTranslations(
   r2Data: R2FileData | null,
@@ -94,6 +94,52 @@ export function mergeTranslations(
       currentValue: webTrans?.value || String(sourceValue),
       gitBlame: r2Data.metadata.gitBlame?.[key],
       charRange: r2Data.metadata.charRanges?.[key],
+      webTranslation: webTrans,
+      isValid: webTrans?.isValid ?? true,
+    });
+  }
+
+  return merged;
+}
+
+/**
+ * Merge source R2, target R2, and D1 web translations
+ * This properly handles the case where source and target are different files
+ */
+export function mergeTranslationsWithSource(
+  sourceR2Data: R2FileData | null,
+  targetR2Data: R2FileData | null,
+  webTranslations: WebTranslation[]
+): MergedTranslation[] {
+  if (!sourceR2Data) return [];
+
+  const webTransMap = new Map<string, WebTranslation>();
+  for (const trans of webTranslations) {
+    webTransMap.set(trans.key, trans);
+  }
+
+  const targetMap = new Map<string, any>();
+  if (targetR2Data) {
+    for (const [key, value] of Object.entries(targetR2Data.raw)) {
+      targetMap.set(key, value);
+    }
+  }
+
+  const merged: MergedTranslation[] = [];
+
+  for (const [key, sourceValue] of Object.entries(sourceR2Data.raw)) {
+    const webTrans = webTransMap.get(key);
+    const targetValue = targetMap.get(key);
+    
+    // Priority: web translation > target R2 > source
+    const currentValue = webTrans?.value || (targetValue ? String(targetValue) : String(sourceValue));
+    
+    merged.push({
+      key,
+      sourceValue: String(sourceValue),
+      currentValue,
+      gitBlame: sourceR2Data.metadata.gitBlame?.[key],
+      charRange: sourceR2Data.metadata.charRanges?.[key],
       webTranslation: webTrans,
       isValid: webTrans?.isValid ?? true,
     });

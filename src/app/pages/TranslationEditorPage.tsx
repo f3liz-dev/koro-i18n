@@ -8,7 +8,7 @@ import MobileMenuOverlay from '../components/MobileMenuOverlay';
 import {
   fetchR2File,
   fetchWebTranslations,
-  mergeTranslations,
+  mergeTranslationsWithSource,
   submitTranslation,
   fetchSuggestions,
   approveSuggestion,
@@ -32,6 +32,13 @@ export default function TranslationEditorPage() {
   const projectName = () => params.projectId || '';
   const language = () => params.language || 'en';
   const filename = () => params.filename ? decodeURIComponent(params.filename) : 'common.json';
+  
+  // Create display filename with {lang} placeholder
+  const displayFilename = () => {
+    const fname = filename();
+    const lang = language();
+    return fname.replace(new RegExp(lang.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '{lang}');
+  };
 
   const [project, setProject] = createSignal<Project | null>(null);
   const [translations, setTranslations] = createSignal<MergedTranslation[]>([]);
@@ -69,14 +76,28 @@ export default function TranslationEditorPage() {
 
     setIsLoading(true);
     try {
-      // Fetch from R2 (GitHub imports) - use project name, not repository
-      const r2Data = await fetchR2File(proj.name, language(), filename());
+      // Determine source and target filenames
+      const sourceLang = proj.sourceLanguage;
+      const targetLang = language();
+      const targetFilename = filename();
       
-      // Fetch from D1 (web translations)
-      const webTrans = await fetchWebTranslations(proj.id, language(), filename());
+      // For language-specific filenames, compute the source filename
+      const sourceFilename = targetFilename.replace(
+        new RegExp(targetLang.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+        sourceLang
+      );
       
-      // Merge
-      const merged = mergeTranslations(r2Data, webTrans);
+      // Fetch source file from R2 (for sourceValue)
+      const sourceR2Data = await fetchR2File(proj.name, sourceLang, sourceFilename);
+      
+      // Fetch target file from R2 (for existing translations)
+      const targetR2Data = await fetchR2File(proj.name, targetLang, targetFilename);
+      
+      // Fetch from D1 (web translations - overrides)
+      const webTrans = await fetchWebTranslations(proj.id, targetLang, targetFilename);
+      
+      // Merge: use source for sourceValue, target for currentValue, web for overrides
+      const merged = mergeTranslationsWithSource(sourceR2Data, targetR2Data, webTrans);
       setTranslations(merged);
 
       // Auto-select first key
@@ -231,8 +252,24 @@ export default function TranslationEditorPage() {
 
   const getCompletionPercentage = () => {
     const total = translations().length;
-    const completed = translations().filter(t => t.currentValue !== t.sourceValue).length;
-    return total > 0 ? Math.round((completed / total) * 100) : 0;
+    const proj = project();
+    
+    if (!proj || total === 0) return 0;
+    
+    // For source language files, nothing is "translated" (they are the source)
+    if (language() === proj.sourceLanguage) {
+      return 0;
+    }
+    
+    // For target language files:
+    // A key is "translated" if it has a value different from the source
+    // (This works because R2 files already have translations, and web translations override them)
+    const completed = translations().filter(t => {
+      // If currentValue is different from sourceValue, it's translated
+      return t.currentValue !== t.sourceValue;
+    }).length;
+    
+    return Math.round((completed / total) * 100);
   };
 
   return (
@@ -240,6 +277,7 @@ export default function TranslationEditorPage() {
       <TranslationEditorHeader
         projectId={projectName()}
         language={language()}
+        filename={displayFilename()}
         completionPercentage={getCompletionPercentage()}
         onMenuToggle={() => setShowMobileMenu(!showMobileMenu())}
         showMobileMenu={showMobileMenu()}

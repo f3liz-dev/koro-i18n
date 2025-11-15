@@ -16,6 +16,7 @@ interface Project {
 
 interface FileStats {
   filename: string;
+  displayFilename: string; // Filename with {lang} placeholder for display
   targetFilename: string; // The actual filename in the target language
   totalKeys: number;
   translatedKeys: number;
@@ -63,6 +64,14 @@ export default function FileSelectionPage() {
     return sourcePattern === targetPattern;
   };
 
+  // Helper to create display filename with {lang} placeholder
+  // e.g., "newtab/ar-SA.json" -> "newtab/{lang}.json"
+  // e.g., "main/en-US/browser-chrome.json" -> "main/{lang}/browser-chrome.json"
+  const createDisplayFilename = (filename: string, lang: string): string => {
+    // Replace all occurrences of the language code with {lang}
+    return filename.replace(new RegExp(lang.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '{lang}');
+  };
+
   // Compute file stats from the data
   const fileStats = () => {
     const source = sourceFilesData();
@@ -90,9 +99,13 @@ export default function FileSelectionPage() {
       // Use target filename if found, otherwise use source filename
       const targetFilename = targetFile?.filename || sourceFile.filename;
       
+      // Create display filename with {lang} placeholder
+      const displayFilename = createDisplayFilename(sourceFile.filename, sourceLang);
+      
       const percentage = totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0;
       stats.push({
         filename: sourceFile.filename,
+        displayFilename: displayFilename,
         targetFilename: targetFilename,
         totalKeys,
         translatedKeys,
@@ -231,7 +244,7 @@ export default function FileSelectionPage() {
                   >
                     <div class="flex items-center justify-between mb-4">
                       <div class="flex-1">
-                        <h3 class="font-medium text-gray-900 mb-1">{fileStat.filename}</h3>
+                        <h3 class="font-medium text-gray-900 mb-1">{fileStat.displayFilename}</h3>
                         <div class="text-sm text-gray-600">
                           {fileStat.translatedKeys} / {fileStat.totalKeys} keys translated
                         </div>

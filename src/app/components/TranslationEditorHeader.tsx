@@ -3,6 +3,7 @@ import { useNavigate } from '@solidjs/router';
 interface TranslationEditorHeaderProps {
   projectId: string;
   language: string;
+  filename?: string;
   completionPercentage: number;
   onMenuToggle: () => void;
   showMobileMenu: boolean;
@@ -30,6 +31,7 @@ export default function TranslationEditorHeader(props: TranslationEditorHeaderPr
               <h1 class="text-xl lg:text-2xl font-bold text-gray-900">Translation Editor</h1>
               <p class="text-xs lg:text-sm text-gray-600">
                 {props.projectId} • {props.language.toUpperCase()}
+                {props.filename && <span> • <code class="text-xs bg-gray-100 px-1 py-0.5 rounded">{props.filename}</code></span>}
               </p>
             </div>
           </div>
