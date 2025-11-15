@@ -2,12 +2,15 @@
   "name": "koro-i18n-upload-action",
   "version": "1.0.0",
   "description": "GitHub Action to upload translations to Koro i18n platform",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "prepare": "echo 'Action ready'"
+    "build": "rolldown index.js --file dist/index.js -f esm",
+    "prepare": "npm run build"
   },
   "dependencies": {
-    "@actions/core": "^1.10.1",
-    "@actions/exec": "^1.1.1"
+    "@actions/core": "^1.11.1"
+  },
+  "devDependencies": {
+    "rolldown": "^1.0.0-beta.50"
   }
 }
