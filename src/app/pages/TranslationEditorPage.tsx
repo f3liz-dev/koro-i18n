@@ -153,7 +153,7 @@ export default function TranslationEditorPage() {
     const query = searchQuery().toLowerCase();
     const status = filterStatus();
     
-    return translations().filter(t => {
+    const filtered = translations().filter(t => {
       const matchesSearch = !query || 
         t.key.toLowerCase().includes(query) ||
         t.sourceValue.toLowerCase().includes(query) ||
@@ -164,6 +164,25 @@ export default function TranslationEditorPage() {
       if (status === 'valid') return t.isValid;
       if (status === 'invalid') return !t.isValid;
       return true;
+    });
+    
+    // Sort: empty or outdated keys first, then valid keys
+    return filtered.sort((a, b) => {
+      const aEmpty = !a.currentValue || a.currentValue === '';
+      const bEmpty = !b.currentValue || b.currentValue === '';
+      const aOutdated = !a.isValid;
+      const bOutdated = !b.isValid;
+      
+      // Empty keys first
+      if (aEmpty && !bEmpty) return -1;
+      if (!aEmpty && bEmpty) return 1;
+      
+      // Then outdated keys
+      if (aOutdated && !bOutdated) return -1;
+      if (!aOutdated && bOutdated) return 1;
+      
+      // Otherwise maintain original order (alphabetical by key)
+      return a.key.localeCompare(b.key);
     });
   };
 
