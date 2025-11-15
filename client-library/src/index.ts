@@ -20,8 +20,8 @@ export interface Config {
   };
 }
 
-// Import shared types
-import type { GitBlameInfo, R2Metadata, CharRange } from '../../shared/types';
+// Import shared types via path mapping
+import type { GitBlameInfo, R2Metadata } from '@shared/types';
 
 export interface TranslationFile {
   lang: string;
@@ -119,7 +119,7 @@ function getGitBlame(filePath: string): Map<number, GitBlameInfo> {
 function buildMetadata(
   filePath: string,
   flattenedContents: Record<string, string>
-): Metadata {
+): R2Metadata {
   const fileContent = fs.readFileSync(filePath, 'utf-8');
   const lines = fileContent.split('\n');
   const blameMap = getGitBlame(filePath);
@@ -157,7 +157,6 @@ function buildMetadata(
             // For JSON, value is always on the same line (or continues with escapes)
             // Find the end of the value on this line
             const valueStart = line.indexOf(':', colonIndex) + 1;
-            const restOfLine = line.substring(valueStart).trim();
             
             // Find closing quote or comma
             const closingQuote = line.lastIndexOf('"');

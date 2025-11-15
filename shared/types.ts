@@ -168,8 +168,8 @@ export function validate<A, O, I>(
   const result = codec.decode(data);
   
   if (result._tag === 'Left') {
-    const errors = result.left.map(e => {
-      const path = e.context.map(c => c.key).filter(Boolean).join('.');
+    const errors = result.left.map((e: t.ValidationError) => {
+      const path = e.context.map((c: t.ContextEntry) => c.key).filter(Boolean).join('.');
       return `${path}: ${e.message || 'validation failed'}`;
     }).join(', ');
     
