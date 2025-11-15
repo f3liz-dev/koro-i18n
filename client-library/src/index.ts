@@ -398,16 +398,18 @@ export async function main() {
 
   const allFiles: TranslationFile[] = [];
 
-  let matchedFiles: string[] = [];
-  let includePatternForLang: string | undefined;
+  // Map files to their matching patterns
+  const fileToPattern = new Map<string, string>();
 
   if (config.source.files) {
     // Simple mode: direct file paths (no glob)
-    matchedFiles = config.source.files.filter(f => fs.existsSync(f));
-    console.log(`Using ${matchedFiles.length} files from config`);
+    const existingFiles = config.source.files.filter(f => fs.existsSync(f));
+    console.log(`Using ${existingFiles.length} files from config`);
+    for (const file of existingFiles) {
+      fileToPattern.set(file, '');
+    }
   } else if (config.source.include) {
     // Advanced mode: glob patterns with {lang} marker
-    const langMarker = config.source.lang_marker || '([a-z]{2}(-[A-Z]{2})?)';
     const includePatterns = config.source.include;
     const excludePatterns = config.source.exclude || [];
 
@@ -419,16 +421,12 @@ export async function main() {
         ignore: excludePatterns.filter(p => !p.startsWith('regex:')),
       });
       console.log(`Found ${files.length} files matching ${pattern}`);
-      matchedFiles.push(...files);
       
-      // Store the first pattern with {lang} for language extraction
-      if (!includePatternForLang && pattern.includes('{lang}')) {
-        includePatternForLang = pattern;
+      // Map each file to its pattern
+      for (const file of files) {
+        fileToPattern.set(file, pattern);
       }
     }
-
-    // Remove duplicates
-    matchedFiles = [...new Set(matchedFiles)];
   } else {
     throw new Error('Config must specify either source.files or source.include');
   }
@@ -437,24 +435,28 @@ export async function main() {
   if (config.source.exclude) {
     const regexExcludes = config.source.exclude.filter(p => p.startsWith('regex:'));
     if (regexExcludes.length > 0) {
-      const originalCount = matchedFiles.length;
+      const originalCount = fileToPattern.size;
       for (const excludePattern of regexExcludes) {
         const pattern = excludePattern.substring(6); // Remove 'regex:' prefix
         try {
           const regex = new RegExp(pattern);
-          matchedFiles = matchedFiles.filter(f => !regex.test(f));
+          for (const file of fileToPattern.keys()) {
+            if (regex.test(file)) {
+              fileToPattern.delete(file);
+            }
+          }
         } catch (error: any) {
           console.warn(`Invalid regex exclude pattern: ${pattern}`, error.message);
         }
       }
-      console.log(`Excluded ${originalCount - matchedFiles.length} files via regex`);
+      console.log(`Excluded ${originalCount - fileToPattern.size} files via regex`);
     }
   }
 
   // Process all matched files
   const langMarker = config.source.lang_marker || '([a-z]{2}(-[A-Z]{2})?)';
-  for (const filePath of matchedFiles) {
-    const processed = processFile(filePath, includePatternForLang, langMarker);
+  for (const [filePath, pattern] of fileToPattern.entries()) {
+    const processed = processFile(filePath, pattern || undefined, langMarker);
     if (processed) {
       allFiles.push(processed);
       console.log(`  ✓ ${filePath} [${processed.lang}] (${Object.keys(processed.contents).length} keys)`);
