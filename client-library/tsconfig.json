@@ -16,7 +16,9 @@
     "moduleResolution": "node",
     "baseUrl": ".",
     "paths": {
-      "@shared/types": ["../shared/types.ts"]
+      "@shared/types": ["../shared/types.ts"],
+      "io-ts": ["./node_modules/io-ts"],
+      "fp-ts/*": ["./node_modules/fp-ts/*"]
     }
   },
   "include": ["src/**/*", "../shared/types.ts"],
