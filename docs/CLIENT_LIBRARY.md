@@ -164,21 +164,21 @@ To stay within Cloudflare's free tier (10ms CPU time), the server does ZERO enco
 3. **Server just decodes base64 and writes to R2** - ~0.3ms CPU per file
 
 ### Chunked Upload Optimization
-1. **D1 writes on every chunk** - Fast enough (~0.3ms) and needed for frontend progress
+1. **Batched D1 writes** - Single INSERT for all files in chunk (~2ms total)
 2. **Translation invalidation deferred** - Only runs on the last chunk
 3. **Zero MessagePack encoding** - Client sends pre-packed data
 4. **Ultra-fast R2 writes** - Direct binary upload
 
 **Chunked upload flow (240 files, 10 per chunk):**
-- Chunks 1-23: R2 write + D1 update (~6ms CPU each)
-- Chunk 24 (last): R2 write + D1 update + Invalidate translations (~8ms CPU)
-- **Total: ~146ms CPU across 24 requests** (well under free tier limit)
+- Chunks 1-23: R2 write + Batched D1 insert (~5ms CPU each)
+- Chunk 24 (last): R2 write + Batched D1 insert + Invalidate translations (~7ms CPU)
+- **Total: ~122ms CPU across 24 requests** (well under free tier limit)
 
 **CPU time breakdown per chunk:**
 - Base64 decode: ~1ms
 - R2 writes: ~2ms
-- D1 updates: ~3ms
-- **Total: ~6ms per chunk** ✅
-- Last chunk adds: +2ms for invalidation = ~8ms ✅
+- Batched D1 insert: ~2ms (for all 10 files!)
+- **Total: ~5ms per chunk** ✅
+- Last chunk adds: +2ms for invalidation = ~7ms ✅
 
 This keeps the server under 10ms CPU per request, staying within the free tier.

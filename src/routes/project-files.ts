@@ -164,40 +164,34 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
       console.log(`[upload] Chunk files stored to R2`);
 
-      // Always update D1 for files in current chunk (needed for frontend to show progress)
-      // This is fast enough (~0.3ms per file) to stay within CPU limits
-      for (const file of files) {
-        await prisma.r2File.upsert({
-          where: {
-            projectId_branch_lang_filename: {
-              projectId,
-              branch: branchName,
-              lang: file.lang,
-              filename: file.filename,
-            },
-          },
-          update: {
-            commitSha: commitHash,
-            r2Key: generateR2Key(projectId, file.lang, file.filename),
-            sourceHash: file.sourceHash,
-            totalKeys: Object.keys(file.contents).length,
-            lastUpdated: new Date(),
-          },
-          create: {
-            id: crypto.randomUUID(),
-            projectId,
-            branch: branchName,
-            commitSha: commitHash,
-            lang: file.lang,
-            filename: file.filename,
-            r2Key: generateR2Key(projectId, file.lang, file.filename),
-            sourceHash: file.sourceHash,
-            totalKeys: Object.keys(file.contents).length,
-          },
-        });
-      }
+      // Update D1 index using batched raw SQL for maximum performance
+      // Single transaction is much faster than individual queries
+      const now = new Date().toISOString();
+      
+      // Build VALUES for batch insert
+      const values = files.map(file => {
+        const id = crypto.randomUUID();
+        const r2Key = generateR2Key(projectId, file.lang, file.filename);
+        const totalKeys = Object.keys(file.contents).length;
+        return `('${id}', '${projectId}', '${branchName}', '${commitHash}', '${file.lang}', '${file.filename}', '${r2Key}', '${file.sourceHash}', ${totalKeys}, '${now}', '${now}')`;
+      }).join(',');
+      
+      // Single batch INSERT OR REPLACE - much faster than individual queries
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO R2File (
+          id, projectId, branch, commitSha, lang, filename, 
+          r2Key, sourceHash, totalKeys, uploadedAt, lastUpdated
+        ) VALUES ${values}
+        ON CONFLICT(projectId, branch, lang, filename) 
+        DO UPDATE SET
+          commitSha = excluded.commitSha,
+          r2Key = excluded.r2Key,
+          sourceHash = excluded.sourceHash,
+          totalKeys = excluded.totalKeys,
+          lastUpdated = excluded.lastUpdated
+      `);
 
-      console.log(`[upload] D1 index updated for ${files.length} files`);
+      console.log(`[upload] D1 index updated for ${files.length} files in single batch`);
 
       // Only process invalidations on the last chunk (or non-chunked upload)
       // This is the CPU-intensive part
