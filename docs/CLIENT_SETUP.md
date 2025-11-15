@@ -81,9 +81,12 @@ include = ["translations/{lang}.json"]
 include = ["locales/{lang}/**/*.json", "i18n/{lang}/messages.json"]
 ```
 
-The `{lang}` marker is replaced with a regex pattern (default: `([a-z]{2}(-[A-Z]{2})?)`) that matches:
+The `{lang}` marker is replaced with a regex pattern (default: `([a-zA-Z0-9]+(-[a-zA-Z0-9]+)*)`) that matches:
 - 2-letter codes: `en`, `ja`, `es`
 - Region codes: `en-US`, `zh-CN`, `pt-BR`
+- Custom variants: `ja-JP-mac`, `en-US-posix`
+- Private use: `ja-JP-x-kansai`, `en-US-x-custom`
+- Script codes: `sr-Latn-RS`, `zh-Hans-CN`
 
 Customize with `lang_marker`:
 ```toml
@@ -91,6 +94,8 @@ Customize with `lang_marker`:
 lang_marker = "([a-z]{2,3})"
 # Match uppercase codes
 lang_marker = "([A-Z]{2})"
+# Strict BCP 47 pattern
+lang_marker = "([a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2})?(-x(-[a-z0-9]+)+)?)"
 ```
 
 ## 2. Add GitHub Action

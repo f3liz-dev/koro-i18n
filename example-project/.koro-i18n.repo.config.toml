@@ -16,8 +16,11 @@ language = "en"
 # Use {lang} to mark where the language code appears in the path
 include = ["locales/{lang}/**/*.json"]
 # The {lang} marker will be replaced with a regex pattern to extract the language
-# Default pattern: ([a-z]{2}(-[A-Z]{2})?) - matches "en", "ja-JP", etc.
-# Custom pattern: lang_marker = "([a-z]{2,3})" for 2-3 letter codes
+# Default pattern: ([a-zA-Z0-9]+(-[a-zA-Z0-9]+)*) 
+# Matches: "en", "ja-JP", "ja-JP-mac", "ja-JP-x-kansai", "sr-Latn-RS", etc.
+# Custom pattern examples:
+#   lang_marker = "([a-z]{2,3})" for 2-3 letter codes only
+#   lang_marker = "([a-z]{2}(-[A-Z]{2})?)" for standard language-region codes
 
 # Optional: exclude patterns (supports glob and regex)
 # Glob patterns:

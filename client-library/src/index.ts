@@ -414,7 +414,7 @@ export async function main() {
     const excludePatterns = config.source.exclude || [];
 
     for (const pattern of includePatterns) {
-      // Replace {lang} with * for glob matching
+      // Replace {lang} with * for glob matching (support multiple segments like ja-JP-mac)
       const globPattern = pattern.replace(/\{lang\}/g, '*');
       
       const files = await glob(globPattern, {
@@ -453,14 +453,40 @@ export async function main() {
     }
   }
 
+  // Build list of valid languages (source + targets)
+  const validLanguages = new Set([
+    config.source.language,
+    ...config.target.languages,
+  ]);
+
   // Process all matched files
-  const langMarker = config.source.lang_marker || '([a-z]{2}(-[A-Z]{2})?)';
+  // Default pattern supports: en, ja-JP, ja-JP-mac, ja-JP-x-kansai, etc.
+  const langMarker = config.source.lang_marker || '([a-zA-Z0-9]+(-[a-zA-Z0-9]+)*)';
+  let skippedCount = 0;
+  
   for (const [filePath, pattern] of fileToPattern.entries()) {
     const processed = processFile(filePath, pattern || undefined, langMarker);
     if (processed) {
+      // Skip files with unknown language or language not in config
+      if (processed.lang === 'unknown') {
+        console.warn(`  ⚠ ${filePath} - could not extract language, skipping`);
+        skippedCount++;
+        continue;
+      }
+      
+      if (!validLanguages.has(processed.lang)) {
+        console.warn(`  ⚠ ${filePath} [${processed.lang}] - language not in config, skipping`);
+        skippedCount++;
+        continue;
+      }
+      
       allFiles.push(processed);
       console.log(`  ✓ ${filePath} [${processed.lang}] (${Object.keys(processed.contents).length} keys)`);
     }
+  }
+  
+  if (skippedCount > 0) {
+    console.log(`\n⚠ Skipped ${skippedCount} files (unknown or unconfigured languages)`);
   }
 
   console.log(`\n📤 Uploading ${allFiles.length} files...`);
