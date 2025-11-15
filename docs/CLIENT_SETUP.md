@@ -6,6 +6,8 @@ Quick guide to integrate koro-i18n with your project.
 
 Create `.koro-i18n.repo.config.toml`:
 
+### Simple Mode (Direct File Paths)
+
 ```toml
 [project]
 name = "my-project"
@@ -13,10 +15,82 @@ platform_url = "https://koro.workers.dev"
 
 [source]
 language = "en"
-files = ["locales/en/**/*.json"]
+files = [
+  "locales/en/common.json",
+  "locales/ja/common.json",
+  "locales/es/common.json"
+]
 
 [target]
 languages = ["ja", "es", "fr"]
+```
+
+### Advanced Mode (Glob Patterns with {lang} Marker)
+
+```toml
+[project]
+name = "my-project"
+platform_url = "https://koro.workers.dev"
+
+[source]
+language = "en"
+# Use {lang} to mark where the language code appears
+include = ["locales/{lang}/**/*.json", "i18n/{lang}/messages.json"]
+# Optional: custom regex for {lang} marker (default: ([a-z]{2}(-[A-Z]{2})?))
+# lang_marker = "([a-z]{2,3})"
+# Glob patterns to exclude
+exclude = ["**/node_modules/**", "**/*.test.json"]
+# Regex patterns to exclude (prefix with 'regex:')
+# exclude = ["regex:.*\\.backup\\.json$", "regex:.*/temp/.*"]
+
+[target]
+languages = ["ja", "es", "fr"]
+```
+
+### Configuration Options
+
+- `source.language`: The source language code (e.g., "en")
+- `source.files`: Array of direct file paths (no glob) - use this OR include/exclude
+- `source.include`: Glob patterns with `{lang}` marker - use this OR files
+- `source.exclude`: Glob or regex patterns to exclude (optional)
+  - Glob: `"**/node_modules/**"`, `"**/*.test.json"`
+  - Regex: `"regex:.*\\.backup\\.json$"`, `"regex:.*/temp/.*"`
+- `source.lang_marker`: Regex pattern for `{lang}` marker (optional, default: `([a-z]{2}(-[A-Z]{2})?)`)
+- `target.languages`: Array of target language codes
+
+### Language Detection with {lang} Marker
+
+Use `{lang}` in your include patterns to mark where the language code appears:
+
+```toml
+[source]
+language = "en"
+# Standard directory structure
+include = ["locales/{lang}/**/*.json"]
+# → locales/en/common.json, locales/ja/messages.json
+
+# Language prefix
+include = ["{lang}-translations/*.json"]
+# → en-translations/app.json, ja-translations/app.json
+
+# Language suffix
+include = ["translations/{lang}.json"]
+# → translations/en.json, translations/ja.json
+
+# Multiple patterns
+include = ["locales/{lang}/**/*.json", "i18n/{lang}/messages.json"]
+```
+
+The `{lang}` marker is replaced with a regex pattern (default: `([a-z]{2}(-[A-Z]{2})?)`) that matches:
+- 2-letter codes: `en`, `ja`, `es`
+- Region codes: `en-US`, `zh-CN`, `pt-BR`
+
+Customize with `lang_marker`:
+```toml
+# Match 2-3 letter codes only
+lang_marker = "([a-z]{2,3})"
+# Match uppercase codes
+lang_marker = "([A-Z]{2})"
 ```
 
 ## 2. Add GitHub Action

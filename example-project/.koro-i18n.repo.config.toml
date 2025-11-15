@@ -4,7 +4,32 @@ platform_url = "http://localhost:8787"
 
 [source]
 language = "en"
-files = ["locales/**/*.json"]
+
+# Option 1: Simple mode - direct file paths (no glob)
+# files = [
+#   "locales/en/common.json",
+#   "locales/ja/common.json",
+#   "locales/es/common.json"
+# ]
+
+# Option 2: Advanced mode - glob patterns with {lang} marker
+# Use {lang} to mark where the language code appears in the path
+include = ["locales/{lang}/**/*.json"]
+# The {lang} marker will be replaced with a regex pattern to extract the language
+# Default pattern: ([a-z]{2}(-[A-Z]{2})?) - matches "en", "ja-JP", etc.
+# Custom pattern: lang_marker = "([a-z]{2,3})" for 2-3 letter codes
+
+# Optional: exclude patterns (supports glob and regex)
+# Glob patterns:
+# exclude = ["**/node_modules/**", "**/*.test.json"]
+# Regex patterns (prefix with 'regex:'):
+# exclude = ["regex:.*\\.backup\\.json$", "regex:.*/temp/.*"]
+
+# Examples with {lang} marker:
+# include = ["locales/{lang}/**/*.json"]        → locales/en/common.json
+# include = ["i18n/{lang}/messages.json"]       → i18n/ja/messages.json
+# include = ["{lang}-translations/*.json"]      → en-translations/app.json
+# include = ["translations/{lang}.json"]        → translations/en.json
 
 [target]
 languages = ["ja", "es", "fr", "de", "zh"]
