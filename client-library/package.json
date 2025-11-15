@@ -8,7 +8,7 @@
     "koro-i18n": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "rolldown src/cli.ts --file dist/cli.js",
     "prepublish": "npm run build"
   },
   "keywords": [
@@ -23,13 +23,14 @@
   "license": "MIT",
   "dependencies": {
     "@msgpack/msgpack": "^3.0.0-beta2",
+    "fp-ts": "^2.16.9",
     "glob": "^10.3.10",
-    "toml": "^3.0.0",
     "io-ts": "^2.2.21",
-    "fp-ts": "^2.16.9"
+    "toml": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "rolldown": "^1.0.0-beta.50",
     "typescript": "^5.0.0"
   }
 }
