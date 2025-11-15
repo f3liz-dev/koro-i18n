@@ -20,18 +20,8 @@ export interface Config {
   };
 }
 
-export interface GitBlameInfo {
-  commit: string;
-  author: string;
-  email: string;
-  date: string;
-}
-
-export interface Metadata {
-  gitBlame: Record<string, GitBlameInfo>;
-  charRanges: Record<string, { start: [number, number]; end: [number, number] }>;
-  sourceHashes: Record<string, string>;
-}
+// Import shared types
+import type { GitBlameInfo, R2Metadata, CharRange } from '../../shared/types';
 
 export interface TranslationFile {
   lang: string;
@@ -124,6 +114,7 @@ function getGitBlame(filePath: string): Map<number, GitBlameInfo> {
 
 /**
  * Build metadata for a file
+ * Supports both single-line (JSON) and multi-line (Markdown) formats
  */
 function buildMetadata(
   filePath: string,
@@ -132,8 +123,9 @@ function buildMetadata(
   const fileContent = fs.readFileSync(filePath, 'utf-8');
   const lines = fileContent.split('\n');
   const blameMap = getGitBlame(filePath);
+  const fileExt = path.extname(filePath).toLowerCase();
 
-  const metadata: Metadata = {
+  const metadata: R2Metadata = {
     gitBlame: {},
     charRanges: {},
     sourceHashes: {},
@@ -141,39 +133,96 @@ function buildMetadata(
 
   // For each flattened key, find its position in the file
   for (const [key, value] of Object.entries(flattenedContents)) {
-    // Find the line containing this key
     const keyParts = key.split('.');
     const leafKey = keyParts[keyParts.length - 1];
-    const keyPattern = `"${leafKey}"`;
     
-    let lineNum = 0;
-    let charStart = 0;
-    let charEnd = 0;
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.includes(keyPattern)) {
-        const colonIndex = line.indexOf(keyPattern) + keyPattern.length;
-        const afterKey = line.substring(colonIndex).trim();
-        if (afterKey.startsWith(':')) {
-          lineNum = i + 1;
-          charStart = line.indexOf(keyPattern);
-          charEnd = charStart + keyPattern.length;
+    let startLine = 0;
+    let startChar = 0;
+    let endLine = 0;
+    let endChar = 0;
+
+    if (fileExt === '.json') {
+      // JSON format: single-line values (even with \n escape sequences)
+      const keyPattern = `"${leafKey}"`;
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes(keyPattern)) {
+          const colonIndex = line.indexOf(keyPattern) + keyPattern.length;
+          const afterKey = line.substring(colonIndex).trim();
+          if (afterKey.startsWith(':')) {
+            startLine = i + 1;
+            startChar = line.indexOf(keyPattern);
+            
+            // For JSON, value is always on the same line (or continues with escapes)
+            // Find the end of the value on this line
+            const valueStart = line.indexOf(':', colonIndex) + 1;
+            const restOfLine = line.substring(valueStart).trim();
+            
+            // Find closing quote or comma
+            const closingQuote = line.lastIndexOf('"');
+            const comma = line.indexOf(',', valueStart);
+            
+            endLine = i + 1;
+            endChar = closingQuote > valueStart ? closingQuote + 1 : 
+                     comma > 0 ? comma : line.length;
+            break;
+          }
+        }
+      }
+    } else if (fileExt === '.md') {
+      // Markdown format: multi-line values possible
+      // Format: ## Section\n- key: value (can span multiple lines)
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // Look for "- key:" pattern
+        if (line.includes(`- ${leafKey}:`)) {
+          startLine = i + 1;
+          startChar = line.indexOf(`- ${leafKey}:`);
+          
+          // Find end: next "- " or next "##" or end of file
+          endLine = i + 1;
+          endChar = line.length;
+          
+          for (let j = i + 1; j < lines.length; j++) {
+            const nextLine = lines[j];
+            if (nextLine.trim().startsWith('- ') || nextLine.trim().startsWith('##')) {
+              endLine = j; // Previous line
+              endChar = lines[j - 1].length;
+              break;
+            }
+            if (j === lines.length - 1) {
+              endLine = j + 1;
+              endChar = nextLine.length;
+            }
+          }
+          break;
+        }
+      }
+    } else {
+      // Unknown format: treat as single-line
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes(leafKey)) {
+          startLine = i + 1;
+          startChar = lines[i].indexOf(leafKey);
+          endLine = i + 1;
+          endChar = lines[i].length;
           break;
         }
       }
     }
 
-    // Get git blame for this line
-    const blame = blameMap.get(lineNum);
+    // Get git blame for the start line
+    const blame = blameMap.get(startLine);
     if (blame) {
       metadata.gitBlame[key] = blame;
     }
 
-    // Store char range
+    // Store char range (supports both single and multi-line)
     metadata.charRanges[key] = {
-      start: [lineNum, charStart],
-      end: [lineNum, charEnd],
+      start: [startLine, startChar],
+      end: [endLine, endChar],
     };
 
     // Store source hash

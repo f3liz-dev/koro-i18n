@@ -1,29 +1,12 @@
 /// <reference types="@cloudflare/workers-types" />
 import { encode, decode } from '@msgpack/msgpack';
+import type { R2FileData } from '../../shared/types';
 
 export interface R2StorageEnv {
   TRANSLATION_BUCKET: R2Bucket;
 }
 
-export interface R2FileData {
-  raw: Record<string, any>; // Flattened key-value pairs
-  metadata: {
-    gitBlame: Record<string, {
-      commit: string;
-      author: string;
-      email: string;
-      date: string;
-    }>;
-    charRanges: Record<string, {
-      start: [number, number];
-      end: [number, number];
-    }>;
-    sourceHashes: Record<string, string>; // key -> hash of source value (for validation)
-  };
-  sourceHash: string; // Hash of entire source file
-  commitSha: string;
-  uploadedAt: string;
-}
+export type { R2FileData };
 
 // In-memory cache for R2 data (per-worker instance)
 const r2Cache = new Map<string, { data: R2FileData; expires: number }>();

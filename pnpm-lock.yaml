@@ -26,9 +26,15 @@ importers:
       '@solidjs/router':
         specifier: ^0.15.3
         version: 0.15.3(solid-js@1.9.10)
+      fp-ts:
+        specifier: ^2.16.11
+        version: 2.16.11
       hono:
         specifier: ^4.6.3
         version: 4.10.4
+      io-ts:
+        specifier: ^2.2.22
+        version: 2.2.22(fp-ts@2.16.11)
       jose:
         specifier: ^6.1.0
         version: 6.1.0
@@ -1714,6 +1720,9 @@ packages:
   flatted@3.3.3:
     resolution: {integrity: sha512-GX+ysw4PBCz0PzosHDepZGANEuFCMLrnRTiEy9McGjmkCQYwRq4A/X786G/fjM/+OjsWSU1ZrY5qyARZmO/uwg==}
 
+  fp-ts@2.16.11:
+    resolution: {integrity: sha512-LaI+KaX2NFkfn1ZGHoKCmcfv7yrZsC3b8NtWsTVQeHkq4F27vI5igUuO53sxqDEa2gNQMHFPmpojDw/1zmUK7w==}
+
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -1803,6 +1812,11 @@ packages:
   imurmurhash@0.1.4:
     resolution: {integrity: sha512-JmXMZ6wuvDmLiHEml9ykzqO6lwFbof0GG4IkcGaENdCRDDmMVnny7s5HsIgHCbaq0w2MyPhDqkhTUgS2LU2PHA==}
     engines: {node: '>=0.8.19'}
+
+  io-ts@2.2.22:
+    resolution: {integrity: sha512-FHCCztTkHoV9mdBsHpocLpdTAfh956ZQcIkWQxxS0U5HT53vtrcuYdQneEJKH6xILaLNzXVl2Cvwtoy8XNN0AA==}
+    peerDependencies:
+      fp-ts: ^2.5.0
 
   is-arrayish@0.3.4:
     resolution: {integrity: sha512-m6UrgzFVUYawGBh1dUsWR5M2Clqic9RVXC/9f8ceNlv2IcO9j9J/z8UoCLPqtsPBFNzEpfR3xftohbfqDx8EQA==}
@@ -4216,6 +4230,8 @@ snapshots:
 
   flatted@3.3.3: {}
 
+  fp-ts@2.16.11: {}
+
   fsevents@2.3.3:
     optional: true
 
@@ -4292,6 +4308,10 @@ snapshots:
       resolve-from: 4.0.0
 
   imurmurhash@0.1.4: {}
+
+  io-ts@2.2.22(fp-ts@2.16.11):
+    dependencies:
+      fp-ts: 2.16.11
 
   is-arrayish@0.3.4: {}
 

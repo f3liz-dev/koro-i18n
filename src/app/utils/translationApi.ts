@@ -1,51 +1,16 @@
 import { authFetch } from './authFetch';
+import type { 
+  R2FileData, 
+  GitBlameInfo, 
+  CharRange,
+  WebTranslation as SharedWebTranslation,
+  MergedTranslation as SharedMergedTranslation 
+} from '../../../shared/types';
 
-export interface R2FileData {
-  contents: Record<string, string>;
-  metadata: {
-    gitBlame: Record<string, {
-      commit: string;
-      author: string;
-      email: string;
-      date: string;
-    }>;
-    sourceHashes: Record<string, string>;
-  };
-  sourceHash: string;
-  commitSha: string;
-  uploadedAt: string;
-}
-
-export interface WebTranslation {
-  id: string;
-  projectId: string;
-  language: string;
-  filename: string;
-  key: string;
-  value: string;
-  userId: string;
-  username?: string;
-  avatarUrl?: string;
-  status: 'pending' | 'approved' | 'rejected' | 'deleted';
-  sourceHash?: string;
-  isValid: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface MergedTranslation {
-  key: string;
-  sourceValue: string;
-  currentValue: string;
-  gitBlame?: {
-    commit: string;
-    author: string;
-    email: string;
-    date: string;
-  };
-  webTranslation?: WebTranslation;
-  isValid: boolean;
-}
+// Re-export shared types for convenience
+export type WebTranslation = SharedWebTranslation;
+export type MergedTranslation = SharedMergedTranslation;
+export type { R2FileData, GitBlameInfo, CharRange };
 
 /**
  * Fetch file from R2 (GitHub import)
@@ -128,6 +93,7 @@ export function mergeTranslations(
       sourceValue,
       currentValue: webTrans?.value || sourceValue,
       gitBlame: r2Data.metadata.gitBlame?.[key],
+      charRange: r2Data.metadata.charRanges?.[key],
       webTranslation: webTrans,
       isValid: webTrans?.isValid ?? true,
     });
