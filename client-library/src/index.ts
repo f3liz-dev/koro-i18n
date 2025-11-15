@@ -240,14 +240,17 @@ function buildMetadata(
 function extractLanguage(filePath: string, includePattern: string, langMarker: string): string {
   try {
     // Convert include pattern with {lang} to regex
-    // Escape special regex chars except {lang}
+    // First, escape special regex chars
     let regexPattern = includePattern
-      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  // Escape special chars
-      .replace(/\\\{lang\\\}/g, `(${langMarker})`)  // Replace {lang} with capture group
-      .replace(/\*\*/g, '.*')  // ** → .*
-      .replace(/\*/g, '[^/]*');  // * → [^/]*
+      .replace(/[.+?^$|[\]\\]/g, '\\$&')  // Escape special chars (not {} or *)
+      .replace(/\{lang\}/g, `___LANG___`)  // Temporarily replace {lang}
+      .replace(/\*\*/g, '___DOUBLESTAR___')  // Temporarily replace **
+      .replace(/\*/g, '___STAR___')  // Temporarily replace *
+      .replace(/___LANG___/g, `(${langMarker})`)  // Replace with capture group
+      .replace(/___DOUBLESTAR___/g, '.*')  // ** → .*
+      .replace(/___STAR___/g, '[^/]*');  // * → [^/]*
     
-    const regex = new RegExp(regexPattern);
+    const regex = new RegExp(`^${regexPattern}$`);
     const match = filePath.match(regex);
     
     if (match && match[1]) {
