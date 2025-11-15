@@ -30,9 +30,10 @@ try {
   // Build the client library
   core.info('Building koro-i18n client library...');
   // Use GITHUB_ACTION_PATH to find the action's location
-  // GITHUB_ACTION_PATH = /path/to/_actions/f3liz-dev/koro-i18n/main/.github/actions/upload-translations
+  // GITHUB_ACTION_PATH = /path/to/_actions/f3liz-dev/koro-i18n/main/.github/actions/upload-translations/dist
   const actionPath = process.env.GITHUB_ACTION_PATH || __dirname;
-  const repoRoot = path.resolve(actionPath, '../../..');
+  // Go up: dist -> upload-translations -> actions -> .github -> main (repo root)
+  const repoRoot = path.resolve(actionPath, '../../../..');
   const clientLibPath = path.join(repoRoot, 'client-library');
   
   core.info(`Action path: ${actionPath}`);
