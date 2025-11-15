@@ -368,11 +368,13 @@ export async function upload(
   files: TranslationFile[],
   platformUrl: string,
   token: string,
-  chunkSize: number
+  chunkSize: number,
+  sourceLanguage?: string
 ): Promise<void> {
   const branch = process.env.GITHUB_REF_NAME || getBranch();
   const commitSha = process.env.GITHUB_SHA || getCommitSha();
-  const sourceLanguage = files.find(f => f.lang)?.lang || 'en';
+  // Use provided sourceLanguage or default to 'en'
+  const actualSourceLanguage = sourceLanguage || 'en';
 
   // Pre-pack all files on client (zero server CPU)
   console.log('📦 Pre-packing files for optimized upload...');
@@ -383,7 +385,7 @@ export async function upload(
     const payload = {
       branch,
       commitSha,
-      sourceLanguage,
+      sourceLanguage: actualSourceLanguage,
       files,
     };
 
@@ -423,7 +425,7 @@ export async function upload(
     const payload = {
       branch,
       commitSha,
-      sourceLanguage,
+      sourceLanguage: actualSourceLanguage,
       files: chunk,
       chunked: {
         uploadId,
@@ -578,6 +580,6 @@ export async function main() {
   }
 
   console.log(`\n📤 Uploading ${allFiles.length} files (chunk size: ${chunkSize})...`);
-  await upload(config.project.name, allFiles, config.project.platform_url, token, chunkSize);
+  await upload(config.project.name, allFiles, config.project.platform_url, token, chunkSize, config.source.language);
   console.log('✨ Done!');
 }

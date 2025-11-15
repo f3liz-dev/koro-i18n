@@ -55,7 +55,7 @@ async function main() {
   }
 
   console.log(`\n📤 Uploading ${allFiles.length} files (chunk size: ${chunkSize})...`);
-  await upload(config.project.name, allFiles, config.project.platform_url, JWT_TOKEN, chunkSize);
+  await upload(config.project.name, allFiles, config.project.platform_url, JWT_TOKEN, chunkSize, config.source.language);
   console.log('✨ Done!');
 }
 
