@@ -25,15 +25,6 @@ runs:
       with:
         node-version: '20'
     
-    - name: Build koro-i18n client from repository
-      shell: bash
-      run: |
-        # Navigate to the action's repository root
-        ACTION_REPO_ROOT="${{ github.action_path }}/../../.."
-        cd "$ACTION_REPO_ROOT/client-library"
-        npm install
-        npm run build
-    
     - name: Get OIDC Token
       id: oidc
       shell: bash
@@ -42,6 +33,15 @@ runs:
         OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
           "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${{ inputs.platform-url }}" | jq -r .value)
         echo "token=$OIDC_TOKEN" >> $GITHUB_OUTPUT
+    
+    - name: Build koro-i18n client from repository
+      shell: bash
+      run: |
+        # Navigate to the action's repository root
+        ACTION_REPO_ROOT="${{ github.action_path }}/../../.."
+        cd "$ACTION_REPO_ROOT/client-library"
+        npm install
+        npm run build
     
     - name: Upload translations
       shell: bash
