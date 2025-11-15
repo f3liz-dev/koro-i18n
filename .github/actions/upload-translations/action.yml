@@ -17,9 +17,9 @@ inputs:
     required: false
     default: '.koro-i18n.repo.config.toml'
   chunk-size:
-    description: 'Number of files per upload chunk (default: 50)'
+    description: 'Number of files per upload chunk (default: 10)'
     required: false
-    default: '50'
+    default: '10'
 
 runs:
   using: node20
