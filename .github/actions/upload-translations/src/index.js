@@ -29,8 +29,9 @@ try {
 
   // Build the client library
   core.info('Building koro-i18n client library...');
-  const actionRoot = path.resolve(__dirname, '../..');
-  const clientLibPath = path.join(actionRoot, 'client-library');
+  // From dist/index.js -> src -> upload-translations -> actions -> .github -> repo root
+  const repoRoot = path.resolve(__dirname, '../../../../..');
+  const clientLibPath = path.join(repoRoot, 'client-library');
 
   await exec.exec('npm', ['install'], { cwd: clientLibPath });
   await exec.exec('npm', ['run', 'build'], { cwd: clientLibPath });
