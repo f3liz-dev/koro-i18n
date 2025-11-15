@@ -135,10 +135,11 @@ export function mergeTranslationsWithSource(
     // If there's no translation, leave it empty so users know to translate it
     const currentValue = webTrans?.value || (targetValue ? String(targetValue) : '');
     
-    // Git-imported translations (from R2) are always valid
-    // Web translations use their isValid flag
-    // Empty translations are considered invalid (need translation)
-    const isValid = currentValue ? (webTrans ? webTrans.isValid : true) : false;
+    // isValid flag:
+    // - Git-imported translations (from R2) are always valid
+    // - Web translations use their isValid flag (can be invalidated if source changed)
+    // - Empty translations (no translation yet) are still "valid" (just not translated)
+    const isValid = webTrans ? webTrans.isValid : true;
     
     merged.push({
       key,
