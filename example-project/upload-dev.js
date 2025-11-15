@@ -34,6 +34,9 @@ if (!JWT_TOKEN) {
 async function main() {
   const config = loadConfig('.koro-i18n.repo.config.toml');
   
+  // Configurable chunk size (default 50, can be overridden via env var)
+  const chunkSize = parseInt(process.env.UPLOAD_CHUNK_SIZE || '50', 10);
+  
   console.log(`📦 Processing files for ${config.project.name}...`);
 
   const allFiles = [];
@@ -51,8 +54,8 @@ async function main() {
     }
   }
 
-  console.log(`\n📤 Uploading ${allFiles.length} files...`);
-  await upload(config.project.name, allFiles, config.project.platform_url, JWT_TOKEN);
+  console.log(`\n📤 Uploading ${allFiles.length} files (chunk size: ${chunkSize})...`);
+  await upload(config.project.name, allFiles, config.project.platform_url, JWT_TOKEN, chunkSize);
   console.log('✨ Done!');
 }
 

@@ -139,6 +139,29 @@ For local testing:
 ```bash
 # Get JWT token (see GET_JWT_TOKEN.md)
 JWT_TOKEN=<your-token> node upload-dev.js
+
+# Configure chunk size for large uploads (default: 50)
+UPLOAD_CHUNK_SIZE=100 JWT_TOKEN=<your-token> node upload-dev.js
+```
+
+## Large File Sets (200+ files)
+
+The client library automatically handles large uploads efficiently:
+
+- **Automatic Chunking**: Files are split into chunks (default: 50 files per chunk)
+- **Progress Reporting**: Real-time progress for each chunk
+- **Configurable**: Set `UPLOAD_CHUNK_SIZE` environment variable
+- **Reliable**: Each chunk uploads independently with retry capability
+
+Example output for 237 files:
+```
+📦 Uploading 237 files (chunk size: 50)...
+📤 Uploading chunk 1/5 (50 files)...
+  ✓ Chunk 1/5 complete (21% total)
+📤 Uploading chunk 2/5 (50 files)...
+  ✓ Chunk 2/5 complete (42% total)
+...
+✅ Upload successful
 ```
 
 ## Client Library Requirements

@@ -340,37 +340,97 @@ function getBranch(): string {
 }
 
 /**
- * Upload to platform
+ * Upload to platform with chunking support
  */
 export async function upload(
   projectName: string,
   files: TranslationFile[],
   platformUrl: string,
-  token: string
+  token: string,
+  chunkSize: number
 ): Promise<void> {
-  const payload = {
-    branch: process.env.GITHUB_REF_NAME || getBranch(),
-    commitSha: process.env.GITHUB_SHA || getCommitSha(),
-    sourceLanguage: files.find(f => f.lang)?.lang || 'en',
-    files,
-  };
+  const branch = process.env.GITHUB_REF_NAME || getBranch();
+  const commitSha = process.env.GITHUB_SHA || getCommitSha();
+  const sourceLanguage = files.find(f => f.lang)?.lang || 'en';
 
-  const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  // If files are small enough, use single upload
+  if (files.length <= chunkSize) {
+    const payload = {
+      branch,
+      commitSha,
+      sourceLanguage,
+      files,
+    };
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Upload failed (${response.status}): ${errorText}`);
+    const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Upload failed (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ Upload successful:', result);
+    return;
   }
 
-  const result = await response.json();
-  console.log('✅ Upload successful:', result);
+  // Chunked upload for large file sets
+  console.log(`📦 Uploading ${files.length} files in chunks of ${chunkSize}...`);
+  
+  const totalChunks = Math.ceil(files.length / chunkSize);
+  const uploadId = `${commitSha}-${Date.now()}`;
+  
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * chunkSize;
+    const end = Math.min(start + chunkSize, files.length);
+    const chunk = files.slice(start, end);
+    const chunkIndex = i + 1;
+    
+    console.log(`📤 Uploading chunk ${chunkIndex}/${totalChunks} (${chunk.length} files)...`);
+    
+    const payload = {
+      branch,
+      commitSha,
+      sourceLanguage,
+      files: chunk,
+      chunked: {
+        uploadId,
+        chunkIndex,
+        totalChunks,
+        isLastChunk: chunkIndex === totalChunks,
+      },
+    };
+
+    const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Chunk ${chunkIndex}/${totalChunks} upload failed (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    const progress = Math.round((end / files.length) * 100);
+    console.log(`  ✓ Chunk ${chunkIndex}/${totalChunks} complete (${progress}% total)`);
+    
+    // Show final summary on last chunk
+    if (chunkIndex === totalChunks) {
+      console.log('✅ Upload successful:', result);
+    }
+  }
 }
 
 /**
@@ -393,6 +453,9 @@ export async function main() {
   if (!token) {
     throw new Error('No token found. Set ACTIONS_ID_TOKEN_REQUEST_TOKEN or JWT_TOKEN');
   }
+
+  // Configurable chunk size (default 10, can be overridden via env var)
+  const chunkSize = parseInt(process.env.UPLOAD_CHUNK_SIZE || '10', 10);
 
   console.log(`📦 Processing files for ${config.project.name}...`);
 
@@ -489,7 +552,7 @@ export async function main() {
     console.log(`\n⚠ Skipped ${skippedCount} files (unknown or unconfigured languages)`);
   }
 
-  console.log(`\n📤 Uploading ${allFiles.length} files...`);
-  await upload(config.project.name, allFiles, config.project.platform_url, token);
+  console.log(`\n📤 Uploading ${allFiles.length} files (chunk size: ${chunkSize})...`);
+  await upload(config.project.name, allFiles, config.project.platform_url, token, chunkSize);
   console.log('✨ Done!');
 }

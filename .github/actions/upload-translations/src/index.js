@@ -12,10 +12,12 @@ try {
   const platformUrl = core.getInput('platform-url');
   const projectName = core.getInput('project-name');
   const configPath = core.getInput('config-path');
+  const chunkSize = core.getInput('chunk-size') || '50';
 
   core.info(`Platform URL: ${platformUrl}`);
   core.info(`Project: ${projectName}`);
   core.info(`Config: ${configPath}`);
+  core.info(`Chunk size: ${chunkSize}`);
 
   // Get OIDC token with platform URL as audience
   core.info('Requesting OIDC token...');
@@ -54,6 +56,7 @@ try {
       ...process.env,
       ACTIONS_ID_TOKEN_REQUEST_TOKEN: token,
       I18N_PLATFORM_URL: platformUrl,
+      UPLOAD_CHUNK_SIZE: chunkSize,
     },
   });
 

@@ -59,7 +59,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     }
   }
 
-  // Upload files to R2 (GitHub imports)
+  // Upload files to R2 (GitHub imports) - supports chunked uploads
   app.post('/:projectName/upload', async (c) => {
     const token = c.req.header('Authorization')?.replace('Bearer ', '');
     if (!token) {
@@ -68,14 +68,14 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const projectName = c.req.param('projectName');
     const body = await c.req.json();
-    const { branch, commitSha, sourceLanguage, files } = body;
+    const { branch, commitSha, sourceLanguage, files, chunked } = body;
 
     if (!files || !Array.isArray(files)) {
       return c.json({ error: 'Missing required field: files' }, 400);
     }
 
     if (files.length > MAX_FILES) {
-      return c.json({ error: `Too many files. Max ${MAX_FILES} files per upload` }, 400);
+      return c.json({ error: `Too many files. Max ${MAX_FILES} files per chunk` }, 400);
     }
 
     const project = await prisma.project.findUnique({
@@ -108,8 +108,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         }
       }
 
-      // Update project sourceLanguage if provided
-      if (sourceLanguage && sourceLanguage !== project.sourceLanguage) {
+      // Update project sourceLanguage if provided (only on first chunk or non-chunked upload)
+      if (sourceLanguage && sourceLanguage !== project.sourceLanguage && (!chunked || chunked.chunkIndex === 1)) {
         if (!/^[a-z]{2,3}(-[A-Z]{2})?$/.test(sourceLanguage)) {
           return c.json({ error: 'Invalid sourceLanguage format. Expected format: "en" or "en-US"' }, 400);
         }
@@ -124,7 +124,12 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       const branchName = branch || 'main';
       const commitHash = commitSha || `upload-${Date.now()}`;
 
-      console.log(`[upload] Storing ${files.length} files to R2 for ${projectId}#${commitHash}...`);
+      // Log chunked upload info
+      if (chunked) {
+        console.log(`[upload] Chunk ${chunked.chunkIndex}/${chunked.totalChunks} - Storing ${files.length} files to R2 for ${projectId}#${commitHash}...`);
+      } else {
+        console.log(`[upload] Storing ${files.length} files to R2 for ${projectId}#${commitHash}...`);
+      }
 
       const uploadedFiles: string[] = [];
       
@@ -176,37 +181,56 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         console.log(`[upload] Stored ${file.lang}/${file.filename} -> ${r2Key}`);
       }
 
-      console.log(`[upload] All files stored to R2 and indexed in D1`);
+      console.log(`[upload] Chunk files stored to R2 and indexed in D1`);
 
-      // Invalidate outdated web translations for source language files
+      // Only invalidate translations on the last chunk (or non-chunked upload)
       const invalidationResults: Record<string, { invalidated: number; checked: number }> = {};
       
-      for (const file of files) {
-        if (file.lang === project.sourceLanguage || file.lang === sourceLanguage) {
-          const result = await invalidateOutdatedTranslations(
-            prisma,
-            env.TRANSLATION_BUCKET,
-            projectId,
-            file.lang,
-            file.filename
-          );
-          
-          if (result.invalidated > 0) {
-            invalidationResults[`${file.lang}/${file.filename}`] = result;
-            console.log(`[upload] Invalidated ${result.invalidated}/${result.checked} translations for ${file.lang}/${file.filename}`);
+      if (!chunked || chunked.isLastChunk) {
+        console.log(`[upload] Processing invalidations (last chunk or single upload)...`);
+        
+        for (const file of files) {
+          if (file.lang === project.sourceLanguage || file.lang === sourceLanguage) {
+            const result = await invalidateOutdatedTranslations(
+              prisma,
+              env.TRANSLATION_BUCKET,
+              projectId,
+              file.lang,
+              file.filename
+            );
+            
+            if (result.invalidated > 0) {
+              invalidationResults[`${file.lang}/${file.filename}`] = result;
+              console.log(`[upload] Invalidated ${result.invalidated}/${result.checked} translations for ${file.lang}/${file.filename}`);
+            }
           }
         }
       }
 
-      return c.json({
+      const response: any = {
         success: true,
         projectId,
         commitSha: commitHash,
         filesUploaded: files.length,
         r2Keys: uploadedFiles,
-        invalidationResults,
         uploadedAt: new Date().toISOString(),
-      });
+      };
+
+      // Add chunk info to response
+      if (chunked) {
+        response.chunked = {
+          chunkIndex: chunked.chunkIndex,
+          totalChunks: chunked.totalChunks,
+          isLastChunk: chunked.isLastChunk,
+        };
+      }
+
+      // Only include invalidation results on last chunk
+      if (!chunked || chunked.isLastChunk) {
+        response.invalidationResults = invalidationResults;
+      }
+
+      return c.json(response);
     } catch (error: any) {
       console.error('[upload] Error:', error);
       return c.json({ 

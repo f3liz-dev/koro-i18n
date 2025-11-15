@@ -80,6 +80,8 @@ const metadataBase64 = Buffer.from(metadataPacked).toString('base64');
 
 ## Upload Format
 
+### Single Upload (< 50 files)
+
 ```javascript
 const payload = {
   branch: 'main',
@@ -106,9 +108,46 @@ await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
 });
 ```
 
+### Chunked Upload (200+ files)
+
+For large file sets, the client library automatically chunks uploads:
+
+```javascript
+const payload = {
+  branch: 'main',
+  commitSha: getCurrentCommit(),
+  sourceLanguage: 'en',
+  files: [...], // Chunk of 50 files
+  chunked: {
+    uploadId: 'abc123-1234567890',
+    chunkIndex: 1,
+    totalChunks: 5,
+    isLastChunk: false
+  }
+};
+```
+
+**Chunking behavior:**
+- Default chunk size: 50 files
+- Configurable via `UPLOAD_CHUNK_SIZE` environment variable
+- Progress reported for each chunk
+- Translation invalidation only runs on the last chunk
+- Each chunk uploads independently with retry capability
+
+**Example output:**
+```
+📦 Uploading 237 files (chunk size: 50)...
+📤 Uploading chunk 1/5 (50 files)...
+  ✓ Chunk 1/5 complete (21% total)
+📤 Uploading chunk 2/5 (50 files)...
+  ✓ Chunk 2/5 complete (42% total)
+...
+```
+
 ## Why Client Preprocessing?
 
 1. **Worker CPU < 10ms**: No heavy processing on worker
 2. **Free Tier Friendly**: Minimize worker execution time
 3. **Git Integration**: Client has access to git history
 4. **Scalability**: Parallel processing on client
+5. **Chunked Uploads**: Handle 200+ files efficiently with progress tracking

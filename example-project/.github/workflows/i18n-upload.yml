@@ -26,3 +26,5 @@ jobs:
         with:
           project-name: 'example-project'
           platform-url: ${{ secrets.I18N_PLATFORM_URL || 'https://koro.f3liz.workers.dev' }}
+          # Optional: Configure chunk size for large file sets (default: 50)
+          # chunk-size: '100'
