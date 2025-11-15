@@ -51,7 +51,7 @@ export default function TranslationEditorPage() {
       const response = await authFetch('/api/projects', { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch projects');
       
-      const data = await response.json();
+      const data = await response.json() as { projects: any[] };
       const proj = data.projects.find((p: any) => p.name === projectName());
       
       if (proj) {
@@ -69,8 +69,8 @@ export default function TranslationEditorPage() {
 
     setIsLoading(true);
     try {
-      // Fetch from R2 (GitHub imports)
-      const r2Data = await fetchR2File(proj.repository, language(), filename());
+      // Fetch from R2 (GitHub imports) - use project name, not repository
+      const r2Data = await fetchR2File(proj.name, language(), filename());
       
       // Fetch from D1 (web translations)
       const webTrans = await fetchWebTranslations(proj.id, language(), filename());
