@@ -36,8 +36,15 @@ export default function ProjectManagementPage() {
   const isLoadingMembers = () => !membersStore()?.lastFetch;
   
   const [activeTab, setActiveTab] = createSignal<'approved' | 'pending' | 'rejected'>('approved');
+  const [successMessage, setSuccessMessage] = createSignal('');
+  const [errorMessage, setErrorMessage] = createSignal('');
+  const [actionInProgress, setActionInProgress] = createSignal<string | null>(null);
 
   const handleApprove = async (memberId: string, status: 'approved' | 'rejected') => {
+    setActionInProgress(memberId);
+    setSuccessMessage('');
+    setErrorMessage('');
+    
     try {
       const res = await authFetch(`/api/projects/${params.id}/members/${memberId}/approve`, {
         method: 'POST',
@@ -47,16 +54,30 @@ export default function ProjectManagementPage() {
       });
 
       if (res.ok) {
-        // Refetch members to update the store
-        membersCache.fetch(params.id || '');
+        // Force refetch members to update the store immediately
+        await membersCache.fetch(params.id || '', true);
+        setSuccessMessage(`Member ${status === 'approved' ? 'approved' : 'rejected'} successfully`);
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        const data = await res.json() as { error?: string };
+        setErrorMessage(data.error || 'Failed to update member');
+        setTimeout(() => setErrorMessage(''), 5000);
       }
     } catch (error) {
       console.error('Failed to update member:', error);
+      setErrorMessage('Failed to update member');
+      setTimeout(() => setErrorMessage(''), 5000);
+    } finally {
+      setActionInProgress(null);
     }
   };
 
   const handleRemove = async (memberId: string) => {
     if (!confirm('Remove this member?')) return;
+
+    setActionInProgress(memberId);
+    setSuccessMessage('');
+    setErrorMessage('');
 
     try {
       const res = await authFetch(`/api/projects/${params.id}/members/${memberId}`, {
@@ -65,15 +86,28 @@ export default function ProjectManagementPage() {
       });
 
       if (res.ok) {
-        // Refetch members to update the store
-        membersCache.fetch(params.id || '');
+        // Force refetch members to update the store immediately
+        await membersCache.fetch(params.id || '', true);
+        setSuccessMessage('Member removed successfully');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        const data = await res.json() as { error?: string };
+        setErrorMessage(data.error || 'Failed to remove member');
+        setTimeout(() => setErrorMessage(''), 5000);
       }
     } catch (error) {
       console.error('Failed to remove member:', error);
+      setErrorMessage('Failed to remove member');
+      setTimeout(() => setErrorMessage(''), 5000);
+    } finally {
+      setActionInProgress(null);
     }
   };
 
   const handleAccessControlChange = async (accessControl: 'whitelist' | 'blacklist') => {
+    setSuccessMessage('');
+    setErrorMessage('');
+    
     try {
       const res = await authFetch(`/api/projects/${params.id}`, {
         method: 'PATCH',
@@ -83,11 +117,19 @@ export default function ProjectManagementPage() {
       });
 
       if (res.ok) {
-        // Refetch projects to update the store
-        projectsCache.fetch(false);
+        // Force refetch projects to update the store immediately
+        await projectsCache.fetch(false, true);
+        setSuccessMessage('Access control updated successfully');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        const data = await res.json() as { error?: string };
+        setErrorMessage(data.error || 'Failed to update access control');
+        setTimeout(() => setErrorMessage(''), 5000);
       }
     } catch (error) {
       console.error('Failed to update access control:', error);
+      setErrorMessage('Failed to update access control');
+      setTimeout(() => setErrorMessage(''), 5000);
     }
   };
 
@@ -117,6 +159,24 @@ export default function ProjectManagementPage() {
             <h1 class="text-2xl font-semibold mb-2">{project()!.name}</h1>
             <code class="text-sm text-gray-500">{project()!.repository}</code>
           </div>
+
+          <Show when={successMessage()}>
+            <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 flex items-center gap-2">
+              <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+              <span>{successMessage()}</span>
+            </div>
+          </Show>
+
+          <Show when={errorMessage()}>
+            <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+              <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+              </svg>
+              <span>{errorMessage()}</span>
+            </div>
+          </Show>
 
           <div class="mb-8">
             <h2 class="text-lg font-semibold mb-4">Access Control</h2>
@@ -207,37 +267,42 @@ export default function ProjectManagementPage() {
                         <Show when={member.status === 'pending'}>
                           <button
                             onClick={() => handleApprove(member.id, 'approved')}
-                            class="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 active:bg-green-800 transition"
+                            disabled={actionInProgress() !== null}
+                            class="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
                           >
-                            Approve
+                            {actionInProgress() === member.id ? 'Processing...' : 'Approve'}
                           </button>
                           <button
                             onClick={() => handleApprove(member.id, 'rejected')}
-                            class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50 active:bg-gray-100 transition"
+                            disabled={actionInProgress() !== null}
+                            class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
                           >
-                            Reject
+                            {actionInProgress() === member.id ? 'Processing...' : 'Reject'}
                           </button>
                         </Show>
                         <Show when={member.status === 'approved'}>
                           <button
                             onClick={() => handleRemove(member.id)}
-                            class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 active:bg-red-100 rounded transition"
+                            disabled={actionInProgress() !== null}
+                            class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 active:bg-red-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition"
                           >
-                            Remove
+                            {actionInProgress() === member.id ? 'Removing...' : 'Remove'}
                           </button>
                         </Show>
                         <Show when={member.status === 'rejected'}>
                           <button
                             onClick={() => handleApprove(member.id, 'approved')}
-                            class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50 active:bg-gray-100 transition"
+                            disabled={actionInProgress() !== null}
+                            class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
                           >
-                            Approve
+                            {actionInProgress() === member.id ? 'Processing...' : 'Approve'}
                           </button>
                           <button
                             onClick={() => handleRemove(member.id)}
-                            class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 active:bg-red-100 rounded transition"
+                            disabled={actionInProgress() !== null}
+                            class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 active:bg-red-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition"
                           >
-                            Remove
+                            {actionInProgress() === member.id ? 'Removing...' : 'Remove'}
                           </button>
                         </Show>
                       </div>
