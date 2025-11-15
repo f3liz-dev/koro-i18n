@@ -301,13 +301,21 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       return c.json({ error: `Project '${projectName}' not found` }, 404);
     }
 
-    const jwtPayload = await verifyJWT(token, env.JWT_SECRET);
-    if (!jwtPayload) {
-      return c.json({ error: 'Invalid token' }, 401);
+    // Try OIDC verification first (for GitHub Actions), then JWT (for web UI)
+    let authorized = false;
+    try {
+      const authResult = await validateUploadAuth(token, project.id, project.repository, env.JWT_SECRET);
+      authorized = authResult.authorized;
+    } catch (error: any) {
+      // OIDC failed, try JWT
+      const jwtPayload = await verifyJWT(token, env.JWT_SECRET);
+      if (jwtPayload) {
+        const hasAccess = await checkProjectAccess(prisma, project.id, jwtPayload.userId);
+        authorized = hasAccess || env.ENVIRONMENT === 'development';
+      }
     }
 
-    const hasAccess = await checkProjectAccess(prisma, project.id, jwtPayload.userId);
-    if (!hasAccess && env.ENVIRONMENT !== 'development') {
+    if (!authorized) {
       return c.json({ error: 'Access denied to this project' }, 403);
     }
 
