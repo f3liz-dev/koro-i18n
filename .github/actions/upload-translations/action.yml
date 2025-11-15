@@ -33,12 +33,10 @@ runs:
         cd "$ACTION_REPO_ROOT/client-library"
         npm install
         npm run build
+        npm link
     
     - name: Upload translations
       shell: bash
-      run: |
-        # Run the CLI from the action's repository against the user's repository
-        ACTION_REPO_ROOT="${{ github.action_path }}/../../.."
-        node "$ACTION_REPO_ROOT/client-library/dist/cli.js" ${{ inputs.config-path }}
+      run: koro-i18n ${{ inputs.config-path }}
       env:
         I18N_PLATFORM_URL: ${{ inputs.platform-url }}
