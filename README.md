@@ -5,6 +5,8 @@ Lightweight i18n platform using Cloudflare Workers, D1, and R2.
 ## Features
 
 - **R2 Storage** - GitHub imports stored in R2 (unlimited size)
+- **Differential Upload** - Only upload changed files, skip duplicates
+- **Automatic Cleanup** - Remove orphaned files from R2
 - **Source Validation** - Auto-detect outdated translations
 - **Git Integration** - Full git blame + commit info
 - **Web Translations** - User translations in D1

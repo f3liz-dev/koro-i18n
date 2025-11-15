@@ -155,3 +155,46 @@ export async function getFileByComponents(
 export function clearR2Cache(): void {
   r2Cache.clear();
 }
+
+/**
+ * Clean up R2 files that are no longer in source
+ * Deletes files from R2 and D1 that don't exist in the provided source file list
+ */
+export async function cleanupOrphanedFiles(
+  bucket: R2Bucket,
+  prisma: any,
+  projectId: string,
+  branch: string,
+  sourceFileKeys: Set<string> // Set of "lang/filename" keys
+): Promise<{ deleted: number; files: string[] }> {
+  // Get all files from D1 for this project/branch
+  const existingFiles = await prisma.r2File.findMany({
+    where: { projectId, branch },
+    select: { id: true, lang: true, filename: true, r2Key: true },
+  });
+
+  const deletedFiles: string[] = [];
+  
+  for (const file of existingFiles) {
+    const fileKey = `${file.lang}/${file.filename}`;
+    
+    // If file is not in source, delete it
+    if (!sourceFileKeys.has(fileKey)) {
+      // Delete from R2
+      await bucket.delete(file.r2Key);
+      
+      // Delete from D1
+      await prisma.r2File.delete({
+        where: { id: file.id },
+      });
+      
+      deletedFiles.push(fileKey);
+      console.log(`[cleanup] Deleted orphaned file: ${fileKey} (${file.r2Key})`);
+    }
+  }
+  
+  return {
+    deleted: deletedFiles.length,
+    files: deletedFiles,
+  };
+}

@@ -298,22 +298,14 @@ export function processFile(
     // Calculate source hash
     const sourceHash = hashValue(content);
 
-    // Compute relative filename (preserves directory structure)
-    // Remove language directory from path to get the file structure
-    // e.g., "locales/en-US/browser/chrome.json" -> "browser/chrome.json"
+    // Compute relative filename (preserves full directory structure)
+    // e.g., "locales/en-US/browser/chrome.json" -> "locales/en-US/browser/chrome.json"
+    // e.g., "notes/en-US.json" -> "notes/en-US.json"
     let filename = path.basename(filePath);
     if (baseDir) {
       const relativePath = path.relative(baseDir, filePath);
-      // Remove the language directory component
-      const parts = relativePath.split(path.sep);
-      const langIndex = parts.findIndex(p => p === lang || p.includes(lang));
-      if (langIndex >= 0) {
-        // Remove language directory and join the rest
-        parts.splice(langIndex, 1);
-        filename = parts.join('/'); // Always use forward slash for consistency
-      } else {
-        filename = relativePath.replace(/\\/g, '/');
-      }
+      // Always use forward slash for consistency across platforms
+      filename = relativePath.replace(/\\/g, '/');
     }
 
     return {
@@ -380,7 +372,47 @@ function prePackFiles(files: TranslationFile[], commitSha: string): void {
 }
 
 /**
- * Upload to platform with chunking support
+ * Fetch existing files from platform to check for duplicates
+ */
+async function fetchExistingFiles(
+  projectName: string,
+  platformUrl: string,
+  token: string,
+  branch: string
+): Promise<Map<string, string>> {
+  try {
+    const response = await fetch(
+      `${platformUrl}/api/projects/${projectName}/files/list?branch=${encodeURIComponent(branch)}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.warn(`⚠ Could not fetch existing files (${response.status}), uploading all files`);
+      return new Map();
+    }
+
+    const data = await response.json() as any;
+    const existingFiles = new Map<string, string>();
+    
+    for (const file of data.files || []) {
+      const key = `${file.lang}/${file.filename}`;
+      existingFiles.set(key, file.sourceHash);
+    }
+    
+    console.log(`📥 Found ${existingFiles.size} existing files on platform`);
+    return existingFiles;
+  } catch (error: any) {
+    console.warn(`⚠ Error fetching existing files: ${error.message}, uploading all files`);
+    return new Map();
+  }
+}
+
+/**
+ * Upload to platform with chunking support and differential upload
  */
 export async function upload(
   projectName: string,
@@ -395,17 +427,80 @@ export async function upload(
   // Use provided sourceLanguage or default to 'en'
   const actualSourceLanguage = sourceLanguage || 'en';
 
-  // Pre-pack all files on client (zero server CPU)
-  console.log('📦 Pre-packing files for optimized upload...');
-  prePackFiles(files, commitSha);
+  // Collect ALL source file keys (for cleanup - includes unchanged files)
+  const allSourceFileKeys = new Set<string>();
+  for (const file of files) {
+    allSourceFileKeys.add(`${file.lang}/${file.filename}`);
+  }
 
-  // If files are small enough, use single upload
-  if (files.length <= chunkSize) {
+  // Fetch existing files for differential upload
+  console.log('🔍 Checking for existing files...');
+  const existingFiles = await fetchExistingFiles(projectName, platformUrl, token, branch);
+  
+  // Filter out files that haven't changed (same sourceHash)
+  const filesToUpload = files.filter(file => {
+    const key = `${file.lang}/${file.filename}`;
+    const existingHash = existingFiles.get(key);
+    
+    if (existingHash === file.sourceHash) {
+      console.log(`  ⏭ Skipping ${key} (unchanged)`);
+      return false;
+    }
+    
+    return true;
+  });
+  
+  const skippedCount = files.length - filesToUpload.length;
+  if (skippedCount > 0) {
+    console.log(`✨ Skipping ${skippedCount} unchanged files (differential upload)`);
+  }
+  
+  if (filesToUpload.length === 0) {
+    console.log('✅ All files are up to date, nothing to upload');
+    
+    // Still need to run cleanup even if no files changed
+    console.log('🧹 Running cleanup check...');
     const payload = {
       branch,
       commitSha,
       sourceLanguage: actualSourceLanguage,
-      files,
+      files: [],
+      allSourceFiles: Array.from(allSourceFileKeys),
+    };
+
+    const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Cleanup check failed (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json() as any;
+    if (result.cleanupResult && result.cleanupResult.deleted > 0) {
+      console.log(`🧹 Cleaned up ${result.cleanupResult.deleted} orphaned files`);
+    }
+    return;
+  }
+
+  // Pre-pack all files on client (zero server CPU)
+  console.log(`📦 Pre-packing ${filesToUpload.length} files for optimized upload...`);
+  prePackFiles(filesToUpload, commitSha);
+
+  // If files are small enough, use single upload
+  if (filesToUpload.length <= chunkSize) {
+    const payload = {
+      branch,
+      commitSha,
+      sourceLanguage: actualSourceLanguage,
+      files: filesToUpload,
+      allSourceFiles: Array.from(allSourceFileKeys), // For cleanup (includes unchanged files)
     };
 
     const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
@@ -428,15 +523,15 @@ export async function upload(
   }
 
   // Chunked upload for large file sets
-  console.log(`📦 Uploading ${files.length} files in chunks of ${chunkSize}...`);
+  console.log(`📦 Uploading ${filesToUpload.length} files in chunks of ${chunkSize}...`);
   
-  const totalChunks = Math.ceil(files.length / chunkSize);
+  const totalChunks = Math.ceil(filesToUpload.length / chunkSize);
   const uploadId = `${commitSha}-${Date.now()}`;
   
   for (let i = 0; i < totalChunks; i++) {
     const start = i * chunkSize;
-    const end = Math.min(start + chunkSize, files.length);
-    const chunk = files.slice(start, end);
+    const end = Math.min(start + chunkSize, filesToUpload.length);
+    const chunk = filesToUpload.slice(start, end);
     const chunkIndex = i + 1;
     
     console.log(`📤 Uploading chunk ${chunkIndex}/${totalChunks} (${chunk.length} files)...`);
@@ -452,6 +547,8 @@ export async function upload(
         totalChunks,
         isLastChunk: chunkIndex === totalChunks,
       },
+      // Send all source files on last chunk for cleanup (includes unchanged files)
+      ...(chunkIndex === totalChunks ? { allSourceFiles: Array.from(allSourceFileKeys) } : {}),
     };
 
     const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
@@ -469,7 +566,7 @@ export async function upload(
     }
 
     const result = await response.json();
-    const progress = Math.round((end / files.length) * 100);
+    const progress = Math.round((end / filesToUpload.length) * 100);
     console.log(`  ✓ Chunk ${chunkIndex}/${totalChunks} complete (${progress}% total)`);
     
     // Show final summary on last chunk
@@ -600,6 +697,8 @@ export async function main() {
   }
 
   console.log(`\n📤 Uploading ${allFiles.length} files (chunk size: ${chunkSize})...`);
+  
+  // Pass all files (including unchanged ones) for proper cleanup tracking
   await upload(config.project.name, allFiles, config.project.platform_url, token, chunkSize, config.source.language);
   console.log('✨ Done!');
 }

@@ -68,7 +68,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const projectName = c.req.param('projectName');
     const body = await c.req.json();
-    const { branch, commitSha, sourceLanguage, files, chunked } = body;
+    const { branch, commitSha, sourceLanguage, files, chunked, allSourceFiles } = body;
 
     if (!files || !Array.isArray(files)) {
       return c.json({ error: 'Missing required field: files' }, 400);
@@ -193,9 +193,10 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
       console.log(`[upload] D1 index updated for ${files.length} files in single batch`);
 
-      // Only process invalidations on the last chunk (or non-chunked upload)
+      // Only process invalidations and cleanup on the last chunk (or non-chunked upload)
       // This is the CPU-intensive part
       const invalidationResults: Record<string, { invalidated: number; checked: number }> = {};
+      let cleanupResult: { deleted: number; files: string[] } | undefined;
       
       if (!chunked || chunked.isLastChunk) {
         console.log(`[upload] Last chunk - processing translation invalidations...`);
@@ -215,6 +216,26 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
               invalidationResults[`${file.lang}/${file.filename}`] = result;
               console.log(`[upload] Invalidated ${result.invalidated}/${result.checked} translations for ${file.lang}/${file.filename}`);
             }
+          }
+        }
+        
+        // Clean up orphaned files if allSourceFiles is provided
+        if (allSourceFiles && Array.isArray(allSourceFiles)) {
+          console.log(`[upload] Cleaning up orphaned files...`);
+          const { cleanupOrphanedFiles } = await import('../lib/r2-storage.js');
+          const sourceFileKeys = new Set(allSourceFiles);
+          cleanupResult = await cleanupOrphanedFiles(
+            env.TRANSLATION_BUCKET,
+            prisma,
+            projectId,
+            branchName,
+            sourceFileKeys
+          );
+          
+          if (cleanupResult.deleted > 0) {
+            console.log(`[upload] Cleaned up ${cleanupResult.deleted} orphaned files: ${cleanupResult.files.join(', ')}`);
+          } else {
+            console.log(`[upload] No orphaned files to clean up`);
           }
         }
       }
@@ -237,9 +258,12 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         };
       }
 
-      // Only include invalidation results on last chunk
+      // Only include invalidation and cleanup results on last chunk
       if (!chunked || chunked.isLastChunk) {
         response.invalidationResults = invalidationResults;
+        if (cleanupResult) {
+          response.cleanupResult = cleanupResult;
+        }
       }
 
       return c.json(response);

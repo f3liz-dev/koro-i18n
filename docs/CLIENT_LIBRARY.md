@@ -146,6 +146,62 @@ const payload = {
 ...
 ```
 
+## Differential Upload
+
+The client library automatically skips uploading files that haven't changed:
+
+1. **Fetch existing files** - Downloads file list with sourceHash from platform
+2. **Compare hashes** - Skips files with matching sourceHash
+3. **Upload only changes** - Only modified files are uploaded
+4. **Cleanup orphaned files** - Removes files that no longer exist in source
+
+**Example output:**
+```
+🔍 Checking for existing files...
+📥 Found 45 existing files on platform
+  ⏭ Skipping en/common.json (unchanged)
+  ⏭ Skipping ja/common.json (unchanged)
+✨ Skipping 43 unchanged files (differential upload)
+📦 Pre-packing 2 files for optimized upload...
+📤 Uploading 2 files (chunk size: 10)...
+✅ Upload successful
+🧹 Cleaned up 3 orphaned files
+```
+
+**Benefits:**
+- **Faster uploads** - Only upload what changed
+- **Reduced bandwidth** - Skip unchanged files
+- **Automatic cleanup** - Remove deleted files from platform
+- **Git-aware** - Uses sourceHash to detect changes
+
+## R2 Cleanup
+
+After upload completes, the server automatically cleans up orphaned files:
+
+1. **Track all source files** - Client sends complete list of files in repository
+2. **Compare with R2** - Server checks which files exist in R2 but not in source
+3. **Delete orphaned files** - Removes files from both R2 and D1 index
+4. **Report cleanup** - Returns list of deleted files
+
+**Cleanup happens when:**
+- Single upload completes
+- Last chunk of chunked upload completes
+- Even when no files changed (cleanup-only mode)
+
+**Example cleanup result:**
+```json
+{
+  "cleanupResult": {
+    "deleted": 3,
+    "files": [
+      "en/old-file.json",
+      "ja/removed.json",
+      "es/deprecated.json"
+    ]
+  }
+}
+```
+
 ## Why Client Preprocessing?
 
 1. **Worker CPU < 10ms**: No heavy processing on worker
@@ -153,6 +209,8 @@ const payload = {
 3. **Git Integration**: Client has access to git history
 4. **Scalability**: Parallel processing on client
 5. **Chunked Uploads**: Handle 200+ files efficiently with progress tracking
+6. **Differential Upload**: Only upload changed files
+7. **Automatic Cleanup**: Remove orphaned files from R2
 
 ## Server Optimization Strategy
 

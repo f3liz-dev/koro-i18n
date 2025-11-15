@@ -19,7 +19,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for git blame
+          fetch-depth: 0  # Full history for git blame and file tracking
       
       - name: Upload translations
         uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
