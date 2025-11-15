@@ -2,13 +2,7 @@
 
 Quick guide to integrate koro-i18n with your project.
 
-## 1. Install Client Library
-
-```bash
-npm install @koro-i18n/client
-```
-
-## 2. Configure Project
+## 1. Configure Project
 
 Create `.koro-i18n.repo.config.toml`:
 
@@ -25,9 +19,11 @@ files = ["locales/en/**/*.json"]
 languages = ["ja", "es", "fr"]
 ```
 
-## 3. Add GitHub Action
+## 2. Add GitHub Action
 
 Create `.github/workflows/i18n-upload.yml`:
+
+The action automatically builds and uses the client library from the repository, so you don't need to install anything manually or publish to npm.
 
 ```yaml
 name: Upload Translations
@@ -48,23 +44,14 @@ jobs:
         with:
           fetch-depth: 0  # Full history for git blame
       
-      - uses: actions/setup-node@v4
+      - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
         with:
-          node-version: '20'
-      
-      - name: Install client
-        run: npm install -g @koro-i18n/client
-      
-      - name: Upload translations
-        run: koro-i18n upload
-        env:
-          I18N_PLATFORM_URL: ${{ secrets.I18N_PLATFORM_URL }}
+          project-name: my-project
 ```
 
-## 4. Configure Secrets
+## 3. Configure Secrets
 
-Add to GitHub repository secrets:
-- `I18N_PLATFORM_URL`: Your platform URL
+No secrets needed! The action uses GitHub OIDC authentication automatically.
 
 ## Development Upload
 
