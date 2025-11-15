@@ -99,6 +99,11 @@ export async function verifyGitHubOIDCToken(
   } catch (error) {
     // Provide more context in error messages
     if (error instanceof Error) {
+      // Add more details about audience mismatch
+      if (error.message.includes('aud')) {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        throw new Error(`GitHub OIDC token verification failed: ${error.message} (token aud: ${decoded.aud}, expected: ${expectedAudience})`);
+      }
       throw new Error(`GitHub OIDC token verification failed: ${error.message}`);
     }
     throw error;
