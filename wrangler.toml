@@ -11,6 +11,9 @@ binding = "ASSETS"
 [vars]
 ENVIRONMENT = "production"
 PLATFORM_URL = "https://koro.f3liz.workers.dev"
+# Comma-separated list of GitHub usernames allowed to create projects
+# Leave empty to allow all users
+ALLOWED_PROJECT_CREATORS = "nyanrus"
 
 # D1 Database Configuration
 [[d1_databases]]

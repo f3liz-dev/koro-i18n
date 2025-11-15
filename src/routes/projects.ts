@@ -8,6 +8,7 @@ import { generateProjectsETag, checkETagMatch, create304Response } from '../lib/
 interface Env {
   JWT_SECRET: string;
   ENVIRONMENT: string;
+  ALLOWED_PROJECT_CREATORS?: string;
 }
 
 export function createProjectRoutes(prisma: PrismaClient, env: Env) {
@@ -16,6 +17,19 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
   app.post('/', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
+
+    // Check if user is allowed to create projects
+    const allowedCreators = env.ALLOWED_PROJECT_CREATORS?.trim();
+    if (allowedCreators) {
+      const allowedUsernames = allowedCreators.split(',').map(u => u.trim().toLowerCase());
+      const username = payload.username.toLowerCase();
+      
+      if (!allowedUsernames.includes(username)) {
+        return c.json({ 
+          error: 'You do not have permission to create projects. Please contact the administrator.' 
+        }, 403);
+      }
+    }
 
     const body = await c.req.json();
     const { name, repository } = body;
