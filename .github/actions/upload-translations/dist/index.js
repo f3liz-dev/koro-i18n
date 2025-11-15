@@ -27257,10 +27257,12 @@ try {
   const platformUrl = coreExports.getInput('platform-url');
   const projectName = coreExports.getInput('project-name');
   const configPath = coreExports.getInput('config-path');
+  const chunkSize = coreExports.getInput('chunk-size') || '50';
 
   coreExports.info(`Platform URL: ${platformUrl}`);
   coreExports.info(`Project: ${projectName}`);
   coreExports.info(`Config: ${configPath}`);
+  coreExports.info(`Chunk size: ${chunkSize}`);
 
   // Get OIDC token with platform URL as audience
   coreExports.info('Requesting OIDC token...');
@@ -27299,6 +27301,7 @@ try {
       ...process.env,
       ACTIONS_ID_TOKEN_REQUEST_TOKEN: token,
       I18N_PLATFORM_URL: platformUrl,
+      UPLOAD_CHUNK_SIZE: chunkSize,
     },
   });
 
