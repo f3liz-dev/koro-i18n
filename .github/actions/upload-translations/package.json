@@ -4,11 +4,13 @@
   "description": "GitHub Action to upload translations to Koro i18n platform",
   "main": "dist/index.js",
   "scripts": {
-    "build": "rolldown index.js --file dist/index.js -f esm",
+    "build": "rolldown -c rolldown.config.ts",
     "prepare": "npm run build"
   },
   "dependencies": {
-    "@actions/core": "^1.11.1"
+    "@actions/core": "^1.11.1",
+    "@rolldown/plugin-node-polyfills": "^1.0.0",
+    "pathe": "^2.0.3"
   },
   "devDependencies": {
     "rolldown": "^1.0.0-beta.50"
