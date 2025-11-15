@@ -266,11 +266,11 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const projectName = c.req.param('projectName');
     const branch = c.req.query('branch') || 'main';
-    const language = c.req.query('language');
+    let language = c.req.query('language');
 
     const project = await prisma.project.findUnique({
       where: { name: projectName },
-      select: { id: true, userId: true, repository: true },
+      select: { id: true, userId: true, repository: true, sourceLanguage: true },
     });
 
     if (!project) {
@@ -285,6 +285,11 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     const hasAccess = await checkProjectAccess(prisma, project.id, jwtPayload.userId);
     if (!hasAccess && env.ENVIRONMENT !== 'development') {
       return c.json({ error: 'Access denied to this project' }, 403);
+    }
+
+    // Handle special 'source-language' query parameter
+    if (language === 'source-language') {
+      language = project.sourceLanguage;
     }
 
     // Get files from D1 index
@@ -340,7 +345,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const projectIdOrName = c.req.param('projectId');
     const branch = c.req.query('branch') || 'main';
-    const lang = c.req.query('lang');
+    let lang = c.req.query('lang');
     const filename = c.req.query('filename');
 
     let actualProjectId = projectIdOrName;
@@ -351,6 +356,11 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     
     if (project) {
       actualProjectId = project.repository;
+      
+      // Handle special 'source-language' query parameter
+      if (lang === 'source-language') {
+        lang = project.sourceLanguage;
+      }
     }
 
     // Get files from D1
@@ -405,17 +415,22 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const projectIdOrName = c.req.param('projectId');
     const branch = c.req.query('branch') || 'main';
-    const lang = c.req.query('lang');
+    let lang = c.req.query('lang');
     const filename = c.req.query('filename');
 
     let actualProjectId = projectIdOrName;
     const project = await prisma.project.findUnique({
       where: { name: projectIdOrName },
-      select: { repository: true },
+      select: { repository: true, sourceLanguage: true },
     });
     
     if (project) {
       actualProjectId = project.repository;
+      
+      // Handle special 'source-language' query parameter
+      if (lang === 'source-language') {
+        lang = project.sourceLanguage;
+      }
     }
 
     // Get files from D1
