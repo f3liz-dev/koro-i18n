@@ -102,11 +102,13 @@ mv .i18n-platform.config.toml .koro-i18n.repo.config.toml
 
 3. **Update local development:**
 ```bash
-# Install new client
-npm install -g @koro-i18n/client
+# For local development, build the client from source
+cd client-library
+npm install
+npm run build
 
 # Upload
-JWT_TOKEN=<token> koro-i18n
+JWT_TOKEN=<token> node dist/cli.js
 ```
 
 ### For Platform
@@ -192,11 +194,10 @@ koro-i18n/
 cd client-library
 npm install
 npm run build
-npm link
 
 # Test
 cd ../example-project
-JWT_TOKEN=<token> koro-i18n
+JWT_TOKEN=<token> node ../client-library/dist/cli.js
 ```
 
 ### Backend

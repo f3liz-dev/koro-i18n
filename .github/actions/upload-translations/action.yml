@@ -25,9 +25,15 @@ runs:
       with:
         node-version: '20'
     
-    - name: Install koro-i18n client
+    - name: Build koro-i18n client from repository
       shell: bash
-      run: npm install -g @koro-i18n/client
+      run: |
+        # Navigate to the action's repository root
+        ACTION_REPO_ROOT="${{ github.action_path }}/../../.."
+        cd "$ACTION_REPO_ROOT/client-library"
+        npm install
+        npm run build
+        npm link
     
     - name: Upload translations
       shell: bash
