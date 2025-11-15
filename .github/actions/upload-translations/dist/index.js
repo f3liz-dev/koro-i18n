@@ -1,7 +1,8 @@
 import require$$0 from 'os';
 import require$$0$1 from 'crypto';
 import require$$1 from 'fs';
-import require$$1$5 from 'path';
+import * as path from 'path';
+import path__default, { dirname } from 'path';
 import require$$2 from 'http';
 import require$$3 from 'https';
 import require$$0$4 from 'net';
@@ -21,7 +22,7 @@ import require$$2$1 from 'perf_hooks';
 import require$$5 from 'util/types';
 import require$$4$1 from 'async_hooks';
 import require$$1$3 from 'console';
-import require$$1$4 from 'url';
+import require$$1$4, { fileURLToPath } from 'url';
 import require$$3$1 from 'zlib';
 import require$$6 from 'string_decoder';
 import require$$0$9 from 'diagnostics_channel';
@@ -25506,7 +25507,7 @@ function requirePathUtils () {
 	};
 	Object.defineProperty(pathUtils, "__esModule", { value: true });
 	pathUtils.toPlatformPath = pathUtils.toWin32Path = pathUtils.toPosixPath = void 0;
-	const path = __importStar(require$$1$5);
+	const path = __importStar(path__default);
 	/**
 	 * toPosixPath converts the given path to the posix form. On Windows, \\ will be
 	 * replaced with /.
@@ -25547,7 +25548,7 @@ function requirePathUtils () {
 
 var platform = {};
 
-var exec$1 = {};
+var exec = {};
 
 var toolrunner = {};
 
@@ -25593,7 +25594,7 @@ function requireIoUtil () {
 		Object.defineProperty(exports$1, "__esModule", { value: true });
 		exports$1.getCmdPath = exports$1.tryGetExecutablePath = exports$1.isRooted = exports$1.isDirectory = exports$1.exists = exports$1.READONLY = exports$1.UV_FS_O_EXLOCK = exports$1.IS_WINDOWS = exports$1.unlink = exports$1.symlink = exports$1.stat = exports$1.rmdir = exports$1.rm = exports$1.rename = exports$1.readlink = exports$1.readdir = exports$1.open = exports$1.mkdir = exports$1.lstat = exports$1.copyFile = exports$1.chmod = void 0;
 		const fs = __importStar(require$$1);
-		const path = __importStar(require$$1$5);
+		const path = __importStar(path__default);
 		_a = fs.promises
 		// export const {open} = 'fs'
 		, exports$1.chmod = _a.chmod, exports$1.copyFile = _a.copyFile, exports$1.lstat = _a.lstat, exports$1.mkdir = _a.mkdir, exports$1.open = _a.open, exports$1.readdir = _a.readdir, exports$1.readlink = _a.readlink, exports$1.rename = _a.rename, exports$1.rm = _a.rm, exports$1.rmdir = _a.rmdir, exports$1.stat = _a.stat, exports$1.symlink = _a.symlink, exports$1.unlink = _a.unlink;
@@ -25783,7 +25784,7 @@ function requireIo () {
 	Object.defineProperty(io, "__esModule", { value: true });
 	io.findInPath = io.which = io.mkdirP = io.rmRF = io.mv = io.cp = void 0;
 	const assert_1 = require$$0$3;
-	const path = __importStar(require$$1$5);
+	const path = __importStar(path__default);
 	const ioUtil = __importStar(requireIoUtil());
 	/**
 	 * Copies a file or folder.
@@ -26091,7 +26092,7 @@ function requireToolrunner () {
 	const os = __importStar(require$$0);
 	const events = __importStar(require$$4);
 	const child = __importStar(require$$2$2);
-	const path = __importStar(require$$1$5);
+	const path = __importStar(path__default);
 	const io = __importStar(requireIo());
 	const ioUtil = __importStar(requireIoUtil());
 	const timers_1 = require$$6$1;
@@ -26681,28 +26682,28 @@ function requireToolrunner () {
 var hasRequiredExec;
 
 function requireExec () {
-	if (hasRequiredExec) return exec$1;
+	if (hasRequiredExec) return exec;
 	hasRequiredExec = 1;
-	var __createBinding = (exec$1 && exec$1.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+	var __createBinding = (exec && exec.__createBinding) || (Object.create ? (function(o, m, k, k2) {
 	    if (k2 === undefined) k2 = k;
 	    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
 	}) : (function(o, m, k, k2) {
 	    if (k2 === undefined) k2 = k;
 	    o[k2] = m[k];
 	}));
-	var __setModuleDefault = (exec$1 && exec$1.__setModuleDefault) || (Object.create ? (function(o, v) {
+	var __setModuleDefault = (exec && exec.__setModuleDefault) || (Object.create ? (function(o, v) {
 	    Object.defineProperty(o, "default", { enumerable: true, value: v });
 	}) : function(o, v) {
 	    o["default"] = v;
 	});
-	var __importStar = (exec$1 && exec$1.__importStar) || function (mod) {
+	var __importStar = (exec && exec.__importStar) || function (mod) {
 	    if (mod && mod.__esModule) return mod;
 	    var result = {};
 	    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
 	    __setModuleDefault(result, mod);
 	    return result;
 	};
-	var __awaiter = (exec$1 && exec$1.__awaiter) || function (thisArg, _arguments, P, generator) {
+	var __awaiter = (exec && exec.__awaiter) || function (thisArg, _arguments, P, generator) {
 	    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
 	    return new (P || (P = Promise))(function (resolve, reject) {
 	        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -26711,8 +26712,8 @@ function requireExec () {
 	        step((generator = generator.apply(thisArg, _arguments || [])).next());
 	    });
 	};
-	Object.defineProperty(exec$1, "__esModule", { value: true });
-	exec$1.getExecOutput = exec$1.exec = void 0;
+	Object.defineProperty(exec, "__esModule", { value: true });
+	exec.getExecOutput = exec.exec = void 0;
 	const string_decoder_1 = require$$6;
 	const tr = __importStar(requireToolrunner());
 	/**
@@ -26725,7 +26726,7 @@ function requireExec () {
 	 * @param     options            optional exec options.  See ExecOptions
 	 * @returns   Promise<number>    exit code
 	 */
-	function exec(commandLine, args, options) {
+	function exec$1(commandLine, args, options) {
 	    return __awaiter(this, void 0, void 0, function* () {
 	        const commandArgs = tr.argStringToArray(commandLine);
 	        if (commandArgs.length === 0) {
@@ -26738,7 +26739,7 @@ function requireExec () {
 	        return runner.exec();
 	    });
 	}
-	exec$1.exec = exec;
+	exec.exec = exec$1;
 	/**
 	 * Exec a command and get the output.
 	 * Output will be streamed to the live console.
@@ -26772,7 +26773,7 @@ function requireExec () {
 	            }
 	        };
 	        const listeners = Object.assign(Object.assign({}, options === null || options === void 0 ? void 0 : options.listeners), { stdout: stdOutListener, stderr: stdErrListener });
-	        const exitCode = yield exec(commandLine, args, Object.assign(Object.assign({}, options), { listeners }));
+	        const exitCode = yield exec$1(commandLine, args, Object.assign(Object.assign({}, options), { listeners }));
 	        //flush any remaining characters
 	        stdout += stdoutDecoder.end();
 	        stderr += stderrDecoder.end();
@@ -26783,9 +26784,9 @@ function requireExec () {
 	        };
 	    });
 	}
-	exec$1.getExecOutput = getExecOutput;
+	exec.getExecOutput = getExecOutput;
 	
-	return exec$1;
+	return exec;
 }
 
 var hasRequiredPlatform;
@@ -26935,7 +26936,7 @@ function requireCore () {
 		const file_command_1 = requireFileCommand();
 		const utils_1 = requireUtils$1();
 		const os = __importStar(require$$0);
-		const path = __importStar(require$$1$5);
+		const path = __importStar(path__default);
 		const oidc_utils_1 = requireOidcUtils();
 		/**
 		 * The code to exit an action
@@ -27246,198 +27247,55 @@ function requireCore () {
 
 var coreExports = requireCore();
 
-const _DRIVE_LETTER_START_RE = /^[A-Za-z]:\//;
-function normalizeWindowsPath(input = "") {
-  if (!input) {
-    return input;
-  }
-  return input.replace(/\\/g, "/").replace(_DRIVE_LETTER_START_RE, (r) => r.toUpperCase());
-}
+var execExports = requireExec();
 
-const _UNC_REGEX = /^[/\\]{2}/;
-const _IS_ABSOLUTE_RE = /^[/\\](?![/\\])|^[/\\]{2}(?!\.)|^[A-Za-z]:[/\\]/;
-const _DRIVE_LETTER_RE = /^[A-Za-z]:$/;
-const normalize = function(path) {
-  if (path.length === 0) {
-    return ".";
-  }
-  path = normalizeWindowsPath(path);
-  const isUNCPath = path.match(_UNC_REGEX);
-  const isPathAbsolute = isAbsolute(path);
-  const trailingSeparator = path[path.length - 1] === "/";
-  path = normalizeString(path, !isPathAbsolute);
-  if (path.length === 0) {
-    if (isPathAbsolute) {
-      return "/";
-    }
-    return trailingSeparator ? "./" : ".";
-  }
-  if (trailingSeparator) {
-    path += "/";
-  }
-  if (_DRIVE_LETTER_RE.test(path)) {
-    path += "/";
-  }
-  if (isUNCPath) {
-    if (!isPathAbsolute) {
-      return `//./${path}`;
-    }
-    return `//${path}`;
-  }
-  return isPathAbsolute && !isAbsolute(path) ? `/${path}` : path;
-};
-const join = function(...segments) {
-  let path = "";
-  for (const seg of segments) {
-    if (!seg) {
-      continue;
-    }
-    if (path.length > 0) {
-      const pathTrailing = path[path.length - 1] === "/";
-      const segLeading = seg[0] === "/";
-      const both = pathTrailing && segLeading;
-      if (both) {
-        path += seg.slice(1);
-      } else {
-        path += pathTrailing || segLeading ? seg : `/${seg}`;
-      }
-    } else {
-      path += seg;
-    }
-  }
-  return normalize(path);
-};
-function cwd() {
-  if (typeof process !== "undefined" && typeof process.cwd === "function") {
-    return process.cwd().replace(/\\/g, "/");
-  }
-  return "/";
-}
-const resolve = function(...arguments_) {
-  arguments_ = arguments_.map((argument) => normalizeWindowsPath(argument));
-  let resolvedPath = "";
-  let resolvedAbsolute = false;
-  for (let index = arguments_.length - 1; index >= -1 && !resolvedAbsolute; index--) {
-    const path = index >= 0 ? arguments_[index] : cwd();
-    if (!path || path.length === 0) {
-      continue;
-    }
-    resolvedPath = `${path}/${resolvedPath}`;
-    resolvedAbsolute = isAbsolute(path);
-  }
-  resolvedPath = normalizeString(resolvedPath, !resolvedAbsolute);
-  if (resolvedAbsolute && !isAbsolute(resolvedPath)) {
-    return `/${resolvedPath}`;
-  }
-  return resolvedPath.length > 0 ? resolvedPath : ".";
-};
-function normalizeString(path, allowAboveRoot) {
-  let res = "";
-  let lastSegmentLength = 0;
-  let lastSlash = -1;
-  let dots = 0;
-  let char = null;
-  for (let index = 0; index <= path.length; ++index) {
-    if (index < path.length) {
-      char = path[index];
-    } else if (char === "/") {
-      break;
-    } else {
-      char = "/";
-    }
-    if (char === "/") {
-      if (lastSlash === index - 1 || dots === 1) ; else if (dots === 2) {
-        if (res.length < 2 || lastSegmentLength !== 2 || res[res.length - 1] !== "." || res[res.length - 2] !== ".") {
-          if (res.length > 2) {
-            const lastSlashIndex = res.lastIndexOf("/");
-            if (lastSlashIndex === -1) {
-              res = "";
-              lastSegmentLength = 0;
-            } else {
-              res = res.slice(0, lastSlashIndex);
-              lastSegmentLength = res.length - 1 - res.lastIndexOf("/");
-            }
-            lastSlash = index;
-            dots = 0;
-            continue;
-          } else if (res.length > 0) {
-            res = "";
-            lastSegmentLength = 0;
-            lastSlash = index;
-            dots = 0;
-            continue;
-          }
-        }
-        if (allowAboveRoot) {
-          res += res.length > 0 ? "/.." : "..";
-          lastSegmentLength = 2;
-        }
-      } else {
-        if (res.length > 0) {
-          res += `/${path.slice(lastSlash + 1, index)}`;
-        } else {
-          res = path.slice(lastSlash + 1, index);
-        }
-        lastSegmentLength = index - lastSlash - 1;
-      }
-      lastSlash = index;
-      dots = 0;
-    } else if (char === "." && dots !== -1) {
-      ++dots;
-    } else {
-      dots = -1;
-    }
-  }
-  return res;
-}
-const isAbsolute = function(p) {
-  return _IS_ABSOLUTE_RE.test(p);
-};
+const __filename$1 = fileURLToPath(import.meta.url);
+const __dirname$1 = dirname(__filename$1);
 
 try {
-// Get inputs
-const platformUrl = coreExports.getInput('platform-url');
-const projectName = coreExports.getInput('project-name');
-const configPath = coreExports.getInput('config-path');
+  // Get inputs
+  const platformUrl = coreExports.getInput('platform-url');
+  const projectName = coreExports.getInput('project-name');
+  const configPath = coreExports.getInput('config-path');
 
-coreExports.info(`Platform URL: ${platformUrl}`);
-coreExports.info(`Project: ${projectName}`);
-coreExports.info(`Config: ${configPath}`);
+  coreExports.info(`Platform URL: ${platformUrl}`);
+  coreExports.info(`Project: ${projectName}`);
+  coreExports.info(`Config: ${configPath}`);
 
-// Get OIDC token with platform URL as audience
-coreExports.info('Requesting OIDC token...');
-const token = await coreExports.getIDToken(platformUrl);
+  // Get OIDC token with platform URL as audience
+  coreExports.info('Requesting OIDC token...');
+  const token = await coreExports.getIDToken(platformUrl);
 
-if (!token) {
+  if (!token) {
     throw new Error('Failed to obtain OIDC token');
-}
+  }
 
-coreExports.info('✓ OIDC token obtained successfully');
+  coreExports.info('✓ OIDC token obtained successfully');
 
-// Build the client library
-coreExports.info('Building koro-i18n client library...');
-const actionRoot = resolve(__dirname, '../..');
-const clientLibPath = join(actionRoot, 'client-library');
+  // Build the client library
+  coreExports.info('Building koro-i18n client library...');
+  const actionRoot = path.resolve(__dirname$1, '../..');
+  const clientLibPath = path.join(actionRoot, 'client-library');
 
-await exec.exec('npm', ['install'], { cwd: clientLibPath });
-await exec.exec('npm', ['run', 'build'], { cwd: clientLibPath });
+  await execExports.exec('npm', ['install'], { cwd: clientLibPath });
+  await execExports.exec('npm', ['run', 'build'], { cwd: clientLibPath });
 
-coreExports.info('✓ Client library built successfully');
+  coreExports.info('✓ Client library built successfully');
 
-// Run the upload
-coreExports.info('Uploading translations...');
-const cliPath = join(clientLibPath, 'dist', 'cli.js');
+  // Run the upload
+  coreExports.info('Uploading translations...');
+  const cliPath = path.join(clientLibPath, 'dist', 'cli.js');
 
-await exec.exec('node', [cliPath, configPath], {
+  await execExports.exec('node', [cliPath, configPath], {
     env: {
-    ...process.env,
-    ACTIONS_ID_TOKEN_REQUEST_TOKEN: token,
-    I18N_PLATFORM_URL: platformUrl,
+      ...process.env,
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: token,
+      I18N_PLATFORM_URL: platformUrl,
     },
-});
+  });
 
-coreExports.info('✓ Upload completed successfully');
+  coreExports.info('✓ Upload completed successfully');
 } catch (error) {
-coreExports.setFailed(error.message);
+  coreExports.setFailed(error.message);
 }
 //# sourceMappingURL=index.js.map
