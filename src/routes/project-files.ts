@@ -193,10 +193,9 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
       console.log(`[upload] D1 index updated for ${files.length} files in single batch`);
 
-      // Only process invalidations and cleanup on the last chunk (or non-chunked upload)
+      // Only process invalidations on the last chunk (or non-chunked upload)
       // This is the CPU-intensive part
       const invalidationResults: Record<string, { invalidated: number; checked: number }> = {};
-      let cleanupResult: { deleted: number; files: string[] } | undefined;
       
       if (!chunked || chunked.isLastChunk) {
         console.log(`[upload] Last chunk - processing translation invalidations...`);
@@ -219,25 +218,6 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           }
         }
         
-        // Clean up orphaned files if allSourceFiles is provided
-        if (allSourceFiles && Array.isArray(allSourceFiles)) {
-          console.log(`[upload] Cleaning up orphaned files...`);
-          const { cleanupOrphanedFiles } = await import('../lib/r2-storage.js');
-          const sourceFileKeys = new Set(allSourceFiles);
-          cleanupResult = await cleanupOrphanedFiles(
-            env.TRANSLATION_BUCKET,
-            prisma,
-            projectId,
-            branchName,
-            sourceFileKeys
-          );
-          
-          if (cleanupResult.deleted > 0) {
-            console.log(`[upload] Cleaned up ${cleanupResult.deleted} orphaned files: ${cleanupResult.files.join(', ')}`);
-          } else {
-            console.log(`[upload] No orphaned files to clean up`);
-          }
-        }
       }
 
       const response: any = {
@@ -258,12 +238,9 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         };
       }
 
-      // Only include invalidation and cleanup results on last chunk
+      // Only include invalidation results on last chunk
       if (!chunked || chunked.isLastChunk) {
         response.invalidationResults = invalidationResults;
-        if (cleanupResult) {
-          response.cleanupResult = cleanupResult;
-        }
       }
 
       return c.json(response);
@@ -276,7 +253,71 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     }
   });
 
-  // List files (metadata only from D1)
+  // Cleanup orphaned files (separate endpoint)
+  app.post('/:projectName/cleanup', async (c) => {
+    const token = c.req.header('Authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return c.json({ error: 'Authorization token required' }, 401);
+    }
+
+    const projectName = c.req.param('projectName');
+    const body = await c.req.json();
+    const { branch, allSourceFiles } = body;
+
+    if (!allSourceFiles || !Array.isArray(allSourceFiles)) {
+      return c.json({ error: 'Missing required field: allSourceFiles' }, 400);
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { name: projectName },
+      select: { id: true, userId: true, repository: true },
+    });
+
+    if (!project) {
+      return c.json({ error: `Project '${projectName}' not found` }, 404);
+    }
+
+    try {
+      const authResult = await validateUploadAuth(token, project.id, project.repository, env.JWT_SECRET);
+      if (!authResult.authorized) {
+        console.error(`[cleanup] Authorization failed: ${authResult.error}`);
+        return c.json({ error: authResult.error || 'Unauthorized' }, 403);
+      }
+
+      const projectId = project.repository;
+      const branchName = branch || 'main';
+
+      console.log(`[cleanup] Cleaning up orphaned files for ${projectId}#${branchName}...`);
+      const { cleanupOrphanedFiles } = await import('../lib/r2-storage.js');
+      const sourceFileKeys = new Set(allSourceFiles);
+      const cleanupResult = await cleanupOrphanedFiles(
+        env.TRANSLATION_BUCKET,
+        prisma,
+        projectId,
+        branchName,
+        sourceFileKeys
+      );
+
+      if (cleanupResult.deleted > 0) {
+        console.log(`[cleanup] Cleaned up ${cleanupResult.deleted} orphaned files: ${cleanupResult.files.join(', ')}`);
+      } else {
+        console.log(`[cleanup] No orphaned files to clean up`);
+      }
+
+      return c.json({
+        success: true,
+        cleanupResult,
+      });
+    } catch (error: any) {
+      console.error('[cleanup] Error:', error);
+      return c.json({ 
+        error: 'Failed to cleanup files',
+        details: env.ENVIRONMENT === 'development' ? error.message : undefined
+      }, 500);
+    }
+  });
+
+  // List files (metadata only from D1) - JWT auth for web UI
   app.get('/:projectName/files/list', async (c) => {
     let token = c.req.header('Authorization')?.replace('Bearer ', '');
     if (!token) {
@@ -301,22 +342,93 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       return c.json({ error: `Project '${projectName}' not found` }, 404);
     }
 
-    // Try OIDC verification first (for GitHub Actions), then JWT (for web UI)
-    let authorized = false;
-    try {
-      const authResult = await validateUploadAuth(token, project.id, project.repository, env.JWT_SECRET);
-      authorized = authResult.authorized;
-    } catch (error: any) {
-      // OIDC failed, try JWT
-      const jwtPayload = await verifyJWT(token, env.JWT_SECRET);
-      if (jwtPayload) {
-        const hasAccess = await checkProjectAccess(prisma, project.id, jwtPayload.userId);
-        authorized = hasAccess || env.ENVIRONMENT === 'development';
-      }
+    // JWT authentication only (for web UI)
+    const jwtPayload = await verifyJWT(token, env.JWT_SECRET);
+    if (!jwtPayload) {
+      return c.json({ error: 'Invalid token' }, 401);
     }
 
-    if (!authorized) {
+    const hasAccess = await checkProjectAccess(prisma, project.id, jwtPayload.userId);
+    if (!hasAccess && env.ENVIRONMENT !== 'development') {
       return c.json({ error: 'Access denied to this project' }, 403);
+    }
+
+    // Handle special 'source-language' query parameter
+    if (language === 'source-language') {
+      language = project.sourceLanguage;
+    }
+
+    // Get files from D1 index
+    const where: any = { projectId: project.repository, branch };
+    if (language) where.lang = language;
+
+    const files = await prisma.r2File.findMany({
+      where,
+      orderBy: { uploadedAt: 'desc' },
+    });
+
+    // Generate ETag from latest update
+    const latestUpdate = files.length > 0 
+      ? Math.max(...files.map(f => f.lastUpdated.getTime()))
+      : Date.now();
+    const serverETag = `"${latestUpdate}"`;
+    
+    // Check ETag
+    const clientETag = c.req.header('If-None-Match');
+    if (clientETag === serverETag) {
+      return c.body(null, 304, {
+        'ETag': serverETag,
+        'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles),
+      });
+    }
+
+    const response = c.json({
+      project: projectName,
+      repository: project.repository,
+      branch,
+      files: files.map(f => ({
+        lang: f.lang,
+        filename: f.filename,
+        commitSha: f.commitSha,
+        r2Key: f.r2Key,
+        sourceHash: f.sourceHash,
+        totalKeys: f.totalKeys,
+        uploadedAt: f.uploadedAt,
+      })),
+      generatedAt: new Date().toISOString(),
+    });
+
+    response.headers.set('ETag', serverETag);
+    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+
+    return response;
+  });
+
+  // List files (metadata only from D1) - OIDC auth for GitHub Actions
+  app.get('/:projectName/files/list-oidc', async (c) => {
+    const token = c.req.header('Authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return c.json({ error: 'Authorization token required' }, 401);
+    }
+
+    const projectName = c.req.param('projectName');
+    const branch = c.req.query('branch') || 'main';
+    let language = c.req.query('language');
+
+    const project = await prisma.project.findUnique({
+      where: { name: projectName },
+      select: { id: true, userId: true, repository: true, sourceLanguage: true },
+    });
+
+    if (!project) {
+      return c.json({ error: `Project '${projectName}' not found` }, 404);
+    }
+
+    // OIDC authentication only (for GitHub Actions)
+    const authResult = await validateUploadAuth(token, project.id, project.repository, env.JWT_SECRET);
+    if (!authResult.authorized) {
+      console.error(`[files/list-oidc] Authorization failed: ${authResult.error}`);
+      return c.json({ error: authResult.error || 'Unauthorized' }, 403);
     }
 
     // Handle special 'source-language' query parameter

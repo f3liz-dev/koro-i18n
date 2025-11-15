@@ -372,6 +372,48 @@ function prePackFiles(files: TranslationFile[], commitSha: string): void {
 }
 
 /**
+ * Run cleanup to remove orphaned files
+ */
+async function runCleanup(
+  projectName: string,
+  platformUrl: string,
+  token: string,
+  branch: string,
+  allSourceFileKeys: Set<string>
+): Promise<void> {
+  try {
+    console.log('🧹 Running cleanup check...');
+    
+    const response = await fetch(`${platformUrl}/api/projects/${projectName}/cleanup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        branch,
+        allSourceFiles: Array.from(allSourceFileKeys),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn(`⚠ Cleanup failed (${response.status}): ${errorText}`);
+      return;
+    }
+
+    const result = await response.json() as any;
+    if (result.cleanupResult && result.cleanupResult.deleted > 0) {
+      console.log(`🧹 Cleaned up ${result.cleanupResult.deleted} orphaned files`);
+    } else {
+      console.log('✨ No orphaned files to clean up');
+    }
+  } catch (error: any) {
+    console.warn(`⚠ Cleanup error: ${error.message}`);
+  }
+}
+
+/**
  * Fetch existing files from platform to check for duplicates
  */
 async function fetchExistingFiles(
@@ -382,7 +424,7 @@ async function fetchExistingFiles(
 ): Promise<Map<string, string>> {
   try {
     const response = await fetch(
-      `${platformUrl}/api/projects/${projectName}/files/list?branch=${encodeURIComponent(branch)}`,
+      `${platformUrl}/api/projects/${projectName}/files/list-oidc?branch=${encodeURIComponent(branch)}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -459,33 +501,7 @@ export async function upload(
     console.log('✅ All files are up to date, nothing to upload');
     
     // Still need to run cleanup even if no files changed
-    console.log('🧹 Running cleanup check...');
-    const payload = {
-      branch,
-      commitSha,
-      sourceLanguage: actualSourceLanguage,
-      files: [],
-      allSourceFiles: Array.from(allSourceFileKeys),
-    };
-
-    const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Cleanup check failed (${response.status}): ${errorText}`);
-    }
-
-    const result = await response.json() as any;
-    if (result.cleanupResult && result.cleanupResult.deleted > 0) {
-      console.log(`🧹 Cleaned up ${result.cleanupResult.deleted} orphaned files`);
-    }
+    await runCleanup(projectName, platformUrl, token, branch, allSourceFileKeys);
     return;
   }
 
@@ -500,7 +516,6 @@ export async function upload(
       commitSha,
       sourceLanguage: actualSourceLanguage,
       files: filesToUpload,
-      allSourceFiles: Array.from(allSourceFileKeys), // For cleanup (includes unchanged files)
     };
 
     const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
@@ -519,6 +534,9 @@ export async function upload(
 
     const result = await response.json();
     console.log('✅ Upload successful:', result);
+    
+    // Run cleanup after successful upload
+    await runCleanup(projectName, platformUrl, token, branch, allSourceFileKeys);
     return;
   }
 
@@ -547,8 +565,6 @@ export async function upload(
         totalChunks,
         isLastChunk: chunkIndex === totalChunks,
       },
-      // Send all source files on last chunk for cleanup (includes unchanged files)
-      ...(chunkIndex === totalChunks ? { allSourceFiles: Array.from(allSourceFileKeys) } : {}),
     };
 
     const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
@@ -569,9 +585,10 @@ export async function upload(
     const progress = Math.round((end / filesToUpload.length) * 100);
     console.log(`  ✓ Chunk ${chunkIndex}/${totalChunks} complete (${progress}% total)`);
     
-    // Show final summary on last chunk
+    // Show final summary and run cleanup on last chunk
     if (chunkIndex === totalChunks) {
       console.log('✅ Upload successful:', result);
+      await runCleanup(projectName, platformUrl, token, branch, allSourceFileKeys);
     }
   }
 }

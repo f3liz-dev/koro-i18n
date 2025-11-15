@@ -12,7 +12,8 @@ This implementation adds two major optimizations to the upload process:
 ### How It Works
 
 1. **Fetch Existing Files**
-   - Client requests file list from platform: `GET /api/projects/:project/files/list`
+   - Client requests file list from platform: `GET /api/projects/:project/files/list-oidc`
+   - Uses the same OIDC token as the upload (no separate authentication needed)
    - Platform returns all files with their `sourceHash` values
    - Client builds a map of `lang/filename` → `sourceHash`
 
@@ -66,15 +67,31 @@ This implementation adds two major optimizations to the upload process:
    - Returns list of deleted files in response
 
 4. **Timing**
-   - Cleanup runs on the last chunk (or single upload)
+   - Cleanup runs as a separate API call after upload completes
+   - Called after single upload or last chunk of chunked upload
    - Also runs when no files changed (cleanup-only mode)
+   - Non-blocking - doesn't affect upload performance
 
-### Example Output
+### Cleanup Endpoint
 
+**Endpoint:** `POST /api/projects/:project/cleanup`
+
+**Request:**
+```json
+{
+  "branch": "main",
+  "allSourceFiles": [
+    "en/common.json",
+    "ja/common.json",
+    "es/common.json"
+  ]
+}
+```
+
+**Response:**
 ```json
 {
   "success": true,
-  "filesUploaded": 2,
   "cleanupResult": {
     "deleted": 3,
     "files": [
@@ -100,10 +117,11 @@ This implementation adds two major optimizations to the upload process:
 **File: `client-library/src/index.ts`**
 
 1. Added `fetchExistingFiles()` function to download file list
-2. Modified `upload()` to filter unchanged files
-3. Track all source files (including unchanged) for cleanup
-4. Send `allSourceFiles` array in upload payload
-5. Handle cleanup-only mode when no files changed
+2. Added `runCleanup()` function to call cleanup endpoint
+3. Modified `upload()` to filter unchanged files
+4. Track all source files (including unchanged) for cleanup
+5. Call cleanup endpoint after upload completes
+6. Handle cleanup-only mode when no files changed
 
 ### Server Changes
 
@@ -117,10 +135,11 @@ Added `cleanupOrphanedFiles()` function:
 
 **File: `src/routes/project-files.ts`**
 
-Modified upload endpoint:
-- Accept `allSourceFiles` array in payload
-- Run cleanup on last chunk or single upload
-- Return cleanup results in response
+Added separate cleanup endpoint:
+- `POST /api/projects/:project/cleanup`
+- Accepts `allSourceFiles` array and `branch`
+- Uses same OIDC authentication as upload
+- Returns cleanup results independently
 
 ### GitHub Action
 
