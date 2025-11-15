@@ -336,7 +336,16 @@ export async function upload(
  */
 export async function main() {
   const configPath = process.argv[2] || '.koro-i18n.repo.config.toml';
+  
+  if (!fs.existsSync(configPath)) {
+    throw new Error(`Config file not found: ${configPath}`);
+  }
+  
   const config = loadConfig(configPath);
+
+  if (!config?.project?.name) {
+    throw new Error('Invalid config: missing project.name');
+  }
 
   const token = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN || process.env.JWT_TOKEN;
   if (!token) {
