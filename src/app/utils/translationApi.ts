@@ -14,6 +14,8 @@ export type { R2FileData, GitBlameInfo, CharRange };
 
 /**
  * Fetch file from R2 (GitHub import)
+ * Uses the file metadata endpoint to get the r2Key, then fetches by key
+ * This avoids issues with nested filenames in URL paths
  */
 export async function fetchR2File(
   projectId: string,
@@ -21,8 +23,32 @@ export async function fetchR2File(
   filename: string
 ): Promise<R2FileData | null> {
   try {
+    // First, get the file metadata to retrieve the r2Key
+    const params = new URLSearchParams({
+      lang,
+      filename,
+    });
+    
+    const metadataResponse = await authFetch(
+      `/api/projects/${projectId}/files?${params}`,
+      { credentials: 'include' }
+    );
+    
+    if (!metadataResponse.ok) {
+      if (metadataResponse.status === 404) return null;
+      throw new Error('Failed to fetch file metadata');
+    }
+    
+    const metadata = await metadataResponse.json() as { files?: Array<{ r2Key: string }> };
+    const fileInfo = metadata.files?.[0];
+    
+    if (!fileInfo?.r2Key) {
+      return null;
+    }
+    
+    // Now fetch the actual file data using the r2Key
     const response = await authFetch(
-      `/api/r2/${projectId}/${lang}/${filename}`,
+      `/api/r2/by-key/${encodeURIComponent(fileInfo.r2Key)}`,
       { credentials: 'include' }
     );
     
