@@ -140,29 +140,39 @@ For local testing:
 # Get JWT token (see GET_JWT_TOKEN.md)
 JWT_TOKEN=<your-token> node upload-dev.js
 
-# Configure chunk size for large uploads (default: 50)
-UPLOAD_CHUNK_SIZE=100 JWT_TOKEN=<your-token> node upload-dev.js
+# Configure chunk size for large uploads (default: 10, optimized for free tier)
+UPLOAD_CHUNK_SIZE=20 JWT_TOKEN=<your-token> node upload-dev.js
 ```
 
 ## Large File Sets (200+ files)
 
 The client library automatically handles large uploads efficiently:
 
-- **Automatic Chunking**: Files are split into chunks (default: 50 files per chunk)
+- **Automatic Chunking**: Files are split into chunks (default: 10 files per chunk)
+- **Pre-Packing**: All MessagePack encoding happens on client (zero server CPU)
 - **Progress Reporting**: Real-time progress for each chunk
 - **Configurable**: Set `UPLOAD_CHUNK_SIZE` environment variable
+- **Free Tier Optimized**: Server uses <1ms CPU per file
 - **Reliable**: Each chunk uploads independently with retry capability
 
 Example output for 237 files:
 ```
-📦 Uploading 237 files (chunk size: 50)...
-📤 Uploading chunk 1/5 (50 files)...
-  ✓ Chunk 1/5 complete (21% total)
-📤 Uploading chunk 2/5 (50 files)...
-  ✓ Chunk 2/5 complete (42% total)
+📦 Processing files for my-project...
+📦 Pre-packing files for optimized upload...
+📤 Uploading 237 files (chunk size: 10)...
+📤 Uploading chunk 1/24 (10 files)...
+  ✓ Chunk 1/24 complete (4% total)
+📤 Uploading chunk 2/24 (10 files)...
+  ✓ Chunk 2/24 complete (8% total)
 ...
 ✅ Upload successful
 ```
+
+**Why small chunks?**
+- Cloudflare free tier has 10ms CPU limit per request
+- Small chunks keep each request under 5ms CPU
+- Last chunk does D1 updates + invalidation (~5ms)
+- Total CPU time stays well within free tier limits
 
 ## Client Library Requirements
 

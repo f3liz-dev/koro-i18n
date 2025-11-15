@@ -34,8 +34,8 @@ if (!JWT_TOKEN) {
 async function main() {
   const config = loadConfig('.koro-i18n.repo.config.toml');
   
-  // Configurable chunk size (default 50, can be overridden via env var)
-  const chunkSize = parseInt(process.env.UPLOAD_CHUNK_SIZE || '50', 10);
+  // Configurable chunk size (default 10 for free tier, can be overridden via env var)
+  const chunkSize = parseInt(process.env.UPLOAD_CHUNK_SIZE || '10', 10);
   
   console.log(`📦 Processing files for ${config.project.name}...`);
 

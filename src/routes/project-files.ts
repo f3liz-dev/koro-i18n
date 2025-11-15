@@ -96,6 +96,17 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
       // Validate that files have required fields for R2 storage
       for (const file of files) {
+        // New format: client sends pre-packed data (zero CPU)
+        if (file.packedData) {
+          if (typeof file.packedData !== 'string') {
+            return c.json({ 
+              error: `File ${file.filename} (${file.lang}) packedData must be base64 string` 
+            }, 400);
+          }
+          continue; // Skip other validations for pre-packed data
+        }
+        
+        // Old format: validate metadata and sourceHash
         if (!file.metadata || typeof file.metadata !== 'string') {
           return c.json({ 
             error: `File ${file.filename} (${file.lang}) missing preprocessed metadata. Client must send base64-encoded MessagePack metadata.` 
@@ -133,7 +144,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
       const uploadedFiles: string[] = [];
       
-      // Store each file individually to R2
+      // Store each file to R2 (ultra-fast, zero CPU if pre-packed)
       for (const file of files) {
         const r2Key = await storeFile(
           env.TRANSLATION_BUCKET,
@@ -143,52 +154,56 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           commitHash,
           file.contents,
           file.metadata,
-          file.sourceHash
+          file.sourceHash,
+          file.packedData // Pre-packed data from client (optional)
         );
 
         uploadedFiles.push(r2Key);
-
-        // Store file metadata in D1
-        await prisma.r2File.upsert({
-          where: {
-            projectId_branch_lang_filename: {
-              projectId,
-              branch: branchName,
-              lang: file.lang,
-              filename: file.filename,
-            },
-          },
-          update: {
-            commitSha: commitHash,
-            r2Key,
-            sourceHash: file.sourceHash,
-            totalKeys: Object.keys(file.contents).length,
-            lastUpdated: new Date(),
-          },
-          create: {
-            id: crypto.randomUUID(),
-            projectId,
-            branch: branchName,
-            commitSha: commitHash,
-            lang: file.lang,
-            filename: file.filename,
-            r2Key,
-            sourceHash: file.sourceHash,
-            totalKeys: Object.keys(file.contents).length,
-          },
-        });
-
         console.log(`[upload] Stored ${file.lang}/${file.filename} -> ${r2Key}`);
       }
 
-      console.log(`[upload] Chunk files stored to R2 and indexed in D1`);
+      console.log(`[upload] Chunk files stored to R2`);
 
-      // Only invalidate translations on the last chunk (or non-chunked upload)
+      // Only process D1 and invalidations on the last chunk (or non-chunked upload)
+      // This keeps CPU time minimal for intermediate chunks
       const invalidationResults: Record<string, { invalidated: number; checked: number }> = {};
       
       if (!chunked || chunked.isLastChunk) {
-        console.log(`[upload] Processing invalidations (last chunk or single upload)...`);
+        console.log(`[upload] Last chunk - updating D1 index and processing invalidations...`);
         
+        // Update D1 index for all files in this upload
+        for (const file of files) {
+          await prisma.r2File.upsert({
+            where: {
+              projectId_branch_lang_filename: {
+                projectId,
+                branch: branchName,
+                lang: file.lang,
+                filename: file.filename,
+              },
+            },
+            update: {
+              commitSha: commitHash,
+              r2Key: generateR2Key(projectId, file.lang, file.filename),
+              sourceHash: file.sourceHash,
+              totalKeys: Object.keys(file.contents).length,
+              lastUpdated: new Date(),
+            },
+            create: {
+              id: crypto.randomUUID(),
+              projectId,
+              branch: branchName,
+              commitSha: commitHash,
+              lang: file.lang,
+              filename: file.filename,
+              r2Key: generateR2Key(projectId, file.lang, file.filename),
+              sourceHash: file.sourceHash,
+              totalKeys: Object.keys(file.contents).length,
+            },
+          });
+        }
+        
+        // Invalidate outdated translations for source language files
         for (const file of files) {
           if (file.lang === project.sourceLanguage || file.lang === sourceLanguage) {
             const result = await invalidateOutdatedTranslations(

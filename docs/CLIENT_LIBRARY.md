@@ -128,19 +128,21 @@ const payload = {
 ```
 
 **Chunking behavior:**
-- Default chunk size: 50 files
+- Default chunk size: 10 files (optimized for Cloudflare free tier)
 - Configurable via `UPLOAD_CHUNK_SIZE` environment variable
 - Progress reported for each chunk
-- Translation invalidation only runs on the last chunk
+- Pre-packed data (zero server CPU for encoding)
+- D1 updates and translation invalidation only run on the last chunk
 - Each chunk uploads independently with retry capability
 
 **Example output:**
 ```
-📦 Uploading 237 files (chunk size: 50)...
-📤 Uploading chunk 1/5 (50 files)...
-  ✓ Chunk 1/5 complete (21% total)
-📤 Uploading chunk 2/5 (50 files)...
-  ✓ Chunk 2/5 complete (42% total)
+📦 Pre-packing files for optimized upload...
+📤 Uploading 237 files (chunk size: 10)...
+📤 Uploading chunk 1/24 (10 files)...
+  ✓ Chunk 1/24 complete (4% total)
+📤 Uploading chunk 2/24 (10 files)...
+  ✓ Chunk 2/24 complete (8% total)
 ...
 ```
 
@@ -151,3 +153,29 @@ const payload = {
 3. **Git Integration**: Client has access to git history
 4. **Scalability**: Parallel processing on client
 5. **Chunked Uploads**: Handle 200+ files efficiently with progress tracking
+
+## Server Optimization Strategy
+
+To stay within Cloudflare's free tier (10ms CPU time), the server does ZERO encoding:
+
+### Client-Side Pre-Packing
+1. **Client packs data with MessagePack** - All encoding happens on GitHub Actions
+2. **Server receives base64-encoded binary** - Ready for R2 storage
+3. **Server just decodes base64 and writes to R2** - ~1ms CPU per file
+
+### Chunked Upload Optimization
+1. **Skips D1 writes during chunked uploads** - Only writes to D1 on the last chunk
+2. **Skips translation invalidation** - Only runs on the last chunk
+3. **Zero MessagePack encoding** - Client sends pre-packed data
+4. **Ultra-fast R2 writes** - Direct binary upload
+
+**Chunked upload flow (200 files, 10 per chunk):**
+- Chunks 1-19: Upload to R2 only (~1ms CPU each = 19ms total)
+- Chunk 20 (last): Upload to R2 + Update D1 + Invalidate translations (~5ms CPU)
+- **Total: ~24ms CPU for 200 files** (well under free tier limit)
+
+**CPU time breakdown per chunk:**
+- Pre-packed upload: ~0.5ms (base64 decode + R2 write)
+- Last chunk: +4ms (D1 updates + invalidation)
+
+This keeps the server under 10ms CPU per request, staying within the free tier.

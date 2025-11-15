@@ -32,6 +32,7 @@ export interface TranslationFile {
   contents: Record<string, any>;
   metadata: string; // Base64-encoded MessagePack
   sourceHash: string;
+  packedData?: string; // Optional: pre-packed base64 data for R2 (zero server CPU)
 }
 
 /**
@@ -340,6 +341,26 @@ function getBranch(): string {
 }
 
 /**
+ * Pre-pack files for R2 storage (zero server CPU)
+ * Adds commitSha and uploadedAt, then packs with MessagePack
+ */
+function prePackFiles(files: TranslationFile[], commitSha: string): void {
+  const uploadedAt = new Date().toISOString();
+  
+  for (const file of files) {
+    const fileData = {
+      raw: file.contents,
+      metadataBase64: file.metadata,
+      sourceHash: file.sourceHash,
+      commitSha,
+      uploadedAt,
+    };
+    const packed = encode(fileData);
+    file.packedData = Buffer.from(packed).toString('base64');
+  }
+}
+
+/**
  * Upload to platform with chunking support
  */
 export async function upload(
@@ -352,6 +373,10 @@ export async function upload(
   const branch = process.env.GITHUB_REF_NAME || getBranch();
   const commitSha = process.env.GITHUB_SHA || getCommitSha();
   const sourceLanguage = files.find(f => f.lang)?.lang || 'en';
+
+  // Pre-pack all files on client (zero server CPU)
+  console.log('📦 Pre-packing files for optimized upload...');
+  prePackFiles(files, commitSha);
 
   // If files are small enough, use single upload
   if (files.length <= chunkSize) {
