@@ -131,12 +131,14 @@ export function mergeTranslationsWithSource(
     const webTrans = webTransMap.get(key);
     const targetValue = targetMap.get(key);
     
-    // Priority: web translation > target R2 > source
-    const currentValue = webTrans?.value || (targetValue ? String(targetValue) : String(sourceValue));
+    // Priority: web translation > target R2 > empty (don't use source as fallback)
+    // If there's no translation, leave it empty so users know to translate it
+    const currentValue = webTrans?.value || (targetValue ? String(targetValue) : '');
     
     // Git-imported translations (from R2) are always valid
     // Web translations use their isValid flag
-    const isValid = webTrans ? webTrans.isValid : true;
+    // Empty translations are considered invalid (need translation)
+    const isValid = currentValue ? (webTrans ? webTrans.isValid : true) : false;
     
     merged.push({
       key,

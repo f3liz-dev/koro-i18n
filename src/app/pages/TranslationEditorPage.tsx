@@ -263,12 +263,11 @@ export default function TranslationEditorPage() {
     
     // For target language files:
     // A key is "translated" (approved) if:
-    // 1. It has a value different from the source (imported from Git or web translation)
+    // 1. It has a non-empty translation
     // 2. The translation is valid (not invalidated)
     const completed = translations().filter(t => {
-      // If currentValue is different from sourceValue, it's translated
-      // Git imports are automatically considered approved
-      return t.currentValue !== t.sourceValue && t.isValid;
+      // Must have a non-empty translation and be valid
+      return t.currentValue !== '' && t.isValid;
     }).length;
     
     return Math.round((completed / total) * 100);
