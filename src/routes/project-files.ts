@@ -348,6 +348,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     let lang = c.req.query('lang');
     const filename = c.req.query('filename');
 
+    console.log(`[summary] Request: projectId=${projectIdOrName}, lang=${lang}, filename=${filename}`);
+
     let actualProjectId = projectIdOrName;
     const project = await prisma.project.findUnique({
       where: { name: projectIdOrName },
@@ -356,11 +358,15 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     
     if (project) {
       actualProjectId = project.repository;
+      console.log(`[summary] Project found: ${project.repository}, sourceLanguage: ${project.sourceLanguage}`);
       
       // Handle special 'source-language' query parameter
       if (lang === 'source-language') {
         lang = project.sourceLanguage;
+        console.log(`[summary] Resolved source-language to: ${lang}`);
       }
+    } else {
+      console.log(`[summary] Project not found, using projectId as-is: ${actualProjectId}`);
     }
 
     // Get files from D1
@@ -368,10 +374,14 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     if (lang) where.lang = lang;
     if (filename) where.filename = filename;
 
+    console.log(`[summary] Querying R2File with:`, JSON.stringify(where));
+
     const files = await prisma.r2File.findMany({
       where,
       orderBy: { uploadedAt: 'desc' },
     });
+
+    console.log(`[summary] Found ${files.length} files`);
 
     if (files.length === 0) {
       return c.json({ files: [] });
@@ -395,8 +405,20 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       // For target language files (not source language):
       // If the file exists in R2, all keys are translated (from GitHub)
       // Web translations are overrides, not additions to the count
-      const isSourceLanguage = project?.sourceLanguage === f.lang;
+      
+      // Check if this is a source language file
+      // The source language should match the lang field (e.g., 'en' === 'en')
+      const sourceLanguage = project?.sourceLanguage || 'en';
+      const isSourceLanguage = f.lang === sourceLanguage;
+      
+      // For source files: translatedKeys = 0 (they are the source)
+      // For target files: translatedKeys = totalKeys (all keys are translated if file exists)
       const translatedKeys = isSourceLanguage ? 0 : f.totalKeys;
+
+      // Debug logging
+      if (env.ENVIRONMENT === 'development') {
+        console.log(`[summary] File: ${f.lang}/${f.filename}, isSource: ${isSourceLanguage}, totalKeys: ${f.totalKeys}, translatedKeys: ${translatedKeys}`);
+      }
 
       return {
         filename: f.filename,

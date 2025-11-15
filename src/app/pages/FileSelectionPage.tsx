@@ -16,6 +16,7 @@ interface Project {
 
 interface FileStats {
   filename: string;
+  targetFilename: string; // The actual filename in the target language
   totalKeys: number;
   translatedKeys: number;
   percentage: number;
@@ -47,6 +48,21 @@ export default function FileSelectionPage() {
   // Show loading only if we don't have cached data for both source and target
   const isLoadingFiles = () => !sourceFilesStore()?.lastFetch || !targetFilesStore()?.lastFetch;
   
+  // Helper to match files with language-specific names
+  // e.g., "en-US.json" matches with "ar-SA.json" (both are {lang}.json pattern)
+  const matchFiles = (sourceFilename: string, targetFilename: string, sourceLang: string, targetLang: string): boolean => {
+    // Direct match (e.g., browser-chrome.json === browser-chrome.json)
+    if (sourceFilename === targetFilename) return true;
+    
+    // Check if source filename contains source language code
+    // and target filename contains target language code in the same position
+    // e.g., "en-US.json" -> "ar-SA.json"
+    const sourcePattern = sourceFilename.replace(sourceLang, '{lang}');
+    const targetPattern = targetFilename.replace(targetLang, '{lang}');
+    
+    return sourcePattern === targetPattern;
+  };
+
   // Compute file stats from the data
   const fileStats = () => {
     const source = sourceFilesData();
@@ -58,15 +74,26 @@ export default function FileSelectionPage() {
     const targetFilesList = target.files;
     const stats: FileStats[] = [];
     
+    // Get actual source language from source files
+    const sourceLang = sourceFilesList.length > 0 ? sourceFilesList[0].lang : 'en';
+    const targetLang = language();
+    
     for (const sourceFile of sourceFilesList) {
       const totalKeys = sourceFile.totalKeys || 0;
       
-      const targetFile = targetFilesList.find(f => f.filename === sourceFile.filename);
+      // Try to find matching target file (handles both same-name and language-specific names)
+      const targetFile = targetFilesList.find(f => 
+        matchFiles(sourceFile.filename, f.filename, sourceLang, targetLang)
+      );
       const translatedKeys = targetFile?.translatedKeys || 0;
+      
+      // Use target filename if found, otherwise use source filename
+      const targetFilename = targetFile?.filename || sourceFile.filename;
       
       const percentage = totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0;
       stats.push({
         filename: sourceFile.filename,
+        targetFilename: targetFilename,
         totalKeys,
         translatedKeys,
         percentage
@@ -199,7 +226,7 @@ export default function FileSelectionPage() {
                 return (
                   <button
                     ref={fileCardRef}
-                    onClick={() => navigate(`/projects/${params.id}/translate/${language()}/${encodeURIComponent(fileStat.filename)}`)}
+                    onClick={() => navigate(`/projects/${params.id}/translate/${language()}/${encodeURIComponent(fileStat.targetFilename)}`)}
                     class="w-full bg-white rounded-lg border p-6 hover:border-blue-500 hover:shadow-md active:scale-[0.98] transition text-left"
                   >
                     <div class="flex items-center justify-between mb-4">

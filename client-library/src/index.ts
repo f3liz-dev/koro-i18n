@@ -270,7 +270,8 @@ function extractLanguage(filePath: string, includePattern: string, langMarker: s
 export function processFile(
   filePath: string,
   includePattern?: string,
-  langMarker?: string
+  langMarker?: string,
+  baseDir?: string
 ): TranslationFile | null {
   try {
     const content = fs.readFileSync(filePath, 'utf-8');
@@ -297,9 +298,27 @@ export function processFile(
     // Calculate source hash
     const sourceHash = hashValue(content);
 
+    // Compute relative filename (preserves directory structure)
+    // Remove language directory from path to get the file structure
+    // e.g., "locales/en-US/browser/chrome.json" -> "browser/chrome.json"
+    let filename = path.basename(filePath);
+    if (baseDir) {
+      const relativePath = path.relative(baseDir, filePath);
+      // Remove the language directory component
+      const parts = relativePath.split(path.sep);
+      const langIndex = parts.findIndex(p => p === lang || p.includes(lang));
+      if (langIndex >= 0) {
+        // Remove language directory and join the rest
+        parts.splice(langIndex, 1);
+        filename = parts.join('/'); // Always use forward slash for consistency
+      } else {
+        filename = relativePath.replace(/\\/g, '/');
+      }
+    }
+
     return {
       lang,
-      filename: path.basename(filePath),
+      filename,
       contents: flattened,
       metadata: metadataBase64,
       sourceHash,
@@ -552,10 +571,11 @@ export async function main() {
   // Process all matched files
   // Default pattern supports: en, ja-JP, ja-JP-mac, ja-JP-x-kansai, etc.
   const langMarker = config.source.lang_marker || '([a-zA-Z0-9]+(-[a-zA-Z0-9]+)*)';
+  const baseDir = process.cwd();
   let skippedCount = 0;
   
   for (const [filePath, pattern] of fileToPattern.entries()) {
-    const processed = processFile(filePath, pattern || undefined, langMarker);
+    const processed = processFile(filePath, pattern || undefined, langMarker, baseDir);
     if (processed) {
       // Skip files with unknown language or language not in config
       if (processed.lang === 'unknown') {

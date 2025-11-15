@@ -47,6 +47,14 @@ export default function LanguageSelectionPage() {
   const isLoadingFiles = () => !sourceFilesStore()?.lastFetch || !allFilesStore()?.lastFetch;
   
   // Compute language stats from the resource
+  // Helper to match files with language-specific names
+  const matchFiles = (sourceFilename: string, targetFilename: string, sourceLang: string, targetLang: string): boolean => {
+    if (sourceFilename === targetFilename) return true;
+    const sourcePattern = sourceFilename.replace(sourceLang, '{lang}');
+    const targetPattern = targetFilename.replace(targetLang, '{lang}');
+    return sourcePattern === targetPattern;
+  };
+
   const languageStats = createMemo(() => {
     const sourceData = sourceFilesData();
     const allData = allFilesData();
@@ -76,7 +84,10 @@ export default function LanguageSelectionPage() {
       for (const sourceFile of sourceFiles) {
         totalKeys += sourceFile.totalKeys || 0;
         
-        const targetFile = targetFiles.find(f => f.filename === sourceFile.filename);
+        // Match files handling both same-name and language-specific names
+        const targetFile = targetFiles.find(f => 
+          matchFiles(sourceFile.filename, f.filename, actualSourceLang, lang)
+        );
         if (targetFile) {
           translatedKeys += targetFile.translatedKeys || 0;
         }
