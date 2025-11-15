@@ -29,9 +29,15 @@ try {
 
   // Build the client library
   core.info('Building koro-i18n client library...');
-  // From dist/index.js -> src -> upload-translations -> actions -> .github -> repo root
-  const repoRoot = path.resolve(__dirname, '../../../../..');
+  // Use GITHUB_ACTION_PATH to find the action's location
+  // GITHUB_ACTION_PATH = /path/to/_actions/f3liz-dev/koro-i18n/main/.github/actions/upload-translations
+  const actionPath = process.env.GITHUB_ACTION_PATH || __dirname;
+  const repoRoot = path.resolve(actionPath, '../../..');
   const clientLibPath = path.join(repoRoot, 'client-library');
+  
+  core.info(`Action path: ${actionPath}`);
+  core.info(`Repo root: ${repoRoot}`);
+  core.info(`Client lib path: ${clientLibPath}`);
 
   await exec.exec('npm', ['install'], { cwd: clientLibPath });
   await exec.exec('npm', ['run', 'build'], { cwd: clientLibPath });
