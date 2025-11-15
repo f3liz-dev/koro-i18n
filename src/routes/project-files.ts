@@ -390,31 +390,25 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       });
     }
 
-    // Calculate translatedKeys for each file (count of approved web translations)
-    const filesWithTranslationCount = await Promise.all(
-      files.map(async (f) => {
-        // Count approved web translations for this file
-        const translatedCount = await prisma.webTranslation.count({
-          where: {
-            projectId: project?.id || actualProjectId,
-            language: f.lang,
-            filename: f.filename,
-            status: 'approved',
-          },
-        });
+    // Calculate translatedKeys for each file
+    const filesWithTranslationCount = files.map((f) => {
+      // For target language files (not source language):
+      // If the file exists in R2, all keys are translated (from GitHub)
+      // Web translations are overrides, not additions to the count
+      const isSourceLanguage = project?.sourceLanguage === f.lang;
+      const translatedKeys = isSourceLanguage ? 0 : f.totalKeys;
 
-        return {
-          filename: f.filename,
-          lang: f.lang,
-          commitSha: f.commitSha,
-          totalKeys: f.totalKeys,
-          translatedKeys: translatedCount,
-          sourceHash: f.sourceHash,
-          uploadedAt: f.uploadedAt,
-          r2Key: f.r2Key,
-        };
-      })
-    );
+      return {
+        filename: f.filename,
+        lang: f.lang,
+        commitSha: f.commitSha,
+        totalKeys: f.totalKeys,
+        translatedKeys: translatedKeys,
+        sourceHash: f.sourceHash,
+        uploadedAt: f.uploadedAt,
+        r2Key: f.r2Key,
+      };
+    });
 
     const response = c.json({
       files: filesWithTranslationCount,
