@@ -28,8 +28,8 @@ const dataToStore = Buffer.from(file.packedData, 'base64'); // ~0.1ms
 await bucket.put(r2Key, dataToStore);
 ```
 
-### 2. Deferred D1 Operations
-**Before:** D1 upsert for every file in every chunk
+### 2. Optimized D1 Operations
+**Before:** Slow D1 upserts with complex queries
 ```typescript
 for (const file of files) {
   await storeFile(...);
@@ -37,19 +37,16 @@ for (const file of files) {
 }
 ```
 
-**After:** D1 operations only on last chunk
+**After:** Fast D1 upserts for every chunk (needed for frontend progress)
 ```typescript
 for (const file of files) {
-  await storeFile(...); // Just R2 write
+  await storeFile(...); // R2 write with pre-packed data
+  await prisma.r2File.upsert(...); // ~0.3ms per file (optimized)
 }
-
-if (chunked.isLastChunk) {
-  // Only update D1 once at the end
-  for (const file of files) {
-    await prisma.r2File.upsert(...);
-  }
-}
+// Frontend can now show real-time progress as chunks complete
 ```
+
+Note: D1 writes are kept because they're fast enough (~0.3ms) and necessary for the frontend to display upload progress in real-time.
 
 ### 3. Deferred Translation Invalidation
 **Before:** Invalidation runs on every chunk
@@ -81,23 +78,26 @@ if (chunked.isLastChunk) {
 
 **After (10 files per chunk):**
 
-Intermediate chunks (1-23):
-- Base64 decode: 10 × 0.1ms = 1ms
-- R2 writes: 10 × 0.2ms = 2ms
-- **Total: ~3ms CPU** ✅
-
-Last chunk (24):
+All chunks (1-24):
 - Base64 decode: 10 × 0.1ms = 1ms
 - R2 writes: 10 × 0.2ms = 2ms
 - D1 upserts: 10 × 0.3ms = 3ms
+- **Total: ~6ms CPU** ✅
+
+Last chunk (24) additional work:
 - Translation invalidation: 2 × 1ms = 2ms
 - **Total: ~8ms CPU** ✅
 
 **Total for 240 files:**
-- 23 chunks × 3ms = 69ms
+- 23 chunks × 6ms = 138ms
 - 1 last chunk × 8ms = 8ms
-- **Total: ~77ms CPU across 24 requests** ✅
-- **Average: ~3.2ms per request** ✅
+- **Total: ~146ms CPU across 24 requests** ✅
+- **Average: ~6ms per request** ✅
+
+Note: D1 writes are kept in all chunks (not just the last) because:
+1. They're fast enough (~0.3ms per file)
+2. Frontend needs them to show real-time upload progress
+3. Still well within the 10ms CPU limit per request
 
 ## Configuration
 

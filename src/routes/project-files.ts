@@ -164,44 +164,47 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
       console.log(`[upload] Chunk files stored to R2`);
 
-      // Only process D1 and invalidations on the last chunk (or non-chunked upload)
-      // This keeps CPU time minimal for intermediate chunks
+      // Always update D1 for files in current chunk (needed for frontend to show progress)
+      // This is fast enough (~0.3ms per file) to stay within CPU limits
+      for (const file of files) {
+        await prisma.r2File.upsert({
+          where: {
+            projectId_branch_lang_filename: {
+              projectId,
+              branch: branchName,
+              lang: file.lang,
+              filename: file.filename,
+            },
+          },
+          update: {
+            commitSha: commitHash,
+            r2Key: generateR2Key(projectId, file.lang, file.filename),
+            sourceHash: file.sourceHash,
+            totalKeys: Object.keys(file.contents).length,
+            lastUpdated: new Date(),
+          },
+          create: {
+            id: crypto.randomUUID(),
+            projectId,
+            branch: branchName,
+            commitSha: commitHash,
+            lang: file.lang,
+            filename: file.filename,
+            r2Key: generateR2Key(projectId, file.lang, file.filename),
+            sourceHash: file.sourceHash,
+            totalKeys: Object.keys(file.contents).length,
+          },
+        });
+      }
+
+      console.log(`[upload] D1 index updated for ${files.length} files`);
+
+      // Only process invalidations on the last chunk (or non-chunked upload)
+      // This is the CPU-intensive part
       const invalidationResults: Record<string, { invalidated: number; checked: number }> = {};
       
       if (!chunked || chunked.isLastChunk) {
-        console.log(`[upload] Last chunk - updating D1 index and processing invalidations...`);
-        
-        // Update D1 index for all files in this upload
-        for (const file of files) {
-          await prisma.r2File.upsert({
-            where: {
-              projectId_branch_lang_filename: {
-                projectId,
-                branch: branchName,
-                lang: file.lang,
-                filename: file.filename,
-              },
-            },
-            update: {
-              commitSha: commitHash,
-              r2Key: generateR2Key(projectId, file.lang, file.filename),
-              sourceHash: file.sourceHash,
-              totalKeys: Object.keys(file.contents).length,
-              lastUpdated: new Date(),
-            },
-            create: {
-              id: crypto.randomUUID(),
-              projectId,
-              branch: branchName,
-              commitSha: commitHash,
-              lang: file.lang,
-              filename: file.filename,
-              r2Key: generateR2Key(projectId, file.lang, file.filename),
-              sourceHash: file.sourceHash,
-              totalKeys: Object.keys(file.contents).length,
-            },
-          });
-        }
+        console.log(`[upload] Last chunk - processing translation invalidations...`);
         
         // Invalidate outdated translations for source language files
         for (const file of files) {

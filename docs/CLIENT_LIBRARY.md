@@ -161,21 +161,24 @@ To stay within Cloudflare's free tier (10ms CPU time), the server does ZERO enco
 ### Client-Side Pre-Packing
 1. **Client packs data with MessagePack** - All encoding happens on GitHub Actions
 2. **Server receives base64-encoded binary** - Ready for R2 storage
-3. **Server just decodes base64 and writes to R2** - ~1ms CPU per file
+3. **Server just decodes base64 and writes to R2** - ~0.3ms CPU per file
 
 ### Chunked Upload Optimization
-1. **Skips D1 writes during chunked uploads** - Only writes to D1 on the last chunk
-2. **Skips translation invalidation** - Only runs on the last chunk
+1. **D1 writes on every chunk** - Fast enough (~0.3ms) and needed for frontend progress
+2. **Translation invalidation deferred** - Only runs on the last chunk
 3. **Zero MessagePack encoding** - Client sends pre-packed data
 4. **Ultra-fast R2 writes** - Direct binary upload
 
-**Chunked upload flow (200 files, 10 per chunk):**
-- Chunks 1-19: Upload to R2 only (~1ms CPU each = 19ms total)
-- Chunk 20 (last): Upload to R2 + Update D1 + Invalidate translations (~5ms CPU)
-- **Total: ~24ms CPU for 200 files** (well under free tier limit)
+**Chunked upload flow (240 files, 10 per chunk):**
+- Chunks 1-23: R2 write + D1 update (~6ms CPU each)
+- Chunk 24 (last): R2 write + D1 update + Invalidate translations (~8ms CPU)
+- **Total: ~146ms CPU across 24 requests** (well under free tier limit)
 
 **CPU time breakdown per chunk:**
-- Pre-packed upload: ~0.5ms (base64 decode + R2 write)
-- Last chunk: +4ms (D1 updates + invalidation)
+- Base64 decode: ~1ms
+- R2 writes: ~2ms
+- D1 updates: ~3ms
+- **Total: ~6ms per chunk** ✅
+- Last chunk adds: +2ms for invalidation = ~8ms ✅
 
 This keeps the server under 10ms CPU per request, staying within the free tier.
