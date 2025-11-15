@@ -18,5 +18,5 @@ inputs:
     default: '.koro-i18n.repo.config.toml'
 
 runs:
-  using: 'node20'
-  main: 'index.js'
+  using: node20
+  main: dist/index.js
