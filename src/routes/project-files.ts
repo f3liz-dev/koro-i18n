@@ -351,7 +351,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     let actualProjectId = projectIdOrName;
     const project = await prisma.project.findUnique({
       where: { name: projectIdOrName },
-      select: { repository: true, sourceLanguage: true },
+      select: { repository: true, sourceLanguage: true, id: true },
     });
     
     if (project) {
@@ -390,16 +390,34 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       });
     }
 
+    // Calculate translatedKeys for each file (count of approved web translations)
+    const filesWithTranslationCount = await Promise.all(
+      files.map(async (f) => {
+        // Count approved web translations for this file
+        const translatedCount = await prisma.webTranslation.count({
+          where: {
+            projectId: project?.id || actualProjectId,
+            language: f.lang,
+            filename: f.filename,
+            status: 'approved',
+          },
+        });
+
+        return {
+          filename: f.filename,
+          lang: f.lang,
+          commitSha: f.commitSha,
+          totalKeys: f.totalKeys,
+          translatedKeys: translatedCount,
+          sourceHash: f.sourceHash,
+          uploadedAt: f.uploadedAt,
+          r2Key: f.r2Key,
+        };
+      })
+    );
+
     const response = c.json({
-      files: files.map(f => ({
-        filename: f.filename,
-        lang: f.lang,
-        commitSha: f.commitSha,
-        totalKeys: f.totalKeys,
-        sourceHash: f.sourceHash,
-        uploadedAt: f.uploadedAt,
-        r2Key: f.r2Key,
-      })),
+      files: filesWithTranslationCount,
     });
 
     response.headers.set('ETag', serverETag);

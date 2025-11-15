@@ -61,7 +61,7 @@ export async function fetchWebTranslations(
     
     if (!response.ok) throw new Error('Failed to fetch web translations');
     
-    const data = await response.json();
+    const data = await response.json() as { translations?: WebTranslation[] };
     return data.translations || [];
   } catch (error) {
     console.error('[D1] Fetch error:', error);
@@ -85,13 +85,13 @@ export function mergeTranslations(
 
   const merged: MergedTranslation[] = [];
 
-  for (const [key, sourceValue] of Object.entries(r2Data.contents)) {
+  for (const [key, sourceValue] of Object.entries(r2Data.raw)) {
     const webTrans = webTransMap.get(key);
     
     merged.push({
       key,
-      sourceValue,
-      currentValue: webTrans?.value || sourceValue,
+      sourceValue: String(sourceValue),
+      currentValue: webTrans?.value || String(sourceValue),
       gitBlame: r2Data.metadata.gitBlame?.[key],
       charRange: r2Data.metadata.charRanges?.[key],
       webTranslation: webTrans,
@@ -165,6 +165,6 @@ export async function fetchSuggestions(
 
   if (!response.ok) throw new Error('Failed to fetch suggestions');
 
-  const data = await response.json();
+  const data = await response.json() as { suggestions?: WebTranslation[] };
   return data.suggestions || [];
 }

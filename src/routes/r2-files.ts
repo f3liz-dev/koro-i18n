@@ -18,16 +18,27 @@ export function createR2FileRoutes(prisma: PrismaClient, env: Env) {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const projectId = c.req.param('projectId');
+    const projectIdOrName = c.req.param('projectId');
     const lang = c.req.param('lang');
     const filename = c.req.param('filename');
     const branch = c.req.query('branch') || 'main';
+
+    // Resolve project name to repository ID
+    let actualProjectId = projectIdOrName;
+    const project = await prisma.project.findUnique({
+      where: { name: projectIdOrName },
+      select: { repository: true },
+    });
+    
+    if (project) {
+      actualProjectId = project.repository;
+    }
 
     // Get file metadata from D1
     const fileIndex = await prisma.r2File.findUnique({
       where: {
         projectId_branch_lang_filename: {
-          projectId,
+          projectId: actualProjectId,
           branch,
           lang,
           filename,
@@ -58,7 +69,7 @@ export function createR2FileRoutes(prisma: PrismaClient, env: Env) {
     }
 
     const response = c.json({
-      contents: fileData.raw,
+      raw: fileData.raw,
       metadata: fileData.metadata,
       sourceHash: fileData.sourceHash,
       commitSha: fileData.commitSha,
@@ -87,7 +98,7 @@ export function createR2FileRoutes(prisma: PrismaClient, env: Env) {
     }
 
     const response = c.json({
-      contents: fileData.raw,
+      raw: fileData.raw,
       metadata: fileData.metadata,
       sourceHash: fileData.sourceHash,
       commitSha: fileData.commitSha,

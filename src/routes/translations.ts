@@ -25,10 +25,15 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
-    // Get source hash from R2 for validation
+    // Get project - projectId can be either the internal ID or repository name
     const project = await prisma.project.findFirst({
-      where: { repository: projectId },
-      select: { sourceLanguage: true },
+      where: {
+        OR: [
+          { id: projectId },
+          { repository: projectId },
+        ],
+      },
+      select: { id: true, repository: true, sourceLanguage: true },
     });
 
     if (!project) {
@@ -39,7 +44,7 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
     try {
       const sourceFile = await getFileByComponents(
         env.TRANSLATION_BUCKET,
-        projectId,
+        project.repository,
         project.sourceLanguage,
         filename
       );
@@ -55,7 +60,7 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
     await prisma.webTranslation.create({
       data: {
         id,
-        projectId,
+        projectId: project.id,
         language,
         filename,
         key,
@@ -72,7 +77,7 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
       data: {
         id: crypto.randomUUID(),
         translationId: id,
-        projectId,
+        projectId: project.id,
         language,
         filename,
         key,
@@ -91,14 +96,34 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const projectId = c.req.query('projectId');
+    const projectIdParam = c.req.query('projectId');
     const language = c.req.query('language');
     const filename = c.req.query('filename');
     const status = c.req.query('status') || 'approved';
     const isValid = c.req.query('isValid');
 
     const where: any = { status };
-    if (projectId) where.projectId = projectId;
+    
+    // Resolve projectId - can be either internal ID or repository name
+    if (projectIdParam) {
+      const project = await prisma.project.findFirst({
+        where: {
+          OR: [
+            { id: projectIdParam },
+            { repository: projectIdParam },
+          ],
+        },
+        select: { id: true },
+      });
+      
+      if (project) {
+        where.projectId = project.id;
+      } else {
+        // If project not found, use the param as-is (will return empty results)
+        where.projectId = projectIdParam;
+      }
+    }
+    
     if (language) where.language = language;
     if (filename) where.filename = filename;
     if (isValid !== undefined) where.isValid = isValid === 'true';
@@ -149,17 +174,32 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const projectId = c.req.query('projectId');
+    const projectIdParam = c.req.query('projectId');
     const language = c.req.query('language');
     const filename = c.req.query('filename');
     const key = c.req.query('key');
 
-    if (!projectId || !language || !filename || !key) {
+    if (!projectIdParam || !language || !filename || !key) {
       return c.json({ error: 'Missing required parameters' }, 400);
     }
 
+    // Resolve projectId - can be either internal ID or repository name
+    const project = await prisma.project.findFirst({
+      where: {
+        OR: [
+          { id: projectIdParam },
+          { repository: projectIdParam },
+        ],
+      },
+      select: { id: true },
+    });
+    
+    if (!project) {
+      return c.json({ error: 'Project not found' }, 404);
+    }
+
     const history = await prisma.webTranslationHistory.findMany({
-      where: { projectId, language, filename, key },
+      where: { projectId: project.id, language, filename, key },
       include: {
         user: { select: { username: true, avatarUrl: true } },
       },
@@ -184,16 +224,31 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const projectId = c.req.query('projectId');
+    const projectIdParam = c.req.query('projectId');
     const language = c.req.query('language');
     const filename = c.req.query('filename');
     const key = c.req.query('key');
 
-    if (!projectId) {
+    if (!projectIdParam) {
       return c.json({ error: 'Missing projectId parameter' }, 400);
     }
 
-    const where: any = { projectId, status: { not: 'deleted' } };
+    // Resolve projectId - can be either internal ID or repository name
+    const project = await prisma.project.findFirst({
+      where: {
+        OR: [
+          { id: projectIdParam },
+          { repository: projectIdParam },
+        ],
+      },
+      select: { id: true },
+    });
+    
+    if (!project) {
+      return c.json({ error: 'Project not found' }, 404);
+    }
+
+    const where: any = { projectId: project.id, status: { not: 'deleted' } };
     if (language) where.language = language;
     if (filename) where.filename = filename;
     if (key) where.key = key;
