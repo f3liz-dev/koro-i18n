@@ -134,6 +134,10 @@ export function mergeTranslationsWithSource(
     // Priority: web translation > target R2 > source
     const currentValue = webTrans?.value || (targetValue ? String(targetValue) : String(sourceValue));
     
+    // Git-imported translations (from R2) are always valid
+    // Web translations use their isValid flag
+    const isValid = webTrans ? webTrans.isValid : true;
+    
     merged.push({
       key,
       sourceValue: String(sourceValue),
@@ -141,7 +145,7 @@ export function mergeTranslationsWithSource(
       gitBlame: sourceR2Data.metadata.gitBlame?.[key],
       charRange: sourceR2Data.metadata.charRanges?.[key],
       webTranslation: webTrans,
-      isValid: webTrans?.isValid ?? true,
+      isValid,
     });
   }
 

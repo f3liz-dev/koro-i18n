@@ -262,11 +262,13 @@ export default function TranslationEditorPage() {
     }
     
     // For target language files:
-    // A key is "translated" if it has a value different from the source
-    // (This works because R2 files already have translations, and web translations override them)
+    // A key is "translated" (approved) if:
+    // 1. It has a value different from the source (imported from Git or web translation)
+    // 2. The translation is valid (not invalidated)
     const completed = translations().filter(t => {
       // If currentValue is different from sourceValue, it's translated
-      return t.currentValue !== t.sourceValue;
+      // Git imports are automatically considered approved
+      return t.currentValue !== t.sourceValue && t.isValid;
     }).length;
     
     return Math.round((completed / total) * 100);
