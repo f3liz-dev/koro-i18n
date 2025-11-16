@@ -49,12 +49,21 @@ pnpm run deploy
 
 ## Documentation
 
-- **[Architecture](ARCHITECTURE.md)** - System design & data flow
+**Getting Started:**
 - **[Setup Guide](SETUP.md)** - Installation & configuration
-- **[Client Library](CLIENT_LIBRARY.md)** - Client implementation guide
+- **[Client Setup](CLIENT_SETUP.md)** - Repository integration
 - **[Deployment](DEPLOYMENT.md)** - Production deployment
+
+**Technical Documentation:**
+- **[Architecture](ARCHITECTURE.md)** - System design & data flow
+- **[Technical Flows](FLOWS.md)** - Complete flow documentation (frontend, backend, actions)
+- **[Client Library](CLIENT_LIBRARY.md)** - Client implementation details
+
+**Additional Guides:**
 - **[Testing](TESTING.md)** - Testing guide
 - **[Prisma](PRISMA.md)** - Database ORM guide
+- **[Project Creation](PROJECT_CREATION_RESTRICTION.md)** - Project management
+- **[Get JWT Token](GET_JWT_TOKEN.md)** - Development authentication
 
 ## Tech Stack
 

@@ -4,203 +4,87 @@
 
 The client library preprocesses files before uploading to minimize worker CPU time.
 
-## Required Preprocessing
+**For complete flow documentation**, see [FLOWS.md](FLOWS.md#upload-flow)
 
-### 1. Git Blame
+## Quick Reference
 
-Extract commit info for each line:
+### Required Preprocessing
 
-```javascript
-import { execSync } from 'child_process';
+1. **Git Blame** - Extract commit info for each line
+2. **Source Hashes** - Generate hash for each key's value (SHA256, 16 chars)
+3. **Metadata Structure** - Organize git blame, character ranges, and hashes
+4. **MessagePack Compression** - Compress metadata for efficient transfer
 
-function getGitBlame(filePath) {
-  const blame = execSync(`git blame --line-porcelain "${filePath}"`, {
-    encoding: 'utf-8'
-  });
-  
-  // Parse blame output
-  const blameData = [];
-  // ... parse logic
-  return blameData;
-}
-```
+### Upload Format
 
-### 2. Source Hashes
-
-Generate hash for each key's value:
-
-```javascript
-import crypto from 'crypto';
-
-function hashValue(value) {
-  return crypto.createHash('sha256')
-    .update(String(value))
-    .digest('hex')
-    .substring(0, 16);
-}
-
-const sourceHashes = {};
-for (const [key, value] of Object.entries(contents)) {
-  sourceHashes[key] = hashValue(value);
-}
-```
-
-### 3. Metadata Structure
-
-```javascript
-const metadata = {
-  gitBlame: {
-    "key1": {
-      commit: "abc123",
-      author: "John Doe",
-      email: "john@example.com",
-      date: "2024-01-01T00:00:00Z"
-    }
-  },
-  charRanges: {
-    "key1": {
-      start: [10, 5],  // [line, char]
-      end: [10, 25]
-    }
-  },
-  sourceHashes: {
-    "key1": "a1b2c3d4"
-  }
-};
-```
-
-### 4. MessagePack Compression
-
-```javascript
-import { encode } from '@msgpack/msgpack';
-
-const metadataPacked = encode(metadata);
-const metadataBase64 = Buffer.from(metadataPacked).toString('base64');
-```
-
-## Upload Format
-
-### Single Upload (< 50 files)
-
-```javascript
-const payload = {
-  branch: 'main',
-  commitSha: getCurrentCommit(),
-  sourceLanguage: 'en',
-  files: [
-    {
-      lang: 'en',
-      filename: 'common.json',
-      contents: { "key1": "value1" }, // Flattened
-      metadata: metadataBase64,       // Base64 MessagePack
-      sourceHash: hashFile(file)      // Hash of entire file
-    }
-  ]
-};
-
-await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify(payload)
-});
-```
-
-### Chunked Upload (200+ files)
-
-For large file sets, the client library automatically chunks uploads:
-
-```javascript
-const payload = {
-  branch: 'main',
-  commitSha: getCurrentCommit(),
-  sourceLanguage: 'en',
-  files: [...], // Chunk of 50 files
-  chunked: {
-    uploadId: 'abc123-1234567890',
-    chunkIndex: 1,
-    totalChunks: 5,
-    isLastChunk: false
-  }
-};
-```
-
-**Chunking behavior:**
-- Default chunk size: 10 files (optimized for Cloudflare free tier)
-- Configurable via `UPLOAD_CHUNK_SIZE` environment variable
-- Progress reported for each chunk
-- Pre-packed data (zero server CPU for encoding)
-- D1 updates and translation invalidation only run on the last chunk
-- Each chunk uploads independently with retry capability
-
-**Example output:**
-```
-📦 Pre-packing files for optimized upload...
-📤 Uploading 237 files (chunk size: 10)...
-📤 Uploading chunk 1/24 (10 files)...
-  ✓ Chunk 1/24 complete (4% total)
-📤 Uploading chunk 2/24 (10 files)...
-  ✓ Chunk 2/24 complete (8% total)
-...
-```
-
-## Differential Upload
-
-The client library automatically skips uploading files that haven't changed:
-
-1. **Fetch existing files** - Downloads file list with sourceHash from platform
-2. **Compare hashes** - Skips files with matching sourceHash
-3. **Upload only changes** - Only modified files are uploaded
-4. **Cleanup orphaned files** - Removes files that no longer exist in source
-
-**Example output:**
-```
-🔍 Checking for existing files...
-📥 Found 45 existing files on platform
-  ⏭ Skipping en/common.json (unchanged)
-  ⏭ Skipping ja/common.json (unchanged)
-✨ Skipping 43 unchanged files (differential upload)
-📦 Pre-packing 2 files for optimized upload...
-📤 Uploading 2 files (chunk size: 10)...
-✅ Upload successful
-🧹 Cleaned up 3 orphaned files
-```
-
-**Benefits:**
-- **Faster uploads** - Only upload what changed
-- **Reduced bandwidth** - Skip unchanged files
-- **Automatic cleanup** - Remove deleted files from platform
-- **Git-aware** - Uses sourceHash to detect changes
-
-## R2 Cleanup
-
-After upload completes, the server automatically cleans up orphaned files:
-
-1. **Track all source files** - Client sends complete list of files in repository
-2. **Compare with R2** - Server checks which files exist in R2 but not in source
-3. **Delete orphaned files** - Removes files from both R2 and D1 index
-4. **Report cleanup** - Returns list of deleted files
-
-**Cleanup happens when:**
-- Single upload completes
-- Last chunk of chunked upload completes
-- Even when no files changed (cleanup-only mode)
-
-**Example cleanup result:**
+**Single Upload** (< UPLOAD_CHUNK_SIZE files):
 ```json
 {
-  "cleanupResult": {
-    "deleted": 3,
-    "files": [
-      "en/old-file.json",
-      "ja/removed.json",
-      "es/deprecated.json"
-    ]
-  }
+  "branch": "main",
+  "commitSha": "abc123",
+  "sourceLanguage": "en",
+  "files": [
+    {
+      "lang": "en",
+      "filename": "common.json",
+      "contents": { "key": "value" },
+      "metadata": "<base64-msgpack>",
+      "sourceHash": "file-hash"
+    }
+  ],
+  "allSourceFiles": ["en/common.json", "ja/common.json"]
 }
 ```
+
+**Chunked Upload** (> UPLOAD_CHUNK_SIZE files):
+```json
+{
+  "branch": "main",
+  "commitSha": "abc123",
+  "sourceLanguage": "en",
+  "files": [...],
+  "chunked": {
+    "uploadId": "abc123-1234567890",
+    "chunkIndex": 1,
+    "totalChunks": 24,
+    "isLastChunk": false
+  },
+  "allSourceFiles": ["en/common.json", ...]
+}
+```
+
+## Key Features
+
+### 1. Differential Upload
+
+Automatically skips unchanged files:
+- Fetches existing files from platform
+- Compares sourceHash values
+- Uploads only changed files
+- Reduces upload time by 90%+ for typical updates
+
+### 2. Automatic Cleanup
+
+Removes orphaned files:
+- Tracks all source files
+- Identifies files in R2 but not in source
+- Deletes from both R2 and D1
+- Runs after upload completes
+
+### 3. Chunked Upload
+
+Handles large file sets efficiently:
+- Default chunk size: 10 files (free tier optimized)
+- Configurable via `UPLOAD_CHUNK_SIZE` environment variable
+- Progress reporting per chunk
+- D1 updates and invalidation only on last chunk
+
+### 4. CPU Optimization
+
+Client-side pre-packing keeps server under 10ms CPU:
+- **Client**: MessagePack encode + base64 (~0.6ms per file)
+- **Server**: Base64 decode + R2 write (~0.3ms per file)
+- **Result**: <5ms CPU per chunk ✅
 
 ## Why Client Preprocessing?
 
@@ -216,27 +100,51 @@ After upload completes, the server automatically cleans up orphaned files:
 
 To stay within Cloudflare's free tier (10ms CPU time), the server does ZERO encoding:
 
-### Client-Side Pre-Packing
-1. **Client packs data with MessagePack** - All encoding happens on GitHub Actions
-2. **Server receives base64-encoded binary** - Ready for R2 storage
-3. **Server just decodes base64 and writes to R2** - ~0.3ms CPU per file
+**Client-Side Pre-Packing**:
+1. Client packs data with MessagePack
+2. Server receives base64-encoded binary
+3. Server just decodes base64 and writes to R2
 
-### Chunked Upload Optimization
-1. **Batched D1 writes** - Single INSERT for all files in chunk (~2ms total)
-2. **Translation invalidation deferred** - Only runs on the last chunk
-3. **Zero MessagePack encoding** - Client sends pre-packed data
-4. **Ultra-fast R2 writes** - Direct binary upload
+**Chunked Upload Optimization**:
+1. Batched D1 writes - Single INSERT for all files (~2ms total)
+2. Translation invalidation deferred - Only runs on last chunk
+3. Zero MessagePack encoding - Client sends pre-packed data
+4. Ultra-fast R2 writes - Direct binary upload
 
-**Chunked upload flow (240 files, 10 per chunk):**
-- Chunks 1-23: R2 write + Batched D1 insert (~5ms CPU each)
-- Chunk 24 (last): R2 write + Batched D1 insert + Invalidate translations (~7ms CPU)
-- **Total: ~122ms CPU across 24 requests** (well under free tier limit)
-
-**CPU time breakdown per chunk:**
+**CPU Time Breakdown** (per chunk, 10 files):
 - Base64 decode: ~1ms
 - R2 writes: ~2ms
-- Batched D1 insert: ~2ms (for all 10 files!)
+- Batched D1 insert: ~2ms
 - **Total: ~5ms per chunk** ✅
-- Last chunk adds: +2ms for invalidation = ~7ms ✅
+- **Last chunk**: +2ms for invalidation = ~7ms ✅
 
-This keeps the server under 10ms CPU per request, staying within the free tier.
+**Example**: 240 files with 10 per chunk
+- 23 chunks × 5ms = 115ms
+- 1 last chunk × 7ms = 7ms
+- **Total: ~122ms CPU across 24 requests** (well under free tier limit)
+
+## Configuration
+
+**Default Settings** (Free Tier Optimized):
+```bash
+UPLOAD_CHUNK_SIZE=10  # Default
+```
+
+**Paid Tier** (Higher Limits):
+```bash
+UPLOAD_CHUNK_SIZE=50  # For paid plans with higher CPU limits
+```
+
+## Implementation Files
+
+- `client-library/src/index.ts` - Pre-packing logic
+- `src/lib/r2-storage.ts` - Zero-encoding storage
+- `src/routes/project-files.ts` - Deferred D1/invalidation
+- `.github/actions/upload-translations/action.yml` - Default chunk size
+
+## See Also
+
+- [FLOWS.md](FLOWS.md) - Complete technical flow documentation
+- [CLIENT_SETUP.md](CLIENT_SETUP.md) - Repository integration guide
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System design overview
+

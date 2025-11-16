@@ -46,11 +46,15 @@ Display → R2 API + D1 API → Merge in UI
 
 ## Documentation
 
-- **[Architecture](docs/ARCHITECTURE.md)** - System design & data flow
+**Getting Started:**
 - **[Setup Guide](docs/SETUP.md)** - Installation & configuration
-- **[Client Library](docs/CLIENT_LIBRARY.md)** - Client implementation
 - **[Client Setup](docs/CLIENT_SETUP.md)** - Repository integration
 - **[Deployment](docs/DEPLOYMENT.md)** - Production deployment
+
+**Technical Documentation:**
+- **[Architecture](docs/ARCHITECTURE.md)** - System design & data flow
+- **[Technical Flows](docs/FLOWS.md)** - Complete flow documentation (frontend, backend, actions)
+- **[Client Library](docs/CLIENT_LIBRARY.md)** - Client implementation details
 
 ## Tech Stack
 
