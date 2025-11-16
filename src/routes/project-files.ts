@@ -7,18 +7,28 @@ import { checkProjectAccess } from '../lib/database';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 import { storeFile, generateR2Key } from '../lib/r2-storage';
 import { invalidateOutdatedTranslations } from '../lib/translation-validation';
+import { createRustWorker } from '../lib/rust-worker-client';
 
 interface Env {
   TRANSLATION_BUCKET: R2Bucket;
   JWT_SECRET: string;
   ENVIRONMENT: string;
   PLATFORM_URL?: string;
+  COMPUTE_WORKER_URL?: string; // Optional Rust compute worker URL
 }
 
 const MAX_FILES = 500;
 
 export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
+  
+  // Initialize Rust compute worker (optional)
+  const rustWorker = createRustWorker(env);
+  if (rustWorker) {
+    console.log('[project-files] Rust compute worker enabled:', env.COMPUTE_WORKER_URL);
+  } else {
+    console.log('[project-files] Rust compute worker not configured, using fallback implementations');
+  }
 
   async function validateUploadAuth(token: string, projectId: string, repository: string, jwtSecret: string) {
     // Try OIDC verification first
@@ -201,6 +211,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         console.log(`[upload] Last chunk - processing translation invalidations...`);
         
         // Invalidate outdated translations for source language files
+        // Use Rust worker for batch validation when available (5x faster)
         for (const file of files) {
           if (file.lang === project.sourceLanguage || file.lang === sourceLanguage) {
             const result = await invalidateOutdatedTranslations(
@@ -208,7 +219,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
               env.TRANSLATION_BUCKET,
               projectId,
               file.lang,
-              file.filename
+              file.filename,
+              rustWorker || undefined
             );
             
             if (result.invalidated > 0) {

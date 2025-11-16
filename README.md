@@ -61,6 +61,7 @@ Display → R2 API + D1 API → Merge in UI
 - **[Backend Deployment](docs/BACKEND_DEPLOYMENT.md)** - Step-by-step deployment guide
 - **[Architecture](docs/ARCHITECTURE.md)** - System design & data flow
 - **[Technical Flows](docs/FLOWS.md)** - Complete flow documentation
+- **[Rust Worker](docs/RUST_WORKER.md)** - Auxiliary compute worker for CPU-intensive operations
 
 **Additional Resources:**
 - **[Client Library](docs/CLIENT_LIBRARY.md)** - Client implementation details
@@ -71,6 +72,7 @@ Display → R2 API + D1 API → Merge in UI
 
 - Frontend: SolidJS + Vite + UnoCSS
 - Backend: Cloudflare Workers + Hono
+- Compute: Rust Worker (for CPU-intensive operations)
 - Storage: D1 (SQLite) + R2 (Object Storage)
 - ORM: Prisma
 - Auth: GitHub OAuth + JWT

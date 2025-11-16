@@ -84,13 +84,16 @@ export async function validateTranslation(
 /**
  * Invalidate web translations when source changes
  * Called after uploading new source files
+ * 
+ * OPTIMIZED: Uses Rust worker for batch validation when available
  */
 export async function invalidateOutdatedTranslations(
   prisma: PrismaClient,
   bucket: R2Bucket,
   projectId: string,
   sourceLanguage: string,
-  filename: string
+  filename: string,
+  rustWorker?: any // RustComputeWorker instance (optional)
 ): Promise<{
   invalidated: number;
   checked: number;
@@ -108,6 +111,73 @@ export async function invalidateOutdatedTranslations(
   let invalidated = 0;
   const checked = translations.length;
 
+  if (checked === 0) {
+    return { invalidated: 0, checked: 0 };
+  }
+
+  // Get source file to extract current hashes
+  const sourceFile = await import('./r2-storage.js').then(m => 
+    m.getFileByComponents(bucket, projectId, sourceLanguage, filename)
+  );
+
+  if (!sourceFile) {
+    console.warn(`[invalidate] Source file not found: ${projectId}/${sourceLanguage}/${filename}`);
+    return { invalidated: 0, checked };
+  }
+
+  // Try using Rust worker for batch validation (much faster)
+  if (rustWorker && checked > 5) {
+    try {
+      const translationsToValidate = translations.map(t => ({
+        id: t.id,
+        key: t.key,
+        source_hash: t.sourceHash,
+      }));
+
+      const validationResults = await rustWorker.batchValidate(
+        translationsToValidate,
+        sourceFile.metadata.sourceHashes || {}
+      );
+
+      // Process results in batch
+      for (const result of validationResults) {
+        if (!result.is_valid) {
+          const translation = translations.find(t => t.id === result.id);
+          if (!translation) continue;
+
+          // Mark as invalid
+          await prisma.webTranslation.update({
+            where: { id: translation.id },
+            data: { isValid: false },
+          });
+
+          // Log to history
+          await prisma.webTranslationHistory.create({
+            data: {
+              id: crypto.randomUUID(),
+              translationId: translation.id,
+              projectId: translation.projectId,
+              language: translation.language,
+              filename: translation.filename,
+              key: translation.key,
+              value: translation.value,
+              userId: translation.userId,
+              action: 'invalidated',
+              sourceHash: sourceFile.metadata.sourceHashes?.[translation.key],
+            },
+          });
+
+          invalidated++;
+        }
+      }
+
+      return { invalidated, checked };
+    } catch (error) {
+      console.warn('[invalidate] Rust worker failed, falling back to sequential validation:', error);
+    }
+  }
+
+  // Fallback: Sequential validation (original implementation)
   for (const translation of translations) {
     const validation = await validateTranslation(
       bucket,
