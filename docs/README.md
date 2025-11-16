@@ -54,6 +54,15 @@ pnpm run deploy
 - **[Client Setup](CLIENT_SETUP.md)** - Repository integration
 - **[Deployment](DEPLOYMENT.md)** - Production deployment
 
+**Frontend Documentation:**
+- **[Frontend Guide](FRONTEND.md)** - Complete frontend documentation (SolidJS, routing, state management, components, utilities)
+- **[Frontend Architecture](FRONTEND_ARCHITECTURE.md)** - Deep dive into architectural decisions, performance optimizations, and design patterns
+
+**Backend Documentation:**
+- **[Backend API Reference](BACKEND_API.md)** - Complete API documentation with all endpoints
+- **[Backend Internals](BACKEND_INTERNALS.md)** - Implementation details and architecture
+- **[Backend Deployment](BACKEND_DEPLOYMENT.md)** - Step-by-step deployment guide
+
 **Technical Documentation:**
 - **[Architecture](ARCHITECTURE.md)** - System design & data flow
 - **[Technical Flows](FLOWS.md)** - Complete flow documentation (frontend, backend, actions)

@@ -51,6 +51,10 @@ Display → R2 API + D1 API → Merge in UI
 - **[Client Setup](docs/CLIENT_SETUP.md)** - Repository integration
 - **[Deployment](docs/DEPLOYMENT.md)** - Production deployment
 
+**Frontend Documentation:**
+- **[Frontend Guide](docs/FRONTEND.md)** - Complete frontend documentation (SolidJS, routing, state management)
+- **[Frontend Architecture](docs/FRONTEND_ARCHITECTURE.md)** - Deep dive into architectural decisions and patterns
+
 **Backend Documentation:**
 - **[Backend API Reference](docs/BACKEND_API.md)** - Complete API documentation with all endpoints
 - **[Backend Internals](docs/BACKEND_INTERNALS.md)** - Implementation details and architecture
