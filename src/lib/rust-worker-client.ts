@@ -34,6 +34,28 @@ export interface ValidationResult {
   reason?: string;
 }
 
+export interface UploadRequest {
+  project_id: string;
+  branch: string;
+  commit_sha: string;
+  files: FileToUpload[];
+}
+
+export interface FileToUpload {
+  lang: string;
+  filename: string;
+  contents: Record<string, any>;
+  metadata: string;
+  source_hash: string;
+  packed_data?: string;
+}
+
+export interface UploadResponse {
+  success: boolean;
+  uploaded_files: string[];
+  r2_keys: string[];
+}
+
 /**
  * Rust compute worker client
  * Calls the auxiliary Rust worker for CPU-intensive operations
@@ -106,6 +128,31 @@ export class RustComputeWorker {
 
       console.warn('[RustWorker] Failed to call Rust worker, falling back to local computation:', error);
       return this.localBatchValidate(translations, sourceHashes);
+    }
+  }
+
+  /**
+   * Upload files to R2 and D1 using Rust worker
+   * This offloads the entire upload operation to Rust
+   */
+  async upload(uploadRequest: UploadRequest): Promise<UploadResponse> {
+    try {
+      const response = await fetch(`${this.workerUrl}/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(uploadRequest),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Rust worker upload failed ${response.status}: ${errorText}`);
+      }
+
+      const data: UploadResponse = await response.json();
+      return data;
+    } catch (error) {
+      console.error('[RustWorker] Upload to Rust worker failed:', error);
+      throw error; // No fallback for upload - this is a critical operation
     }
   }
 
