@@ -49,7 +49,13 @@ export default function TranslationEditorPage() {
   const [translationValue, setTranslationValue] = createSignal('');
   const [searchQuery, setSearchQuery] = createSignal('');
   const [filterStatus, setFilterStatus] = createSignal<'all' | 'valid' | 'invalid'>('all');
-  const [sortMethod, setSortMethod] = createSignal<SortMethod>((searchParams.sort as SortMethod) || 'priority');
+  
+  // Initialize sort method from URL, handling array case
+  const sortFromUrl = Array.isArray(searchParams.sort) ? searchParams.sort[0] : searchParams.sort;
+  const [sortMethod, setSortMethod] = createSignal<SortMethod>(
+    (sortFromUrl && ['priority', 'alphabetical', 'completion'].includes(sortFromUrl) ? sortFromUrl : 'priority') as SortMethod
+  );
+  
   const [showSuggestions, setShowSuggestions] = createSignal(true);
   const [suggestions, setSuggestions] = createSignal<WebTranslation[]>([]);
   const [showMobileMenu, setShowMobileMenu] = createSignal(false);
