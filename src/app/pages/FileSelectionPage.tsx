@@ -113,6 +113,10 @@ export default function FileSelectionPage() {
       });
     }
     
+    // Frontend sorting: Simple alphabetical sort
+    // Dataset: Typically <50 files per project
+    // Performance: O(n log n), ~1ms for typical datasets
+    // This is lightweight enough for frontend, no need for backend sorting
     stats.sort((a, b) => a.filename.localeCompare(b.filename));
     return stats;
   };

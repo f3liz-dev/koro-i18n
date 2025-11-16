@@ -80,6 +80,18 @@ pub struct D1FileRecord {
     pub last_updated: String,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct SortRequest {
+    pub items: Vec<serde_json::Value>,
+    pub sort_by: String,
+    pub order: Option<String>, // "asc" or "desc", default "asc"
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct SortResponse {
+    pub sorted: Vec<serde_json::Value>,
+}
+
 /// Compute SHA-256 hash for a single value (16 chars prefix)
 /// This matches the hashValue function in TypeScript
 pub fn hash_value(value: &str) -> String {
@@ -148,6 +160,41 @@ pub fn batch_validate_translations(
 fn generate_r2_key(project_id: &str, lang: &str, filename: &str) -> String {
     let sanitized_filename = filename.replace(['/', '\\'], "-");
     format!("{}-{}-{}", project_id, lang, sanitized_filename)
+}
+
+/// Sort items by a specific field
+/// Useful for large datasets that would exceed frontend memory/CPU limits
+pub fn sort_items(
+    items: &mut Vec<serde_json::Value>,
+    sort_by: &str,
+    order: &str,
+) {
+    items.sort_by(|a, b| {
+        let a_val = &a[sort_by];
+        let b_val = &b[sort_by];
+        
+        let comparison = match (a_val, b_val) {
+            (serde_json::Value::String(a_str), serde_json::Value::String(b_str)) => {
+                a_str.cmp(b_str)
+            }
+            (serde_json::Value::Number(a_num), serde_json::Value::Number(b_num)) => {
+                // Compare as f64 for consistency
+                let a_f = a_num.as_f64().unwrap_or(0.0);
+                let b_f = b_num.as_f64().unwrap_or(0.0);
+                a_f.partial_cmp(&b_f).unwrap_or(std::cmp::Ordering::Equal)
+            }
+            (serde_json::Value::Bool(a_bool), serde_json::Value::Bool(b_bool)) => {
+                a_bool.cmp(b_bool)
+            }
+            _ => std::cmp::Ordering::Equal,
+        };
+        
+        if order == "desc" {
+            comparison.reverse()
+        } else {
+            comparison
+        }
+    });
 }
 
 /// Handle file upload to R2 and D1
@@ -315,11 +362,18 @@ async fn main(mut req: Request, env: Env, ctx: Context) -> Result<Response> {
             let results = batch_validate_translations(&request.translations, &request.source_hashes);
             Response::from_json(&ValidationResponse { results })
         }
+        (Method::Post, "/sort") => {
+            // Sort large datasets
+            let mut request: SortRequest = req.json().await?;
+            let order = request.order.as_deref().unwrap_or("asc");
+            sort_items(&mut request.items, &request.sort_by, order);
+            Response::from_json(&SortResponse { sorted: request.items })
+        }
         (Method::Get, "/health") => {
             Response::from_json(&serde_json::json!({
                 "status": "ok",
                 "worker": "rust-compute-worker",
-                "version": "0.2.0"
+                "version": "0.3.0"
             }))
         }
         _ => Response::error("Not Found", 404),
@@ -382,5 +436,43 @@ mod tests {
         assert!(results[0].is_valid); // Matching hash
         assert!(!results[1].is_valid); // Hash mismatch
         assert!(!results[2].is_valid); // Key not found
+    }
+
+    #[test]
+    fn test_sort_items_string() {
+        let mut items = vec![
+            serde_json::json!({"name": "zebra", "age": 5}),
+            serde_json::json!({"name": "apple", "age": 3}),
+            serde_json::json!({"name": "banana", "age": 7}),
+        ];
+        
+        sort_items(&mut items, "name", "asc");
+        assert_eq!(items[0]["name"], "apple");
+        assert_eq!(items[1]["name"], "banana");
+        assert_eq!(items[2]["name"], "zebra");
+        
+        sort_items(&mut items, "name", "desc");
+        assert_eq!(items[0]["name"], "zebra");
+        assert_eq!(items[1]["name"], "banana");
+        assert_eq!(items[2]["name"], "apple");
+    }
+
+    #[test]
+    fn test_sort_items_number() {
+        let mut items = vec![
+            serde_json::json!({"name": "zebra", "age": 5}),
+            serde_json::json!({"name": "apple", "age": 3}),
+            serde_json::json!({"name": "banana", "age": 7}),
+        ];
+        
+        sort_items(&mut items, "age", "asc");
+        assert_eq!(items[0]["age"], 3);
+        assert_eq!(items[1]["age"], 5);
+        assert_eq!(items[2]["age"], 7);
+        
+        sort_items(&mut items, "age", "desc");
+        assert_eq!(items[0]["age"], 7);
+        assert_eq!(items[1]["age"], 5);
+        assert_eq!(items[2]["age"], 3);
     }
 }
