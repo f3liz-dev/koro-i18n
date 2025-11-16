@@ -23,7 +23,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
   
   // Initialize Rust compute worker (optional)
-  const rustWorker = createRustWorker(env);
+  let rustWorker = createRustWorker(env);
   if (rustWorker) {
     console.log('[project-files] Rust compute worker enabled:', env.COMPUTE_WORKER_URL);
   } else {
