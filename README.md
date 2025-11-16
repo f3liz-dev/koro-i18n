@@ -63,6 +63,7 @@ Display → R2 API + D1 API → Merge in UI
 - **[Technical Flows](docs/FLOWS.md)** - Complete flow documentation
 - **[Rust Worker](docs/RUST_WORKER.md)** - Auxiliary compute worker for CPU-intensive operations
 - **[Computation Strategy](docs/COMPUTATION_STRATEGY.md)** - How computation is distributed across components
+- **[Computation Flow](docs/COMPUTATION_FLOW.md)** - Visual diagrams and decision matrices
 
 **Additional Resources:**
 - **[Client Library](docs/CLIENT_LIBRARY.md)** - Client implementation details
