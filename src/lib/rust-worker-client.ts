@@ -56,6 +56,16 @@ export interface UploadResponse {
   r2_keys: string[];
 }
 
+export interface SortRequest {
+  items: any[];
+  sort_by: string;
+  order?: 'asc' | 'desc';
+}
+
+export interface SortResponse {
+  sorted: any[];
+}
+
 /**
  * Rust compute worker client
  * Calls the auxiliary Rust worker for CPU-intensive operations
@@ -157,6 +167,38 @@ export class RustComputeWorker {
   }
 
   /**
+   * Sort large datasets using Rust worker
+   * Use this for >100 items to avoid frontend performance issues
+   */
+  async sort(items: any[], sortBy: string, order: 'asc' | 'desc' = 'asc'): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.workerUrl}/sort`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items,
+          sort_by: sortBy,
+          order,
+        } as SortRequest),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Rust worker returned ${response.status}`);
+      }
+
+      const data: SortResponse = await response.json();
+      return data.sorted;
+    } catch (error) {
+      if (!this.fallbackEnabled) {
+        throw error;
+      }
+
+      console.warn('[RustWorker] Failed to call Rust worker for sorting, falling back to local sort:', error);
+      return this.localSort(items, sortBy, order);
+    }
+  }
+
+  /**
    * Fallback: Local hash computation (TypeScript implementation)
    */
   private async localBatchHash(values: string[]): Promise<string[]> {
@@ -206,6 +248,34 @@ export class RustComputeWorker {
         is_valid: true,
       };
     });
+  }
+
+  /**
+   * Fallback: Local sort (TypeScript implementation)
+   */
+  private localSort(items: any[], sortBy: string, order: 'asc' | 'desc' = 'asc'): any[] {
+    const sorted = [...items].sort((a, b) => {
+      const aVal = a[sortBy];
+      const bVal = b[sortBy];
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        const comparison = aVal.localeCompare(bVal);
+        return order === 'desc' ? -comparison : comparison;
+      }
+
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return order === 'desc' ? bVal - aVal : aVal - bVal;
+      }
+
+      if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
+        const comparison = Number(aVal) - Number(bVal);
+        return order === 'desc' ? -comparison : comparison;
+      }
+
+      return 0;
+    });
+
+    return sorted;
   }
 
   /**
