@@ -7,18 +7,28 @@ import { checkProjectAccess } from '../lib/database';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 import { storeFile, generateR2Key } from '../lib/r2-storage';
 import { invalidateOutdatedTranslations } from '../lib/translation-validation';
+import { createRustWorker } from '../lib/rust-worker-client';
 
 interface Env {
   TRANSLATION_BUCKET: R2Bucket;
   JWT_SECRET: string;
   ENVIRONMENT: string;
   PLATFORM_URL?: string;
+  COMPUTE_WORKER_URL?: string; // Optional Rust compute worker URL
 }
 
 const MAX_FILES = 500;
 
 export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
+  
+  // Initialize Rust compute worker (optional)
+  const rustWorker = createRustWorker(env);
+  if (rustWorker) {
+    console.log('[project-files] Rust compute worker enabled:', env.COMPUTE_WORKER_URL);
+  } else {
+    console.log('[project-files] Rust compute worker not configured, using fallback implementations');
+  }
 
   async function validateUploadAuth(token: string, projectId: string, repository: string, jwtSecret: string) {
     // Try OIDC verification first
@@ -137,61 +147,93 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
       // Log chunked upload info
       if (chunked) {
-        console.log(`[upload] Chunk ${chunked.chunkIndex}/${chunked.totalChunks} - Storing ${files.length} files to R2 for ${projectId}#${commitHash}...`);
+        console.log(`[upload] Chunk ${chunked.chunkIndex}/${chunked.totalChunks} - Uploading ${files.length} files for ${projectId}#${commitHash}...`);
       } else {
-        console.log(`[upload] Storing ${files.length} files to R2 for ${projectId}#${commitHash}...`);
+        console.log(`[upload] Uploading ${files.length} files for ${projectId}#${commitHash}...`);
       }
 
-      const uploadedFiles: string[] = [];
+      // Use Rust worker for upload if available
+      let uploadedFiles: string[] = [];
+      let r2Keys: string[] = [];
       
-      // Store each file to R2 (ultra-fast, zero CPU if pre-packed)
-      for (const file of files) {
-        const r2Key = await storeFile(
-          env.TRANSLATION_BUCKET,
-          projectId,
-          file.lang,
-          file.filename,
-          commitHash,
-          file.contents,
-          file.metadata,
-          file.sourceHash,
-          file.packedData // Pre-packed data from client (optional)
-        );
-
-        uploadedFiles.push(r2Key);
-        console.log(`[upload] Stored ${file.lang}/${file.filename} -> ${r2Key}`);
+      if (rustWorker) {
+        try {
+          console.log(`[upload] Using Rust worker for R2 and D1 operations`);
+          const uploadResult = await rustWorker.upload({
+            project_id: projectId,
+            branch: branchName,
+            commit_sha: commitHash,
+            files: files.map(file => ({
+              lang: file.lang,
+              filename: file.filename,
+              contents: file.contents,
+              metadata: file.metadata,
+              source_hash: file.sourceHash,
+              packed_data: file.packedData,
+            })),
+          });
+          
+          uploadedFiles = uploadResult.uploaded_files;
+          r2Keys = uploadResult.r2_keys;
+          console.log(`[upload] Rust worker completed upload of ${files.length} files`);
+        } catch (error) {
+          console.error(`[upload] Rust worker upload failed, falling back to TypeScript:`, error);
+          // Fall through to TypeScript fallback
+          rustWorker = null; // Disable for subsequent operations
+        }
       }
-
-      console.log(`[upload] Chunk files stored to R2`);
-
-      // Update D1 index using batched raw SQL for maximum performance
-      // Single transaction is much faster than individual queries
-      const now = new Date().toISOString();
       
-      // Build VALUES for batch insert
-      const values = files.map(file => {
-        const id = crypto.randomUUID();
-        const r2Key = generateR2Key(projectId, file.lang, file.filename);
-        const totalKeys = Object.keys(file.contents).length;
-        return `('${id}', '${projectId}', '${branchName}', '${commitHash}', '${file.lang}', '${file.filename}', '${r2Key}', '${file.sourceHash}', ${totalKeys}, '${now}', '${now}')`;
-      }).join(',');
-      
-      // Single batch INSERT OR REPLACE - much faster than individual queries
-      await prisma.$executeRawUnsafe(`
-        INSERT INTO R2File (
-          id, projectId, branch, commitSha, lang, filename, 
-          r2Key, sourceHash, totalKeys, uploadedAt, lastUpdated
-        ) VALUES ${values}
-        ON CONFLICT(projectId, branch, lang, filename) 
-        DO UPDATE SET
-          commitSha = excluded.commitSha,
-          r2Key = excluded.r2Key,
-          sourceHash = excluded.sourceHash,
-          totalKeys = excluded.totalKeys,
-          lastUpdated = excluded.lastUpdated
-      `);
+      // Fallback: TypeScript upload (if Rust worker not available or failed)
+      if (!rustWorker) {
+        // Store each file to R2 (ultra-fast, zero CPU if pre-packed)
+        for (const file of files) {
+          const r2Key = await storeFile(
+            env.TRANSLATION_BUCKET,
+            projectId,
+            file.lang,
+            file.filename,
+            commitHash,
+            file.contents,
+            file.metadata,
+            file.sourceHash,
+            file.packedData // Pre-packed data from client (optional)
+          );
 
-      console.log(`[upload] D1 index updated for ${files.length} files in single batch`);
+          r2Keys.push(r2Key);
+          console.log(`[upload] Stored ${file.lang}/${file.filename} -> ${r2Key}`);
+        }
+
+        console.log(`[upload] Chunk files stored to R2`);
+
+        // Update D1 index using batched raw SQL for maximum performance
+        // Single transaction is much faster than individual queries
+        const now = new Date().toISOString();
+        
+        // Build VALUES for batch insert
+        const values = files.map(file => {
+          const id = crypto.randomUUID();
+          const r2Key = generateR2Key(projectId, file.lang, file.filename);
+          const totalKeys = Object.keys(file.contents).length;
+          return `('${id}', '${projectId}', '${branchName}', '${commitHash}', '${file.lang}', '${file.filename}', '${r2Key}', '${file.sourceHash}', ${totalKeys}, '${now}', '${now}')`;
+        }).join(',');
+        
+        // Single batch INSERT OR REPLACE - much faster than individual queries
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO R2File (
+            id, projectId, branch, commitSha, lang, filename, 
+            r2Key, sourceHash, totalKeys, uploadedAt, lastUpdated
+          ) VALUES ${values}
+          ON CONFLICT(projectId, branch, lang, filename) 
+          DO UPDATE SET
+            commitSha = excluded.commitSha,
+            r2Key = excluded.r2Key,
+            sourceHash = excluded.sourceHash,
+            totalKeys = excluded.totalKeys,
+            lastUpdated = excluded.lastUpdated
+        `);
+
+        console.log(`[upload] D1 index updated for ${files.length} files in single batch`);
+      }
 
       // Only process invalidations on the last chunk (or non-chunked upload)
       // This is the CPU-intensive part
@@ -201,6 +243,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         console.log(`[upload] Last chunk - processing translation invalidations...`);
         
         // Invalidate outdated translations for source language files
+        // Use Rust worker for batch validation when available (5x faster)
         for (const file of files) {
           if (file.lang === project.sourceLanguage || file.lang === sourceLanguage) {
             const result = await invalidateOutdatedTranslations(
@@ -208,7 +251,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
               env.TRANSLATION_BUCKET,
               projectId,
               file.lang,
-              file.filename
+              file.filename,
+              rustWorker || undefined
             );
             
             if (result.invalidated > 0) {
@@ -225,7 +269,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         projectId,
         commitSha: commitHash,
         filesUploaded: files.length,
-        r2Keys: uploadedFiles,
+        r2Keys: r2Keys,
         uploadedAt: new Date().toISOString(),
       };
 

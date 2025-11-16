@@ -45,3 +45,8 @@ coverage/
 .cache/
 
 /src/generated/prisma
+
+# Rust
+rust-worker/target/
+rust-worker/build/
+rust-worker/Cargo.lock
