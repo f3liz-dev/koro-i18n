@@ -118,6 +118,7 @@ export function mergeTranslations(
       key,
       sourceValue: String(sourceValue),
       currentValue: webTrans?.value || String(sourceValue),
+      gitTranslation: undefined, // Legacy function doesn't have separate git translation
       gitBlame: r2Data.metadata.gitBlame?.[key],
       charRange: r2Data.metadata.charRanges?.[key],
       webTranslation: webTrans,
@@ -157,12 +158,14 @@ export function mergeTranslationsWithSource(
     const webTrans = webTransMap.get(key);
     const targetValue = targetMap.get(key);
     
-    // Priority: web translation > target R2 > empty (don't use source as fallback)
-    // If there's no translation, leave it empty so users know to translate it
-    const currentValue = webTrans?.value || (targetValue ? String(targetValue) : '');
+    // Git translations are now treated as suggestions, not direct values
+    // currentValue only comes from web translations (D1)
+    const currentValue = webTrans?.value || '';
+    
+    // Store git translation separately as a suggestion
+    const gitTranslation = targetValue ? String(targetValue) : undefined;
     
     // isValid flag:
-    // - Git-imported translations (from R2) are always valid
     // - Web translations use their isValid flag (can be invalidated if source changed)
     // - Empty translations (no translation yet) are still "valid" (just not translated)
     const isValid = webTrans ? webTrans.isValid : true;
@@ -171,6 +174,7 @@ export function mergeTranslationsWithSource(
       key,
       sourceValue: String(sourceValue),
       currentValue,
+      gitTranslation,
       gitBlame: sourceR2Data.metadata.gitBlame?.[key],
       charRange: sourceR2Data.metadata.charRanges?.[key],
       webTranslation: webTrans,

@@ -115,6 +115,7 @@ export const MergedTranslation = t.type({
   key: t.string,
   sourceValue: t.string,
   currentValue: t.string,
+  gitTranslation: t.union([t.string, t.undefined]), // Translation from git (R2), treated as suggestion
   gitBlame: t.union([GitBlameInfo, t.undefined]),
   charRange: t.union([CharRange, t.undefined]),
   webTranslation: t.union([WebTranslation, t.undefined]),

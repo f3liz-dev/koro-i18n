@@ -297,6 +297,13 @@ export default function TranslationEditorPage() {
     }
   };
 
+  const handleApplyGitSuggestion = () => {
+    const translation = translations().find(t => t.key === selectedKey());
+    if (translation?.gitTranslation) {
+      setTranslationValue(translation.gitTranslation);
+    }
+  };
+
   const handlePrevious = () => {
     const filtered = filteredTranslations();
     const currentIndex = filtered.findIndex(t => t.key === selectedKey());
@@ -386,6 +393,7 @@ export default function TranslationEditorPage() {
             onToggleSuggestions={() => setShowSuggestions(!showSuggestions())}
             onApproveSuggestion={handleApproveSuggestion}
             onRejectSuggestion={handleRejectSuggestion}
+            onApplyGitSuggestion={handleApplyGitSuggestion}
             onPrevious={handlePrevious}
             onNext={handleNext}
           />
