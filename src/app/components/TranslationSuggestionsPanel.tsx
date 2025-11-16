@@ -15,12 +15,25 @@ interface SuggestionEntry {
   updatedAt: string;
 }
 
+interface GitSuggestion {
+  type: 'git';
+  value: string;
+  gitBlame?: {
+    commit: string;
+    author: string;
+    email: string;
+    date: string;
+  };
+}
+
 interface TranslationSuggestionsPanelProps {
   suggestions: SuggestionEntry[] | undefined;
+  gitSuggestion?: GitSuggestion;
   isLoading: boolean;
   show: boolean;
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
+  onApplyGitSuggestion?: () => void;
 }
 
 export default function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelProps) {
@@ -92,7 +105,7 @@ export default function TranslationSuggestionsPanel(props: TranslationSuggestion
             </div>
           </Show>
 
-          <Show when={!props.isLoading && (!props.suggestions || props.suggestions.length === 0)}>
+          <Show when={!props.isLoading && !props.gitSuggestion && (!props.suggestions || props.suggestions.length === 0)}>
             <div class="text-center py-6 text-gray-500">
               <svg class="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -102,8 +115,58 @@ export default function TranslationSuggestionsPanel(props: TranslationSuggestion
             </div>
           </Show>
 
-          <Show when={!props.isLoading && props.suggestions && props.suggestions.length > 0}>
+          <Show when={!props.isLoading && (props.gitSuggestion || (props.suggestions && props.suggestions.length > 0))}>
             <div class="space-y-3 max-h-[400px] overflow-y-auto">
+              {/* Git Suggestion (if available) */}
+              <Show when={props.gitSuggestion}>
+                {(gitSug) => (
+                  <div class="relative pl-6 pb-3 border-l-2 border-gray-200">
+                    {/* Timeline dot */}
+                    <div class="absolute left-0 top-0 -translate-x-1/2 w-3 h-3 rounded-full bg-gray-500 border-2 border-white"></div>
+                    
+                    <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                      {/* Main horizontal layout */}
+                      <div class="flex items-start gap-3">
+                        {/* Left side: vertical layout with value and git info */}
+                        <div class="flex flex-col gap-2 flex-1 min-w-0">
+                          {/* Value */}
+                          <div class="bg-white p-2 rounded border text-sm text-gray-900">
+                            {gitSug().value}
+                          </div>
+                          
+                          {/* Git info */}
+                          <div class="flex items-center gap-2">
+                            <span class="text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 bg-gray-100 text-gray-700">
+                              📦 Imported from GitHub
+                            </span>
+                            <Show when={gitSug().gitBlame}>
+                              {(blame) => (
+                                <span class="text-xs text-gray-600" title={`Commit: ${blame().commit}\nAuthor: ${blame().author}\nDate: ${new Date(blame().date).toLocaleString()}`}>
+                                  <code class="text-gray-700">{blame().commit.substring(0, 7)}</code>
+                                </span>
+                              )}
+                            </Show>
+                          </div>
+                        </div>
+
+                        {/* Right side: Apply button */}
+                        <Show when={props.onApplyGitSuggestion}>
+                          <div class="flex gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => props.onApplyGitSuggestion?.()}
+                              class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded transition whitespace-nowrap"
+                            >
+                              ✓ Apply
+                            </button>
+                          </div>
+                        </Show>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Show>
+
+              {/* User Suggestions */}
               <For each={props.suggestions}>
                 {(entry, index) => (
                   <div class={`relative pl-6 pb-3 ${index() < props.suggestions!.length - 1 ? 'border-l-2 border-gray-200' : ''}`}>

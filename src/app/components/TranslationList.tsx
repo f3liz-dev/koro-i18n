@@ -163,7 +163,7 @@ export default function TranslationList(props: TranslationListProps) {
                           Web
                         </span>
                       </Show>
-                      <Show when={translation.gitBlame && !translation.webTranslation}>
+                      <Show when={translation.gitTranslation && !translation.webTranslation}>
                         <span class="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
                           Git
                         </span>

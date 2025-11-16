@@ -18,6 +18,7 @@ interface TranslationEditorPanelProps {
   onToggleSuggestions: () => void;
   onApproveSuggestion?: (id: string) => void;
   onRejectSuggestion?: (id: string) => void;
+  onApplyGitSuggestion?: () => void;
   onPrevious: () => void;
   onNext: () => void;
 }
@@ -125,7 +126,7 @@ export default function TranslationEditorPanel(props: TranslationEditorPanelProp
                 <label class="text-sm font-medium text-gray-700">
                   Source ({props.sourceLanguage.toUpperCase()})
                 </label>
-                <Show when={translation()?.gitBlame}>
+                <Show when={translation()?.gitTranslation}>
                   <span class="text-xs px-2 py-1 rounded text-gray-600 bg-gray-100">
                     imported from GitHub
                   </span>
@@ -205,8 +206,19 @@ export default function TranslationEditorPanel(props: TranslationEditorPanelProp
           <TranslationSuggestionsPanel
             show={props.showSuggestions}
             suggestions={props.suggestions}
+            gitSuggestion={
+              translation()?.gitTranslation
+                ? {
+                    type: 'git',
+                    value: translation()!.gitTranslation!,
+                    gitBlame: translation()?.gitBlame,
+                  }
+                : undefined
+            }
+            isLoading={false}
             onApprove={props.onApproveSuggestion}
             onReject={props.onRejectSuggestion}
+            onApplyGitSuggestion={props.onApplyGitSuggestion}
           />
         </div>
       </Show>
