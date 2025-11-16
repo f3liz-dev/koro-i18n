@@ -2,6 +2,26 @@
 
 This is an auxiliary Cloudflare Worker built with Rust that handles compute-intensive operations for the koro-i18n platform.
 
+## Quick Start
+
+```bash
+# From project root
+npm run build:rust    # Build Rust worker
+npm run test:rust     # Test Rust worker
+npm run deploy:rust   # Deploy to Cloudflare
+```
+
+Or from the rust-worker directory:
+
+```bash
+cd rust-worker
+./build.sh           # Build
+cargo test           # Test
+wrangler deploy      # Deploy
+```
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+
 ## Why Rust?
 
 The main koro-i18n worker (TypeScript) has a 10ms CPU limit on the free tier. By offloading CPU-intensive operations to a separate Rust worker, we can:

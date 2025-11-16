@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import { PrismaClient } from '../generated/prisma/';
 import { getFileByComponents } from './r2-storage';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 /**
  * Hash a string value for comparison

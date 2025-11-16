@@ -6,17 +6,22 @@
   "type": "module",
   "scripts": {
     "build": "pnpm run prisma:generate && vite build",
+    "build:rust": "cd rust-worker && ./build.sh",
     "dev": "vite",
     "dev:workers": "wrangler dev",
+    "dev:rust": "cd rust-worker && wrangler dev",
     "dev:all": "node scripts/dev-all.js",
     "test": "vitest --run",
+    "test:rust": "cd rust-worker && cargo test",
     "type-check": "tsc --noEmit",
     "clean": "rimraf .wrangler dist",
     "deploy": "pnpm run build && wrangler deploy",
+    "deploy:rust": "cd rust-worker && wrangler deploy",
     "prisma:generate": "prisma generate",
     "prisma:migrate:local": "wrangler d1 migrations apply koro-i18n-db --local",
     "prisma:migrate:remote": "wrangler d1 migrations apply koro-i18n-db --remote",
-    "logs": "wrangler tail"
+    "logs": "wrangler tail",
+    "logs:rust": "cd rust-worker && wrangler tail"
   },
   "dependencies": {
     "@msgpack/msgpack": "^3.1.2",
