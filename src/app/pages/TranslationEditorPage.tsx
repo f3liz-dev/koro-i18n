@@ -1,5 +1,5 @@
 import { createSignal, onMount, createEffect, Show } from 'solid-js';
-import { useParams, useNavigate } from '@solidjs/router';
+import { useParams, useNavigate, useSearchParams } from '@solidjs/router';
 import { user } from '../auth';
 import TranslationEditorHeader from '../components/TranslationEditorHeader';
 import TranslationEditorPanel from '../components/TranslationEditorPanel';
@@ -25,9 +25,12 @@ interface Project {
   sourceLanguage: string;
 }
 
+export type SortMethod = 'priority' | 'alphabetical' | 'completion';
+
 export default function TranslationEditorPage() {
   const params = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const projectName = () => params.projectId || '';
   const language = () => params.language || 'en';
@@ -46,6 +49,7 @@ export default function TranslationEditorPage() {
   const [translationValue, setTranslationValue] = createSignal('');
   const [searchQuery, setSearchQuery] = createSignal('');
   const [filterStatus, setFilterStatus] = createSignal<'all' | 'valid' | 'invalid'>('all');
+  const [sortMethod, setSortMethod] = createSignal<SortMethod>((searchParams.sort as SortMethod) || 'priority');
   const [showSuggestions, setShowSuggestions] = createSignal(true);
   const [suggestions, setSuggestions] = createSignal<WebTranslation[]>([]);
   const [showMobileMenu, setShowMobileMenu] = createSignal(false);
@@ -100,8 +104,11 @@ export default function TranslationEditorPage() {
       const merged = mergeTranslationsWithSource(sourceR2Data, targetR2Data, webTrans);
       setTranslations(merged);
 
-      // Auto-select first key
-      if (merged.length > 0 && !selectedKey()) {
+      // Restore selected key from URL or auto-select first key
+      const keyFromUrl = Array.isArray(searchParams.key) ? searchParams.key[0] : searchParams.key;
+      if (keyFromUrl && merged.find(t => t.key === keyFromUrl)) {
+        handleSelectKey(keyFromUrl);
+      } else if (merged.length > 0 && !selectedKey()) {
         handleSelectKey(merged[0].key);
       }
     } catch (error) {
@@ -170,25 +177,44 @@ export default function TranslationEditorPage() {
       return true;
     });
     
-    // Frontend sorting: Priority-based sort for better UX
-    // Rationale: Users want to see untranslated/outdated keys first
+    // Frontend sorting: Multiple sort methods for better UX
+    // Rationale: Users want different ways to organize their work
     // Performance: O(n log n), acceptable for <100 items
     // For >100 items, use Rust worker's /sort endpoint
+    const method = sortMethod();
     return filtered.sort((a, b) => {
-      const aEmpty = !a.currentValue || a.currentValue === '';
-      const bEmpty = !b.currentValue || b.currentValue === '';
-      const aOutdated = !a.isValid;
-      const bOutdated = !b.isValid;
+      if (method === 'priority') {
+        // Priority sort: empty first, then outdated, then alphabetical
+        const aEmpty = !a.currentValue || a.currentValue === '';
+        const bEmpty = !b.currentValue || b.currentValue === '';
+        const aOutdated = !a.isValid;
+        const bOutdated = !b.isValid;
+        
+        // Empty keys first
+        if (aEmpty && !bEmpty) return -1;
+        if (!aEmpty && bEmpty) return 1;
+        
+        // Then outdated keys
+        if (aOutdated && !bOutdated) return -1;
+        if (!aOutdated && bOutdated) return 1;
+        
+        // Otherwise maintain alphabetical order by key
+        return a.key.localeCompare(b.key);
+      } else if (method === 'alphabetical') {
+        // Simple alphabetical sort by key
+        return a.key.localeCompare(b.key);
+      } else if (method === 'completion') {
+        // Completion sort: incomplete first, then alphabetical
+        const aComplete = a.currentValue !== '' && a.isValid;
+        const bComplete = b.currentValue !== '' && b.isValid;
+        
+        if (!aComplete && bComplete) return -1;
+        if (aComplete && !bComplete) return 1;
+        
+        return a.key.localeCompare(b.key);
+      }
       
-      // Empty keys first
-      if (aEmpty && !bEmpty) return -1;
-      if (!aEmpty && bEmpty) return 1;
-      
-      // Then outdated keys
-      if (aOutdated && !bOutdated) return -1;
-      if (!aOutdated && bOutdated) return 1;
-      
-      // Otherwise maintain original order (alphabetical by key)
+      // Default to alphabetical
       return a.key.localeCompare(b.key);
     });
   };
@@ -196,10 +222,20 @@ export default function TranslationEditorPage() {
   const handleSelectKey = (key: string) => {
     setSelectedKey(key);
     
+    // Update URL with selected key
+    setSearchParams({ key, sort: sortMethod() });
+    
     const translation = translations().find(t => t.key === key);
     if (translation) {
       setTranslationValue(translation.currentValue);
     }
+  };
+
+  const handleSortMethodChange = (method: SortMethod) => {
+    setSortMethod(method);
+    
+    // Update URL with new sort method
+    setSearchParams({ key: selectedKey() || undefined, sort: method });
   };
 
   const handleSave = async () => {
@@ -316,8 +352,14 @@ export default function TranslationEditorPage() {
         selectedKey={selectedKey()}
         language={language()}
         isLoading={isLoading()}
+        searchQuery={searchQuery()}
+        filterStatus={filterStatus()}
+        sortMethod={sortMethod()}
         onClose={() => setShowMobileMenu(false)}
         onSelectKey={handleSelectKey}
+        onSearchChange={setSearchQuery}
+        onFilterChange={setFilterStatus}
+        onSortMethodChange={handleSortMethodChange}
       />
 
       <div class="max-w-7xl mx-auto px-4 h-[calc(100vh-80px)] lg:h-auto lg:py-6">
@@ -350,9 +392,11 @@ export default function TranslationEditorPage() {
               isLoading={isLoading()}
               searchQuery={searchQuery()}
               filterStatus={filterStatus()}
+              sortMethod={sortMethod()}
               onSelectKey={handleSelectKey}
               onSearchChange={setSearchQuery}
               onFilterChange={setFilterStatus}
+              onSortMethodChange={handleSortMethodChange}
             />
           </div>
         </div>
