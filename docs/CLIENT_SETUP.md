@@ -2,6 +2,8 @@
 
 Quick guide to integrate koro-i18n with your project.
 
+**For detailed flow documentation**, see [FLOWS.md](FLOWS.md#upload-flow)
+
 ## 1. Configure Project
 
 Create `.koro-i18n.repo.config.toml`:

@@ -32,6 +32,8 @@ Display:
   UI → R2 API (GitHub) + D1 API (Web) → Merge in UI
 ```
 
+**For detailed flow documentation**, see [FLOWS.md](FLOWS.md)
+
 ## APIs (Separated)
 
 ### D1 API - Metadata & Web Translations
