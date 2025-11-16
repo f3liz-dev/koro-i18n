@@ -1,6 +1,7 @@
 import { Show, createSignal } from 'solid-js';
 import TranslationList from './TranslationList';
 import type { MergedTranslation } from '../utils/translationApi';
+import type { SortMethod } from '../pages/TranslationEditorPage';
 
 interface MobileMenuOverlayProps {
   show: boolean;
@@ -8,8 +9,14 @@ interface MobileMenuOverlayProps {
   selectedKey: string | null;
   language: string;
   isLoading: boolean;
+  searchQuery: string;
+  filterStatus: 'all' | 'valid' | 'invalid';
+  sortMethod: SortMethod;
   onClose: () => void;
   onSelectKey: (key: string) => void;
+  onSearchChange: (query: string) => void;
+  onFilterChange: (status: 'all' | 'valid' | 'invalid') => void;
+  onSortMethodChange: (method: SortMethod) => void;
 }
 
 export default function MobileMenuOverlay(props: MobileMenuOverlayProps) {
@@ -48,10 +55,12 @@ export default function MobileMenuOverlay(props: MobileMenuOverlayProps) {
             translationStrings={props.translationStrings}
             selectedKey={props.selectedKey}
             language={props.language}
-            searchQuery=""
-            filterStatus="all"
-            onSearchChange={() => {}}
-            onFilterChange={() => {}}
+            searchQuery={props.searchQuery}
+            filterStatus={props.filterStatus}
+            sortMethod={props.sortMethod}
+            onSearchChange={props.onSearchChange}
+            onFilterChange={props.onFilterChange}
+            onSortMethodChange={props.onSortMethodChange}
             isLoading={props.isLoading}
             onSelectKey={handleSelectKey}
           />

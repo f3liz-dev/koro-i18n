@@ -1,5 +1,6 @@
 import { Show, For } from "solid-js";
 import type { MergedTranslation } from "../utils/translationApi";
+import type { SortMethod } from "../pages/TranslationEditorPage";
 
 interface TranslationListProps {
   translationStrings: MergedTranslation[];
@@ -8,9 +9,11 @@ interface TranslationListProps {
   isLoading: boolean;
   searchQuery: string;
   filterStatus: 'all' | 'valid' | 'invalid';
+  sortMethod: SortMethod;
   onSelectKey: (key: string) => void;
   onSearchChange: (query: string) => void;
   onFilterChange: (status: 'all' | 'valid' | 'invalid') => void;
+  onSortMethodChange: (method: SortMethod) => void;
 }
 
 export default function TranslationList(props: TranslationListProps) {
@@ -30,7 +33,7 @@ export default function TranslationList(props: TranslationListProps) {
         />
 
         {/* Filter */}
-        <div class="flex gap-2">
+        <div class="flex gap-2 mb-2">
           <button
             onClick={() => props.onFilterChange('all')}
             class={`px-3 py-1 text-xs rounded ${
@@ -60,6 +63,44 @@ export default function TranslationList(props: TranslationListProps) {
             }`}
           >
             Outdated
+          </button>
+        </div>
+
+        {/* Sort Method */}
+        <div class="flex gap-2 mb-2">
+          <span class="text-xs text-gray-600 self-center mr-1">Sort:</span>
+          <button
+            onClick={() => props.onSortMethodChange('priority')}
+            class={`px-3 py-1 text-xs rounded ${
+              props.sortMethod === 'priority'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            title="Sort by priority: empty first, then outdated"
+          >
+            Priority
+          </button>
+          <button
+            onClick={() => props.onSortMethodChange('alphabetical')}
+            class={`px-3 py-1 text-xs rounded ${
+              props.sortMethod === 'alphabetical'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            title="Sort alphabetically by key"
+          >
+            A-Z
+          </button>
+          <button
+            onClick={() => props.onSortMethodChange('completion')}
+            class={`px-3 py-1 text-xs rounded ${
+              props.sortMethod === 'completion'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            title="Sort by completion status"
+          >
+            Completion
           </button>
         </div>
 
