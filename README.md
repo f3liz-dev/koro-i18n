@@ -51,10 +51,17 @@ Display → R2 API + D1 API → Merge in UI
 - **[Client Setup](docs/CLIENT_SETUP.md)** - Repository integration
 - **[Deployment](docs/DEPLOYMENT.md)** - Production deployment
 
-**Technical Documentation:**
+**Backend Documentation:**
+- **[Backend API Reference](docs/BACKEND_API.md)** - Complete API documentation with all endpoints
+- **[Backend Internals](docs/BACKEND_INTERNALS.md)** - Implementation details and architecture
+- **[Backend Deployment](docs/BACKEND_DEPLOYMENT.md)** - Step-by-step deployment guide
 - **[Architecture](docs/ARCHITECTURE.md)** - System design & data flow
-- **[Technical Flows](docs/FLOWS.md)** - Complete flow documentation (frontend, backend, actions)
+- **[Technical Flows](docs/FLOWS.md)** - Complete flow documentation
+
+**Additional Resources:**
 - **[Client Library](docs/CLIENT_LIBRARY.md)** - Client implementation details
+- **[Prisma Guide](docs/PRISMA.md)** - Database schema and ORM usage
+- **[Testing Guide](docs/TESTING.md)** - How to run and write tests
 
 ## Tech Stack
 
