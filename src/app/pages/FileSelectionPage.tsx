@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
-import { createSignal, onMount, For, Show } from 'solid-js';
+import { createSignal, onMount, For, Show, createResource, createMemo } from 'solid-js';
 import { user, auth } from '../auth';
-import { projects, fetchProject, fetchFiles, fetchFilesSummary, fetchTranslations, fetchSuggestions, fetchMembers, refreshProjects } from '../utils/store';
+import { projects, fetchFilesSummary } from '../utils/store';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
 
@@ -32,21 +32,23 @@ export default function FileSelectionPage() {
   
   const [isOwner, setIsOwner] = createSignal(false);
 
-  // Access stores directly - returns cached data immediately
-  const projectsStore = projectsCache.get();
-  const project = () => projectsStore.projects.find((p: any) => p.id === params.id) || null;
-  
+  const project = () => (projects() || []).find((p: any) => p.id === params.id) || null;
   const language = () => params.language || '';
   
-  // Use 'source-language' to automatically detect the actual source language from uploaded files
-  const sourceFilesStore = () => params.id ? filesSummaryCache.get(params.id, 'source-language') : undefined;
-  const targetFilesStore = () => params.id && language() ? filesSummaryCache.get(params.id, language()) : undefined;
+  const [sourceFiles] = createResource(
+    () => params.id,
+    async (projectId) => fetchFilesSummary(projectId, 'source-language')
+  );
   
-  const sourceFilesData = () => sourceFilesStore()?.data;
-  const targetFilesData = () => targetFilesStore()?.data;
+  const [targetFiles] = createResource(
+    () => ({ projectId: params.id, language: language() }),
+    async ({ projectId, language }) => projectId && language ? fetchFilesSummary(projectId, language) : null
+  );
   
-  // Show loading only if we don't have cached data for both source and target
-  const isLoadingFiles = () => !sourceFilesStore()?.lastFetch || !targetFilesStore()?.lastFetch;
+  const sourceFilesData = () => sourceFiles();
+  const targetFilesData = () => targetFiles();
+  
+  const isLoadingFiles = () => sourceFiles.loading || targetFiles.loading;
   
   // Helper to match files with language-specific names
   // e.g., "en-US.json" matches with "ar-SA.json" (both are {lang}.json pattern)
@@ -72,14 +74,14 @@ export default function FileSelectionPage() {
   };
 
   // Compute file stats from the data
-  const fileStats = () => {
+  const fileStats = createMemo(() => {
     const source = sourceFilesData();
     const target = targetFilesData();
     
     if (!source || !target) return [];
     
-    const sourceFilesList = source.files;
-    const targetFilesList = target.files;
+    const sourceFilesList = (source as any).files || [];
+    const targetFilesList = (target as any).files || [];
     const stats: FileStats[] = [];
     
     // Get actual source language from source files
@@ -118,32 +120,13 @@ export default function FileSelectionPage() {
     // This is lightweight enough for frontend, no need for backend sorting
     stats.sort((a, b) => a.filename.localeCompare(b.filename));
     return stats;
-  };
+  });
   
   const isLoading = () => isLoadingFiles();
-
-
-
 
   onMount(() => {
     auth.refresh();
     
-    // Fetch data in background - will update stores when data arrives
-    projectsCache.fetch(false);
-    
-    const projectId = params.id;
-    const targetLanguage = language();
-    
-    if (projectId && targetLanguage) {
-      // Use 'source-language' to automatically detect the actual source language
-      if (projectId) filesSummaryCache.fetch(projectId, 'source-language');
-      if (projectId && targetLanguage) filesSummaryCache.fetch(projectId, targetLanguage);
-      
-      // Prefetch summary endpoints for this page
-      void prefetchData(`/api/projects/${projectId}/files/summary?lang=${targetLanguage}`);
-    }
-    
-    // Set isOwner based on project data
     const proj = project();
     if (proj) {
       setIsOwner(proj.userId === user()?.id);
@@ -170,13 +153,11 @@ export default function FileSelectionPage() {
     {
       label: 'Settings',
       onClick: () => navigate(`/projects/${params.id}/settings`),
-      ref: settingsButtonRef,
       show: isOwner(),
     },
     {
       label: 'Suggestions',
       onClick: () => navigate(`/projects/${params.id}/suggestions`),
-      ref: suggestionsButtonRef,
       variant: 'primary',
     },
     {
@@ -196,7 +177,6 @@ export default function FileSelectionPage() {
         `}
         backButton={{
           onClick: () => navigate(`/projects/${params.id}`),
-          ref: backButtonRef,
         }}
         menuItems={menuItems}
       />
@@ -238,7 +218,6 @@ export default function FileSelectionPage() {
               {(fileStat) => {
                 return (
                   <button
-                    
                     onClick={() => navigate(`/projects/${params.id}/translate/${language()}/${encodeURIComponent(fileStat.targetFilename)}`)}
                     class="w-full bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-left group"
                   >

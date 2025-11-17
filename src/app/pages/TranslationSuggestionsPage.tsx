@@ -1,8 +1,8 @@
-import { createSignal, For, Show, onMount, createEffect } from 'solid-js';
+import { createSignal, For, Show, onMount, createEffect, createResource } from 'solid-js';
 import { useParams, useNavigate } from '@solidjs/router';
 import { user } from '../auth';
 import { SkeletonListItem } from '../components';
-import { projects, fetchProject, fetchFiles, fetchFilesSummary, fetchTranslations, fetchSuggestions, fetchMembers, refreshProjects } from '../utils/store';
+import { projects, fetchSuggestions } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface TranslationSuggestion {
@@ -46,27 +46,25 @@ export default function TranslationSuggestionsPage() {
   const [viewMode, setViewMode] = createSignal<'grouped' | 'flat'>('grouped');
   const [error, setError] = createSignal<boolean>(false);
 
-  // Get suggestions from store
-  const suggestionsStore = () => {
-    const lang = selectedLanguage() === 'all' ? '' : selectedLanguage();
-    return suggestionsCache.get(projectId(), lang);
-  };
-  const suggestions = () => suggestionsStore()?.suggestions;
-  const isLoading = () => !suggestionsStore()?.lastFetch;
+  const [suggestionsKey, setSuggestionsKey] = createSignal(0);
+  const [suggestions] = createResource(
+    () => ({ projectId: projectId(), language: selectedLanguage() === 'all' ? '' : selectedLanguage(), key: suggestionsKey() }),
+    async ({ projectId, language }) => {
+      if (!projectId) return { suggestions: [] };
+      return fetchSuggestions(projectId, language);
+    }
+  );
+
+  const suggestionsList = () => (suggestions() as any)?.suggestions || [];
+  const isLoading = () => suggestions.loading;
 
 
   const refetch = () => {
-    const lang = selectedLanguage() === 'all' ? '' : selectedLanguage();
-    suggestionsCache.fetch(projectId(), lang);
+    setSuggestionsKey(k => k + 1);
   };
 
-  // Load suggestions on mount and when language filter changes
-  onMount(() => {
-    refetch();
-  });
-
+  // Reload when selected language changes
   createEffect(() => {
-    // Reload when selected language changes
     selectedLanguage();
     refetch();
   });
@@ -87,7 +85,7 @@ export default function TranslationSuggestionsPage() {
 
   // Group suggestions by key and language
   const groupedSuggestions = (): GroupedSuggestion[] => {
-    const data = suggestions() || [];
+    const data = suggestionsList();
     const query = searchQuery().toLowerCase();
     const status = filterStatus();
 
@@ -131,7 +129,7 @@ export default function TranslationSuggestionsPage() {
   };
 
   const flatSuggestions = () => {
-    const data = (suggestions() as any)?.suggestions || [];
+    const data = suggestionsList();
     const query = searchQuery().toLowerCase();
     const status = filterStatus();
 
@@ -186,7 +184,7 @@ export default function TranslationSuggestionsPage() {
 
   // Get unique languages from suggestions
   const availableLanguages = () => {
-    const data = (suggestions() as any)?.suggestions || [];
+    const data = suggestionsList();
     const langs = new Set(data.map((s: TranslationSuggestion) => s.language));
     return Array.from(langs).sort();
   };

@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
-import { createSignal, onMount, For, Show } from 'solid-js';
+import { createSignal, onMount, For, Show, createResource } from 'solid-js';
 import { user } from '../auth';
-import { projects, fetchProject, fetchFiles, fetchFilesSummary, fetchTranslations, fetchSuggestions, fetchMembers, refreshProjects } from '../utils/store';
+import { projects, fetchMembers, refreshProjects } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface Member {
@@ -26,13 +26,19 @@ export default function ProjectSettingsPage() {
   const navigate = useNavigate();
   const params = useParams();
   
-  // Access stores directly - returns cached data immediately
-  const projectsStore = projectsCache.get();
-  const project = () => projectsStore.projects.find((p: any) => p.name === params.id) || null;
-  
+  const project = () => (projects() || []).find((p: any) => p.name === params.id) || null;
   const projectId = () => project()?.id || params.id || '';
-  const membersStore = () => membersCache.get(projectId());
-  const members = () => membersStore()?.members || [];
+  
+  const [membersKey, setMembersKey] = createSignal(0);
+  const [members] = createResource(
+    () => ({ projectId: projectId(), key: membersKey() }),
+    async ({ projectId }) => {
+      if (!projectId) return { members: [] };
+      return fetchMembers(projectId);
+    }
+  );
+  
+  const membersList = () => (members() as any)?.members || [];
   
   const [activeTab, setActiveTab] = createSignal<'approved' | 'pending' | 'rejected'>('approved');
   const [successMessage, setSuccessMessage] = createSignal('');
@@ -57,8 +63,7 @@ export default function ProjectSettingsPage() {
       });
 
       if (res.ok) {
-        // Force refetch members to update cache immediately
-        await membersCache.fetch(pid, true);
+        setMembersKey(k => k + 1);
         setSuccessMessage(`Member ${status === 'approved' ? 'approved' : 'rejected'} successfully`);
         setTimeout(() => setSuccessMessage(''), 3000);
       } else {
@@ -91,8 +96,7 @@ export default function ProjectSettingsPage() {
       });
 
       if (res.ok) {
-        // Force refetch members to update cache immediately
-        await membersCache.fetch(pid, true);
+        setMembersKey(k => k + 1);
         setSuccessMessage('Member removed successfully');
         setTimeout(() => setSuccessMessage(''), 3000);
       } else {
@@ -125,8 +129,7 @@ export default function ProjectSettingsPage() {
       });
 
       if (res.ok) {
-        // Force refetch projects to update cache immediately
-        await projectsCache.fetch(false, true);
+        refreshProjects();
         setSuccessMessage('Access control updated successfully');
         setTimeout(() => setSuccessMessage(''), 3000);
       } else {
@@ -165,12 +168,10 @@ export default function ProjectSettingsPage() {
   };
 
   onMount(() => {
-    // Fetch data in background - will update stores when data arrives
-    projectsCache.fetch(false);
-    membersCache.fetch(projectId());
+    // Resources will auto-fetch
   });
 
-  const filteredMembers = () => members().filter(m => m.status === activeTab());
+  const filteredMembers = () => (membersList() as Member[]).filter(m => m.status === activeTab());
 
   return (
     <div class="min-h-screen bg-gray-50">
@@ -263,7 +264,7 @@ export default function ProjectSettingsPage() {
                     : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
                 }`}
               >
-                Approved ({members().filter(m => m.status === 'approved').length})
+                Approved ({(membersList() as Member[]).filter(m => m.status === 'approved').length})
               </button>
               <button
                 onClick={() => setActiveTab('pending')}
@@ -273,7 +274,7 @@ export default function ProjectSettingsPage() {
                     : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
                 }`}
               >
-                Pending ({members().filter(m => m.status === 'pending').length})
+                Pending ({(membersList() as Member[]).filter(m => m.status === 'pending').length})
               </button>
               <button
                 onClick={() => setActiveTab('rejected')}
@@ -283,7 +284,7 @@ export default function ProjectSettingsPage() {
                     : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
                 }`}
               >
-                Rejected ({members().filter(m => m.status === 'rejected').length})
+                Rejected ({(membersList() as Member[]).filter(m => m.status === 'rejected').length})
               </button>
             </div>
 

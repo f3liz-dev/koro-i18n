@@ -263,10 +263,8 @@ export default function TranslationEditorPage() {
 
       // Reload translations
       await loadTranslations();
-  // force a fresh revalidation to avoid browser cached suggestions
-  await loadSuggestions(true);
-  // update global store used by suggestions page to reflect the new suggestion immediately
-  await suggestionsCache.fetch(proj.id, language(), key, true);
+      // force a fresh revalidation to avoid browser cached suggestions
+      await loadSuggestions(true);
 
       alert('Translation saved successfully!');
     } catch (error) {
@@ -281,8 +279,7 @@ export default function TranslationEditorPage() {
     try {
       await approveSuggestion(id);
       await loadTranslations();
-  await loadSuggestions(true);
-  await suggestionsCache.fetch(project()?.id || '', language(), selectedKey() || undefined, true);
+      await loadSuggestions(true);
       alert('Suggestion approved!');
     } catch (error) {
       console.error('Failed to approve:', error);
@@ -295,8 +292,7 @@ export default function TranslationEditorPage() {
 
     try {
       await rejectSuggestion(id);
-  await loadSuggestions(true);
-  await suggestionsCache.fetch(project()?.id || '', language(), selectedKey() || undefined, true);
+      await loadSuggestions(true);
       alert('Suggestion rejected!');
     } catch (error) {
       console.error('Failed to reject:', error);
