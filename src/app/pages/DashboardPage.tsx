@@ -147,11 +147,11 @@ export default function DashboardPage() {
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <For each={projects()}>
               {(project) => {
-                const projectCardRef = useForesight({
-                  prefetchUrls: [`/api/projects/${project.name}/files/summary`],
-                  debugName: `project-card-${project.name}`,
-                  hitSlop: 10,
-                });
+const projectCardRef = useForesight({
+  prefetchUrls: [`/api/projects/${project.id}/files/summary`],
+  debugName: `project-card-${project.id}`,
+  hitSlop: 10,
+});
                 
                 const isOwner = () => project.userId === user()?.id;
 
@@ -186,12 +186,12 @@ export default function DashboardPage() {
                       </Show>
                     </button>
                     <Show when={isOwner()}>
-                      <button
-                        onClick={() => navigate(`/projects/${project.name}/settings`)}
-                        class="w-full px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 active:bg-gray-100 transition"
-                      >
-                        Manage Project
-                      </button>
+<button
+  onClick={() => navigate(`/projects/${project.id}/settings`)}
+  class="w-full px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 active:bg-gray-100 transition"
+>
+  Manage Project
+</button>
                     </Show>
                   </div>
                 );
