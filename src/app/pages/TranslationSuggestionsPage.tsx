@@ -2,7 +2,7 @@ import { createSignal, For, Show, onMount, createEffect, createResource } from '
 import { useParams, useNavigate } from '@solidjs/router';
 import { user } from '../auth';
 import { SkeletonListItem } from '../components';
-import { projects, fetchSuggestions } from '../utils/store';
+import { projects, fetchSuggestionsQuery } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface TranslationSuggestion {
@@ -30,7 +30,7 @@ async function deleteTranslation(id: string) {
     method: 'DELETE',
     credentials: 'include',
   });
-  
+
   if (!response.ok) throw new Error('Failed to delete translation');
   return response.json();
 }
@@ -38,7 +38,7 @@ async function deleteTranslation(id: string) {
 export default function TranslationSuggestionsPage() {
   const params = useParams();
   const navigate = useNavigate();
-  
+
   const projectId = () => params.projectId || '';
   const [selectedLanguage, setSelectedLanguage] = createSignal<string>('all');
   const [filterStatus, setFilterStatus] = createSignal<'all' | 'pending' | 'approved'>('pending');
@@ -51,7 +51,7 @@ export default function TranslationSuggestionsPage() {
     () => ({ projectId: projectId(), language: selectedLanguage() === 'all' ? '' : selectedLanguage(), key: suggestionsKey() }),
     async ({ projectId, language }) => {
       if (!projectId) return { suggestions: [] };
-      return fetchSuggestions(projectId, language);
+      return fetchSuggestionsQuery(projectId, language);
     }
   );
 
@@ -91,22 +91,22 @@ export default function TranslationSuggestionsPage() {
 
     // Filter first
     const filtered = data.filter((s: TranslationSuggestion) => {
-      const matchesSearch = !query || 
+      const matchesSearch = !query ||
         s.key.toLowerCase().includes(query) ||
         s.value.toLowerCase().includes(query) ||
         s.username.toLowerCase().includes(query);
-      
+
       const matchesStatus = status === 'all' || s.status === status;
-      
+
       return matchesSearch && matchesStatus;
     });
 
     // Group by key + language
     const groups = new Map<string, GroupedSuggestion>();
-    
+
     filtered.forEach((s: TranslationSuggestion) => {
       const groupKey = `${s.language}:${s.key}`;
-      
+
       if (!groups.has(groupKey)) {
         groups.set(groupKey, {
           key: s.key,
@@ -114,13 +114,13 @@ export default function TranslationSuggestionsPage() {
           suggestions: []
         });
       }
-      
+
       groups.get(groupKey)!.suggestions.push(s);
     });
 
     // Sort suggestions within each group by date (newest first)
     groups.forEach(group => {
-      group.suggestions.sort((a, b) => 
+      group.suggestions.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     });
@@ -134,15 +134,15 @@ export default function TranslationSuggestionsPage() {
     const status = filterStatus();
 
     return data.filter((s: TranslationSuggestion) => {
-      const matchesSearch = !query || 
+      const matchesSearch = !query ||
         s.key.toLowerCase().includes(query) ||
         s.value.toLowerCase().includes(query) ||
         s.username.toLowerCase().includes(query);
-      
+
       const matchesStatus = status === 'all' || s.status === status;
-      
+
       return matchesSearch && matchesStatus;
-    }).sort((a: TranslationSuggestion, b: TranslationSuggestion) => 
+    }).sort((a: TranslationSuggestion, b: TranslationSuggestion) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
   };
@@ -190,7 +190,7 @@ export default function TranslationSuggestionsPage() {
   };
 
   const totalSuggestions = () => {
-    return viewMode() === 'grouped' 
+    return viewMode() === 'grouped'
       ? groupedSuggestions().reduce((sum, g) => sum + g.suggestions.length, 0)
       : flatSuggestions().length;
   };
@@ -208,7 +208,7 @@ export default function TranslationSuggestionsPage() {
               </p>
             </div>
             <button
-              
+
               onClick={() => navigate('/dashboard')}
               class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded"
             >
@@ -225,7 +225,7 @@ export default function TranslationSuggestionsPage() {
               onInput={(e) => setSearchQuery(e.currentTarget.value)}
               class="flex-1 min-w-[200px] px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            
+
             <select
               value={selectedLanguage()}
               onChange={(e) => setSelectedLanguage(e.currentTarget.value)}

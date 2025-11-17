@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show, createResource, createMemo } from 'solid-js';
 import { user, auth } from '../auth';
-import { projects, fetchFilesSummary } from '../utils/store';
+import { projects, fetchFilesSummaryQuery } from '../utils/store';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
 
@@ -29,39 +29,39 @@ interface FilesResponse {
 export default function FileSelectionPage() {
   const navigate = useNavigate();
   const params = useParams();
-  
+
   const [isOwner, setIsOwner] = createSignal(false);
 
   const project = () => (projects() || []).find((p: any) => p.id === params.id) || null;
   const language = () => params.language || '';
-  
+
   const [sourceFiles] = createResource(
     () => params.id,
-    async (projectId) => fetchFilesSummary(projectId, 'source-language')
+    async (projectId) => (projectId ? fetchFilesSummaryQuery(projectId, 'source-language') : null)
   );
-  
+
   const [targetFiles] = createResource(
     () => ({ projectId: params.id, language: language() }),
-    async ({ projectId, language }) => projectId && language ? fetchFilesSummary(projectId, language) : null
+    async ({ projectId, language }) => (projectId && language ? fetchFilesSummaryQuery(projectId, language) : null)
   );
-  
+
   const sourceFilesData = () => sourceFiles();
   const targetFilesData = () => targetFiles();
-  
+
   const isLoadingFiles = () => sourceFiles.loading || targetFiles.loading;
-  
+
   // Helper to match files with language-specific names
   // e.g., "en-US.json" matches with "ar-SA.json" (both are {lang}.json pattern)
   const matchFiles = (sourceFilename: string, targetFilename: string, sourceLang: string, targetLang: string): boolean => {
     // Direct match (e.g., browser-chrome.json === browser-chrome.json)
     if (sourceFilename === targetFilename) return true;
-    
+
     // Check if source filename contains source language code
     // and target filename contains target language code in the same position
     // e.g., "en-US.json" -> "ar-SA.json"
     const sourcePattern = sourceFilename.replace(sourceLang, '{lang}');
     const targetPattern = targetFilename.replace(targetLang, '{lang}');
-    
+
     return sourcePattern === targetPattern;
   };
 
@@ -77,32 +77,32 @@ export default function FileSelectionPage() {
   const fileStats = createMemo(() => {
     const source = sourceFilesData();
     const target = targetFilesData();
-    
+
     if (!source || !target) return [];
-    
+
     const sourceFilesList = (source as any).files || [];
     const targetFilesList = (target as any).files || [];
     const stats: FileStats[] = [];
-    
+
     // Get actual source language from source files
     const sourceLang = sourceFilesList.length > 0 ? sourceFilesList[0].lang : 'en';
     const targetLang = language();
-    
+
     for (const sourceFile of sourceFilesList) {
       const totalKeys = sourceFile.totalKeys || 0;
-      
+
       // Try to find matching target file (handles both same-name and language-specific names)
-      const targetFile = targetFilesList.find(f => 
+      const targetFile = targetFilesList.find(f =>
         matchFiles(sourceFile.filename, f.filename, sourceLang, targetLang)
       );
       const translatedKeys = targetFile?.translatedKeys || 0;
-      
+
       // Use target filename if found, otherwise use source filename
       const targetFilename = targetFile?.filename || sourceFile.filename;
-      
+
       // Create display filename with {lang} placeholder
       const displayFilename = createDisplayFilename(sourceFile.filename, sourceLang);
-      
+
       const percentage = totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0;
       stats.push({
         filename: sourceFile.filename,
@@ -113,7 +113,7 @@ export default function FileSelectionPage() {
         percentage
       });
     }
-    
+
     // Frontend sorting: Simple alphabetical sort
     // Dataset: Typically <50 files per project
     // Performance: O(n log n), ~1ms for typical datasets
@@ -121,12 +121,12 @@ export default function FileSelectionPage() {
     stats.sort((a, b) => a.filename.localeCompare(b.filename));
     return stats;
   });
-  
+
   const isLoading = () => isLoadingFiles();
 
   onMount(() => {
     auth.refresh();
-    
+
     const proj = project();
     if (proj) {
       setIsOwner(proj.userId === user()?.id);
@@ -235,7 +235,7 @@ export default function FileSelectionPage() {
                       </div>
                     </div>
                     <div class="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                      <div 
+                      <div
                         class={`h-3 rounded-full bg-gradient-to-r ${getProgressColor(fileStat.percentage)} transition-all duration-500`}
                         style={`width: ${fileStat.percentage}%`}
                       />

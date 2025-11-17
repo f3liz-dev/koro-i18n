@@ -1,4 +1,5 @@
-import { createSignal, createResource, onMount } from 'solid-js';
+import { createSignal, onMount } from 'solid-js';
+import { query, createAsync } from '@solidjs/router';
 import { authFetch } from './utils/authFetch';
 
 interface User {
@@ -33,12 +34,23 @@ const fetchUser = async (bypassCache = false) => {
   }
 };
 
-// Initialize createResource
-const [initialUser, { refetch }] = createResource(
-  async () => {
-    return fetchUser(false);
+const fetchUserQuery = query(async (bypassCache = false) => {
+  try {
+    const fetchOptions: RequestInit = {
+      credentials: 'include',
+      ...(bypassCache ? { cache: 'reload' } : {})
+    };
+    const res = await authFetch(`/api/auth/me`, fetchOptions);
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    return data.user || null;
+  } catch {
+    return null;
   }
-);
+}, 'fetchUser');
+
+const [userRefreshKey, setUserRefreshKey] = createSignal(0);
+const initialUser = createAsync(() => fetchUserQuery(userRefreshKey()), { initialValue: undefined });
 
 // Export user signal for components
 export const user = () => userSignal() || initialUser();
@@ -64,7 +76,15 @@ export const auth = {
   },
 
   async refresh() {
-    await refetch();
+    // Trigger a refetch by bumping the reactive key used by createAsync
+    setUserRefreshKey(k => k + 1);
+    try {
+      // Force a fresh fetch and update the user signal so other code depending on userSignal() sees it
+      const u = await fetchUserQuery(true);
+      if (u) setUser(u as any);
+    } catch {
+      // ignore
+    }
   },
 
   clearError() {

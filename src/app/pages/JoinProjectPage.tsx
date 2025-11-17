@@ -1,7 +1,7 @@
 import { useNavigate } from '@solidjs/router';
 import { createSignal, onMount, For, Show, createResource } from 'solid-js';
 import { user } from '../auth';
-import { projects } from '../utils/store';
+import { projects, fetchAllProjectsQuery } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface Project {
@@ -18,15 +18,12 @@ export default function JoinProjectPage() {
   const [requestedProjects, setRequestedProjects] = createSignal<Set<string>>(new Set());
 
   const [allProjects] = createResource(async () => {
-    const res = await authFetch('/api/projects/all', { credentials: 'include' });
-    if (!res.ok) return [];
-    const data = await res.json() as { projects: Project[] };
-    return data.projects;
+    return fetchAllProjectsQuery();
   });
 
   const myProjectIds = () => (projects() || []).map(p => p.id);
 
-  const availableProjects = () => (allProjects() || []).filter(p => 
+  const availableProjects = () => (allProjects() || []).filter(p =>
     !myProjectIds().includes(p.id) && p.userId !== user()?.id
   );
 
@@ -99,10 +96,10 @@ export default function JoinProjectPage() {
                     disabled={requestedProjects().has(project.id) || !!project.membershipStatus}
                     class="px-6 py-3 text-sm font-semibold border-2 border-gray-200 rounded-xl hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-50 disabled:hover:border-gray-200 disabled:hover:text-gray-700 transition-all whitespace-nowrap"
                   >
-                    {requestedProjects().has(project.id) || project.membershipStatus === 'pending' ? '✓ Request Sent' : 
-                     project.membershipStatus === 'approved' ? '✓ Already Member' :
-                     project.membershipStatus === 'rejected' ? '✗ Request Rejected' :
-                     'Request to Join'}
+                    {requestedProjects().has(project.id) || (project as any).membershipStatus === 'pending' ? '✓ Request Sent' :
+                      (project as any).membershipStatus === 'approved' ? '✓ Already Member' :
+                        (project as any).membershipStatus === 'rejected' ? '✗ Request Rejected' :
+                          'Request to Join'}
                   </button>
                 </div>
               </div>

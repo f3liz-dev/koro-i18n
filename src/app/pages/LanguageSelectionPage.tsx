@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, createMemo, onMount, For, Show, createResource } from 'solid-js';
 import { user, auth } from '../auth';
-import { projects, fetchFilesSummary } from '../utils/store';
+import { projects, fetchFilesSummaryQuery } from '../utils/store';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
 
@@ -27,26 +27,26 @@ interface FilesResponse {
 export default function LanguageSelectionPage() {
   const navigate = useNavigate();
   const params = useParams();
-  
+
   const [isOwner, setIsOwner] = createSignal(false);
 
   const project = () => (projects() || []).find((p: any) => p.name === params.id) || null;
-  
+
   const [sourceFiles] = createResource(
     () => params.id,
-    async (projectId) => projectId ? fetchFilesSummary(projectId, 'source-language') : null
+    async (projectId) => (projectId ? fetchFilesSummaryQuery(projectId, 'source-language') : null)
   );
-  
+
   const [allFiles] = createResource(
     () => params.id,
-    async (projectId) => projectId ? fetchFilesSummary(projectId) : null
+    async (projectId) => (projectId ? fetchFilesSummaryQuery(projectId) : null)
   );
-  
+
   const sourceFilesData = () => sourceFiles();
   const allFilesData = () => allFiles();
-  
+
   const isLoadingFiles = () => sourceFiles.loading || allFiles.loading;
-  
+
   // Compute language stats from the resource
   // Helper to match files with language-specific names
   const matchFiles = (sourceFilename: string, targetFilename: string, sourceLang: string, targetLang: string): boolean => {
@@ -59,13 +59,13 @@ export default function LanguageSelectionPage() {
   const languageStats = createMemo(() => {
     const sourceData = sourceFilesData();
     const allData = allFilesData();
-    
+
     if (!sourceData || !allData) return [];
-    
+
     // Get the actual source language from the fetched source files
     const sourceFiles = (sourceData as any).files || [];
     const actualSourceLang = sourceFiles.length > 0 ? sourceFiles[0].lang : '';
-    
+
     // Get all languages except the source language
     const languages = new Set<string>();
     (allData as any).files?.forEach((file: any) => {
@@ -73,9 +73,9 @@ export default function LanguageSelectionPage() {
         languages.add(file.lang);
       }
     });
-    
+
     const stats: LanguageStats[] = [];
-    
+
     for (const lang of Array.from(languages)) {
       // Only include valid language codes (e.g. "en", "es", "ja", "en-US")
       if (!/^[a-z]{2,3}(-[A-Z]{2})?$/.test(lang)) continue;
@@ -104,16 +104,16 @@ export default function LanguageSelectionPage() {
         percentage
       });
     }
-    
+
     stats.sort((a, b) => a.language.localeCompare(b.language));
     return stats;
   });
-  
+
   const isLoading = () => isLoadingFiles();
 
   onMount(() => {
     auth.refresh();
-    
+
     const proj = project();
     if (proj) {
       setIsOwner(proj.userId === user()?.id);
@@ -217,7 +217,7 @@ export default function LanguageSelectionPage() {
                         {langStat.translatedKeys} / {langStat.totalKeys} keys translated
                       </div>
                       <div class="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                        <div 
+                        <div
                           class={`h-3 rounded-full bg-gradient-to-r ${getProgressColor(langStat.percentage)} transition-all duration-500`}
                           style={`width: ${langStat.percentage}%`}
                         />

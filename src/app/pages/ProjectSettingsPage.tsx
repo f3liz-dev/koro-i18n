@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show, createResource } from 'solid-js';
 import { user } from '../auth';
-import { projects, fetchMembers, refreshProjects } from '../utils/store';
+import { projects, fetchMembersQuery, refreshProjects } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface Member {
@@ -25,21 +25,21 @@ interface Project {
 export default function ProjectSettingsPage() {
   const navigate = useNavigate();
   const params = useParams();
-  
+
   const project = () => (projects() || []).find((p: any) => p.name === params.id) || null;
   const projectId = () => project()?.id || params.id || '';
-  
+
   const [membersKey, setMembersKey] = createSignal(0);
   const [members] = createResource(
     () => ({ projectId: projectId(), key: membersKey() }),
     async ({ projectId }) => {
       if (!projectId) return { members: [] };
-      return fetchMembers(projectId);
+      return fetchMembersQuery(projectId);
     }
   );
-  
+
   const membersList = () => (members() as any)?.members || [];
-  
+
   const [activeTab, setActiveTab] = createSignal<'approved' | 'pending' | 'rejected'>('approved');
   const [successMessage, setSuccessMessage] = createSignal('');
   const [errorMessage, setErrorMessage] = createSignal('');
@@ -49,11 +49,11 @@ export default function ProjectSettingsPage() {
   const handleApprove = async (memberId: string, status: 'approved' | 'rejected') => {
     const pid = projectId();
     if (!pid) return;
-    
+
     setActionInProgress(memberId);
     setSuccessMessage('');
     setErrorMessage('');
-    
+
     try {
       const res = await authFetch(`/api/projects/${pid}/members/${memberId}/approve`, {
         method: 'POST',
@@ -116,10 +116,10 @@ export default function ProjectSettingsPage() {
   const handleAccessControlChange = async (accessControl: 'whitelist' | 'blacklist') => {
     const pid = projectId();
     if (!pid) return;
-    
+
     setSuccessMessage('');
     setErrorMessage('');
-    
+
     try {
       const res = await authFetch(`/api/projects/${pid}`, {
         method: 'PATCH',
@@ -180,7 +180,7 @@ export default function ProjectSettingsPage() {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div class="flex items-center gap-3">
             <button
-              
+
               onClick={() => navigate(`/projects/${params.id}`)}
               class="text-gray-400 hover:text-gray-600 active:text-gray-700 transition"
             >
@@ -216,37 +216,35 @@ export default function ProjectSettingsPage() {
               <span>{errorMessage()}</span>
             </div>
           </Show>
-          
+
           {/* Access Control */}
           <div class="bg-white rounded-lg border p-6 mb-6">
             <h2 class="text-lg font-semibold mb-4">Access Control</h2>
             <div class="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => handleAccessControlChange('whitelist')}
-                class={`px-4 py-2.5 text-sm rounded-lg border transition ${
-                  project()!.accessControl === 'whitelist' 
-                    ? 'bg-gray-900 text-white border-gray-900' 
+                class={`px-4 py-2.5 text-sm rounded-lg border transition ${project()!.accessControl === 'whitelist'
+                    ? 'bg-gray-900 text-white border-gray-900'
                     : 'bg-white hover:bg-gray-50 active:bg-gray-100 border-gray-300'
-                }`}
+                  }`}
               >
                 <div class="font-medium">Whitelist</div>
                 <div class="text-xs opacity-80">Approve users to join</div>
               </button>
               <button
                 onClick={() => handleAccessControlChange('blacklist')}
-                class={`px-4 py-2.5 text-sm rounded-lg border transition ${
-                  project()!.accessControl === 'blacklist' 
-                    ? 'bg-gray-900 text-white border-gray-900' 
+                class={`px-4 py-2.5 text-sm rounded-lg border transition ${project()!.accessControl === 'blacklist'
+                    ? 'bg-gray-900 text-white border-gray-900'
                     : 'bg-white hover:bg-gray-50 active:bg-gray-100 border-gray-300'
-                }`}
+                  }`}
               >
                 <div class="font-medium">Blacklist</div>
                 <div class="text-xs opacity-80">Block specific users</div>
               </button>
             </div>
             <p class="text-sm text-gray-500 mt-3">
-              {project()!.accessControl === 'whitelist' 
-                ? 'Only approved users can access this project' 
+              {project()!.accessControl === 'whitelist'
+                ? 'Only approved users can access this project'
                 : 'All users can access except blocked ones'}
             </p>
           </div>
@@ -254,35 +252,32 @@ export default function ProjectSettingsPage() {
           {/* Members */}
           <div class="bg-white rounded-lg border p-6 mb-6">
             <h2 class="text-lg font-semibold mb-4">Members</h2>
-            
+
             <div class="flex gap-2 mb-4 border-b">
               <button
                 onClick={() => setActiveTab('approved')}
-                class={`px-4 py-2 text-sm transition ${
-                  activeTab() === 'approved' 
-                    ? 'border-b-2 border-gray-900 font-medium text-gray-900' 
+                class={`px-4 py-2 text-sm transition ${activeTab() === 'approved'
+                    ? 'border-b-2 border-gray-900 font-medium text-gray-900'
                     : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
-                }`}
+                  }`}
               >
                 Approved ({(membersList() as Member[]).filter(m => m.status === 'approved').length})
               </button>
               <button
                 onClick={() => setActiveTab('pending')}
-                class={`px-4 py-2 text-sm transition ${
-                  activeTab() === 'pending' 
-                    ? 'border-b-2 border-gray-900 font-medium text-gray-900' 
+                class={`px-4 py-2 text-sm transition ${activeTab() === 'pending'
+                    ? 'border-b-2 border-gray-900 font-medium text-gray-900'
                     : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
-                }`}
+                  }`}
               >
                 Pending ({(membersList() as Member[]).filter(m => m.status === 'pending').length})
               </button>
               <button
                 onClick={() => setActiveTab('rejected')}
-                class={`px-4 py-2 text-sm transition ${
-                  activeTab() === 'rejected' 
-                    ? 'border-b-2 border-gray-900 font-medium text-gray-900' 
+                class={`px-4 py-2 text-sm transition ${activeTab() === 'rejected'
+                    ? 'border-b-2 border-gray-900 font-medium text-gray-900'
                     : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
-                }`}
+                  }`}
               >
                 Rejected ({(membersList() as Member[]).filter(m => m.status === 'rejected').length})
               </button>
