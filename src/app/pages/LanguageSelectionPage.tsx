@@ -37,11 +37,11 @@ export default function LanguageSelectionPage() {
   const project = () => projectsStore.projects.find((p: any) => p.name === params.id) || null;
   
   // Get the actual source language files using the special query parameter
-  const sourceFilesStore = () => filesSummaryCache.get([params.id || '', 'source-language']);
+  const sourceFilesStore = () => filesSummaryCache.get(params.id || '', 'source-language');
   const sourceFilesData = () => sourceFilesStore()?.data;
   
   // Get all files to determine available languages
-  const allFilesStore = () => filesSummaryCache.get([params.id || '']);
+  const allFilesStore = () => filesSummaryCache.get(params.id || '');
   const allFilesData = () => allFilesStore()?.data;
   
   // Show loading only if we don't have cached data
@@ -136,9 +136,9 @@ export default function LanguageSelectionPage() {
     const projectId = params.id;
     if (projectId) {
       // Fetch source language files using the special query parameter
-      filesSummaryCache.fetch([projectId, 'source-language']);
+      filesSummaryCache.fetch(projectId, 'source-language');
       // Also fetch all files to get all available languages
-      filesSummaryCache.fetch([projectId]);
+      filesSummaryCache.fetch(projectId);
       
       // Use smart prefetch for project-languages route
       void prefetchForRoute('project-languages', projectId);
