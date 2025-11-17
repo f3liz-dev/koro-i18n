@@ -1,19 +1,8 @@
 import { useNavigate } from '@solidjs/router';
 import { user } from '../auth';
-import { useForesight } from '../utils/useForesight';
 
 export default function HomePage() {
   const navigate = useNavigate();
-
-  const dashboardButtonRef = useForesight({
-    prefetchUrls: ['/api/projects'],
-    debugName: 'dashboard-button',
-  });
-
-  const loginButtonRef = useForesight({
-    prefetchUrls: [],
-    debugName: 'login-button',
-  });
 
   return (
     <div class="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50 flex items-center justify-center px-6">
@@ -38,7 +27,6 @@ export default function HomePage() {
         
         {user() ? (
           <button
-            ref={dashboardButtonRef}
             onClick={() => navigate('/dashboard')}
             class="px-10 py-4 text-base font-semibold bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
           >
@@ -46,7 +34,6 @@ export default function HomePage() {
           </button>
         ) : (
           <button
-            ref={loginButtonRef}
             onClick={() => navigate('/login')}
             class="px-10 py-4 text-base font-semibold bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
           >

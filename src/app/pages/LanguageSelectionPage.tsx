@@ -1,9 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, createMemo, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
-import { prefetchForRoute } from '../utils/prefetch';
-import { useForesight } from '../utils/useForesight';
-import { projectsCache, filesSummaryCache } from '../utils/dataStore';
+import { projects, fetchProject, fetchFiles, fetchFilesSummary, fetchTranslations, fetchSuggestions, fetchMembers, refreshProjects } from '../utils/store';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
 
@@ -111,21 +109,8 @@ export default function LanguageSelectionPage() {
   
   const isLoading = () => isLoadingFiles();
 
-  // ForesightJS refs for navigation buttons
-  const backButtonRef = useForesight({
-    prefetchUrls: ['/api/projects'],
-    debugName: 'back-to-dashboard',
-  });
 
-  const settingsButtonRef = useForesight({
-    prefetchUrls: [],
-    debugName: 'project-settings',
-  });
 
-  const suggestionsButtonRef = useForesight({
-    prefetchUrls: [`/api/projects/${params.id}/suggestions`],
-    debugName: 'suggestions-button',
-  });
 
   onMount(() => {
     auth.refresh();
@@ -141,7 +126,6 @@ export default function LanguageSelectionPage() {
       filesSummaryCache.fetch(projectId);
       
       // Use smart prefetch for project-languages route
-      void prefetchForRoute('project-languages', projectId);
     }
     
     // Set isOwner based on project data
@@ -233,15 +217,9 @@ export default function LanguageSelectionPage() {
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <For each={languageStats()}>
               {(langStat) => {
-                const langCardRef = useForesight({
-                  prefetchUrls: [`/api/projects/${params.id}/files/summary?lang=${langStat.language}`],
-                  debugName: `language-card-${langStat.language}`,
-                  hitSlop: 10,
-                });
-
                 return (
                   <button
-                    ref={langCardRef}
+                    
                     onClick={() => navigate(`/projects/${params.id}/language/${langStat.language}`)}
                     class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 text-left group"
                   >

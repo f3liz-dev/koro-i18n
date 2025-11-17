@@ -1,61 +1,20 @@
 import { useNavigate } from '@solidjs/router';
-import { createEffect, For, onMount, Show } from 'solid-js';
+import { createEffect, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
-import { prefetchForRoute } from '../utils/prefetch';
-import { useForesight } from '../utils/useForesight';
 import { SkeletonCard } from '../components';
-import { projectsCache } from '../utils/dataStore';
+import { projects, refreshProjects } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
 
-interface Project {
-  id: string;
-  name: string;
-  repository: string;
-  languages: string[];
-  progress: number;
-  userId: string;
-}
-
 export default function DashboardPage() {
   const navigate = useNavigate();
-
-  // ForesightJS refs for navigation buttons
-  const homeButtonRef = useForesight({ prefetchUrls: ['/api/user'], debugName: 'home-button' });
-  const createProjectButtonRef = useForesight({ prefetchUrls: [], debugName: 'create-project-button' });
-  const joinProjectButtonRef = useForesight({ prefetchUrls: [], debugName: 'join-project-button' });
-  const historyButtonRef = useForesight({ prefetchUrls: ['/api/history'], debugName: 'history-button' });
-
-  // Get projects from store - returns cached data immediately or empty array
-  const store = projectsCache.get();
-  const projects = () => store.projects.map((p: any) => ({
-    id: p.id,
-    name: p.name,
-    repository: p.repository,
-    languages: p.languages || [],
-    progress: 0,
-    userId: p.userId
-  }));
-  
-  // Check if we have cached data - show skeleton only if no cache exists
-  const isLoading = () => !store.lastFetch;
-
-  onMount(() => {
-    console.log('DashboardPage mounted');
-    console.log('Current user:', user());
-    auth.refresh();
-    // Use smart prefetch for dashboard route
-    void prefetchForRoute('dashboard');
-    
-    // Fetch projects with languages (needed for dashboard display)
-    // Always force fresh fetch to ensure joined projects appear after navigation
-    projectsCache.fetch(true, true);
-  });
 
   createEffect(() => {
     if (!user()) navigate('/login', { replace: true });
   });
+
+  refreshProjects();
 
   const handleLogout = async () => {
     await auth.logout();
@@ -71,8 +30,7 @@ export default function DashboardPage() {
       });
 
       if (res.ok) {
-        // Refetch projects with languages to update the store
-        projectsCache.fetch(true);
+        refreshProjects();
       } else {
         const data = await res.json() as { error?: string };
         alert(data.error || 'Failed to delete project');
@@ -87,17 +45,14 @@ export default function DashboardPage() {
     {
       label: 'Create Project',
       onClick: () => navigate('/projects/create'),
-      ref: createProjectButtonRef,
     },
     {
       label: 'Join Project',
       onClick: () => navigate('/projects/join'),
-      ref: joinProjectButtonRef,
     },
     {
       label: 'History',
       onClick: () => navigate('/history'),
-      ref: historyButtonRef,
     },
     {
       label: 'Logout',
@@ -121,7 +76,6 @@ export default function DashboardPage() {
             <p class="text-gray-600">Manage your translation projects</p>
           </div>
           <button
-            ref={createProjectButtonRef}
             onClick={() => navigate('/projects/create')}
             class="px-6 py-3 text-sm font-semibold bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
           >
@@ -129,7 +83,7 @@ export default function DashboardPage() {
           </button>
         </div>
         
-        <Show when={isLoading()}>
+        <Show when={projects.loading}>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <SkeletonCard />
             <SkeletonCard />
@@ -137,7 +91,7 @@ export default function DashboardPage() {
           </div>
         </Show>
 
-        <Show when={!isLoading() && projects().length === 0}>
+        <Show when={!projects.loading && (projects() || []).length === 0}>
           <div class="bg-white rounded-2xl border border-gray-200 p-16 text-center shadow-sm">
             <div class="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -155,22 +109,15 @@ export default function DashboardPage() {
           </div>
         </Show>
 
-        <Show when={!isLoading() && projects().length > 0}>
+        <Show when={!projects.loading && (projects() || []).length > 0}>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <For each={projects()}>
               {(project) => {
-                const projectCardRef = useForesight({
-                  prefetchUrls: [`/api/projects/${project.id}/files/summary`],
-                  debugName: `project-card-${project.id}`,
-                  hitSlop: 10,
-                });
-                
                 const isOwner = () => project.userId === user()?.id;
 
                 return (
                   <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 group">
                     <button
-                      ref={projectCardRef}
                       onClick={() => navigate(`/projects/${project.id}`)}
                       class="w-full text-left mb-4"
                     >
@@ -178,20 +125,20 @@ export default function DashboardPage() {
                         <h3 class="text-lg font-bold text-gray-900 mb-2 group-hover:text-primary-600 transition-colors">{project.name}</h3>
                         <code class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">{project.repository}</code>
                       </div>
-                      <Show when={project.languages.length > 0} fallback={
+                      <Show when={(project.languages || []).length > 0} fallback={
                         <div class="text-xs text-gray-400 italic py-2">No files uploaded yet</div>
                       }>
                         <div class="flex flex-wrap gap-2">
-                          <For each={project.languages.slice(0, 4)}>
+                          <For each={(project.languages || []).slice(0, 4)}>
                             {(lang) => (
                               <span class="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-primary-100 to-accent-100 text-primary-700 rounded-lg">
                                 {lang.toUpperCase()}
                               </span>
                             )}
                           </For>
-                          <Show when={project.languages.length > 4}>
+                          <Show when={(project.languages || []).length > 4}>
                             <span class="px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100 rounded-lg">
-                              +{project.languages.length - 4}
+                              +{(project.languages || []).length - 4}
                             </span>
                           </Show>
                         </div>
