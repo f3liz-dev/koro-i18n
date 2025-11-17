@@ -170,9 +170,15 @@ export default function FileSelectionPage() {
   };
 
   const getPercentageColor = (percentage: number) => {
-    if (percentage >= 90) return 'text-green-600 bg-green-50';
-    if (percentage >= 50) return 'text-yellow-600 bg-yellow-50';
-    return 'text-red-600 bg-red-50';
+    if (percentage >= 90) return 'text-green-700 bg-gradient-to-r from-green-100 to-green-50';
+    if (percentage >= 50) return 'text-amber-700 bg-gradient-to-r from-amber-100 to-amber-50';
+    return 'text-red-700 bg-gradient-to-r from-red-100 to-red-50';
+  };
+
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 90) return 'from-green-500 to-green-600';
+    if (percentage >= 50) return 'from-amber-500 to-amber-600';
+    return 'from-red-500 to-red-600';
   };
 
   const menuItems: MenuItem[] = [
@@ -195,14 +201,13 @@ export default function FileSelectionPage() {
   ];
 
   return (
-    <div class="min-h-screen bg-gray-50">
-      {/* Header */}
+    <div class="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50/30">
       <PageHeader
         title={project()?.name || ''}
         subtitle={`
           <code class="text-xs text-gray-500">${project()?.repository || ''}</code>
           <span class="text-xs text-gray-400">•</span>
-          <span class="text-xs font-medium text-blue-600">${language().toUpperCase()}</span>
+          <span class="text-xs font-bold text-primary-600">${language().toUpperCase()}</span>
         `}
         backButton={{
           onClick: () => navigate(`/projects/${params.id}`),
@@ -211,28 +216,39 @@ export default function FileSelectionPage() {
         menuItems={menuItems}
       />
 
-      {/* Content */}
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="mb-6">
-          <h2 class="text-2xl font-bold text-gray-900 mb-2">Select File</h2>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
+        <div class="mb-8">
+          <h2 class="text-3xl font-bold text-gray-900 mb-2">Select File</h2>
           <p class="text-gray-600">Choose a file to translate for {language().toUpperCase()}</p>
         </div>
 
         <Show when={isLoading()}>
-          <div class="text-center py-12">
-            <div class="text-gray-400">Loading files...</div>
+          <div class="text-center py-16">
+            <div class="animate-pulse">
+              <div class="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-primary-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+              <div class="text-gray-500 font-medium">Loading files...</div>
+            </div>
           </div>
         </Show>
 
         <Show when={!isLoading() && fileStats().length === 0}>
-          <div class="bg-white rounded-lg border p-12 text-center">
-            <div class="text-gray-400 mb-2">No translation files yet</div>
-            <div class="text-sm text-gray-400">Upload files using GitHub Actions to get started</div>
+          <div class="bg-white rounded-2xl border border-gray-200 p-16 text-center shadow-sm">
+            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div class="text-xl font-semibold text-gray-900 mb-2">No translation files yet</div>
+            <div class="text-gray-500">Upload files using GitHub Actions to get started</div>
           </div>
         </Show>
 
         <Show when={!isLoading() && fileStats().length > 0}>
-          <div class="space-y-3">
+          <div class="space-y-4">
             <For each={fileStats()}>
               {(fileStat) => {
                 const fileCardRef = useForesight({
@@ -245,22 +261,24 @@ export default function FileSelectionPage() {
                   <button
                     ref={fileCardRef}
                     onClick={() => navigate(`/projects/${params.id}/translate/${language()}/${encodeURIComponent(fileStat.targetFilename)}`)}
-                    class="w-full bg-white rounded-lg border p-6 hover:border-blue-500 hover:shadow-md active:scale-[0.98] transition text-left"
+                    class="w-full bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-left group"
                   >
                     <div class="flex items-center justify-between mb-4">
                       <div class="flex-1">
-                        <h3 class="font-medium text-gray-900 mb-1">{fileStat.displayFilename}</h3>
-                        <div class="text-sm text-gray-600">
+                        <h3 class="text-lg font-bold text-gray-900 mb-2 group-hover:text-primary-600 transition-colors">
+                          {fileStat.displayFilename}
+                        </h3>
+                        <div class="text-sm text-gray-600 font-medium">
                           {fileStat.translatedKeys} / {fileStat.totalKeys} keys translated
                         </div>
                       </div>
-                      <div class={`px-3 py-1 rounded-full text-sm font-medium ${getPercentageColor(fileStat.percentage)}`}>
+                      <div class={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm ${getPercentageColor(fileStat.percentage)}`}>
                         {fileStat.percentage}%
                       </div>
                     </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
                       <div 
-                        class="bg-blue-600 h-2 rounded-full transition-all"
+                        class={`h-3 rounded-full bg-gradient-to-r ${getProgressColor(fileStat.percentage)} transition-all duration-500`}
                         style={`width: ${fileStat.percentage}%`}
                       />
                     </div>
