@@ -37,11 +37,11 @@ export default function LanguageSelectionPage() {
   const project = () => projectsStore.projects.find((p: any) => p.name === params.id) || null;
   
   // Get the actual source language files using the special query parameter
-  const sourceFilesStore = () => filesSummaryCache.get([params.id || '', 'source-language']);
+  const sourceFilesStore = () => filesSummaryCache.get(params.id || '', 'source-language');
   const sourceFilesData = () => sourceFilesStore()?.data;
   
   // Get all files to determine available languages
-  const allFilesStore = () => filesSummaryCache.get([params.id || '']);
+  const allFilesStore = () => filesSummaryCache.get(params.id || '');
   const allFilesData = () => allFilesStore()?.data;
   
   // Show loading only if we don't have cached data
@@ -136,9 +136,9 @@ export default function LanguageSelectionPage() {
     const projectId = params.id;
     if (projectId) {
       // Fetch source language files using the special query parameter
-      filesSummaryCache.fetch([projectId, 'source-language']);
+      filesSummaryCache.fetch(projectId, 'source-language');
       // Also fetch all files to get all available languages
-      filesSummaryCache.fetch([projectId]);
+      filesSummaryCache.fetch(projectId);
       
       // Use smart prefetch for project-languages route
       void prefetchForRoute('project-languages', projectId);
@@ -156,9 +156,15 @@ export default function LanguageSelectionPage() {
   };
 
   const getPercentageColor = (percentage: number) => {
-    if (percentage >= 90) return 'text-green-600 bg-green-50';
-    if (percentage >= 50) return 'text-yellow-600 bg-yellow-50';
-    return 'text-red-600 bg-red-50';
+    if (percentage >= 90) return 'text-green-700 bg-gradient-to-r from-green-100 to-green-50';
+    if (percentage >= 50) return 'text-amber-700 bg-gradient-to-r from-amber-100 to-amber-50';
+    return 'text-red-700 bg-gradient-to-r from-red-100 to-red-50';
+  };
+
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 90) return 'from-green-500 to-green-600';
+    if (percentage >= 50) return 'from-amber-500 to-amber-600';
+    return 'from-red-500 to-red-600';
   };
 
   const menuItems: MenuItem[] = [
@@ -181,8 +187,7 @@ export default function LanguageSelectionPage() {
   ];
 
   return (
-    <div class="min-h-screen bg-gray-50">
-      {/* Header */}
+    <div class="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50/30">
       <PageHeader
         title={project()?.name || ''}
         subtitle={`<code class="text-xs text-gray-500">${project()?.repository || ''}</code>`}
@@ -193,28 +198,39 @@ export default function LanguageSelectionPage() {
         menuItems={menuItems}
       />
 
-      {/* Content */}
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="mb-6">
-          <h2 class="text-2xl font-bold text-gray-900 mb-2">Select Language</h2>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
+        <div class="mb-8">
+          <h2 class="text-3xl font-bold text-gray-900 mb-2">Select Language</h2>
           <p class="text-gray-600">Choose a language to view and translate files</p>
         </div>
 
         <Show when={isLoading()}>
-          <div class="text-center py-12">
-            <div class="text-gray-400">Loading languages...</div>
+          <div class="text-center py-16">
+            <div class="animate-pulse">
+              <div class="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-primary-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+              <div class="text-gray-500 font-medium">Loading languages...</div>
+            </div>
           </div>
         </Show>
 
         <Show when={!isLoading() && languageStats().length === 0}>
-          <div class="bg-white rounded-lg border p-12 text-center">
-            <div class="text-gray-400 mb-2">No target languages found</div>
-            <div class="text-sm text-gray-400">Upload translation files for languages other than {project()?.sourceLanguage || 'en'} using GitHub Actions</div>
+          <div class="bg-white rounded-2xl border border-gray-200 p-16 text-center shadow-sm">
+            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+              </svg>
+            </div>
+            <div class="text-xl font-semibold text-gray-900 mb-2">No target languages found</div>
+            <div class="text-gray-500">Upload translation files for languages other than {project()?.sourceLanguage || 'en'} using GitHub Actions</div>
           </div>
         </Show>
 
         <Show when={!isLoading() && languageStats().length > 0}>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <For each={languageStats()}>
               {(langStat) => {
                 const langCardRef = useForesight({
@@ -227,21 +243,23 @@ export default function LanguageSelectionPage() {
                   <button
                     ref={langCardRef}
                     onClick={() => navigate(`/projects/${params.id}/language/${langStat.language}`)}
-                    class="bg-white rounded-lg border p-6 hover:border-blue-500 hover:shadow-md active:scale-[0.98] transition text-left"
+                    class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 text-left group"
                   >
-                    <div class="flex items-center justify-between mb-4">
-                      <h3 class="text-xl font-semibold text-gray-900">{langStat.language.toUpperCase()}</h3>
-                      <div class={`px-3 py-1 rounded-full text-sm font-medium ${getPercentageColor(langStat.percentage)}`}>
+                    <div class="flex items-center justify-between mb-6">
+                      <h3 class="text-2xl font-bold text-gray-900 group-hover:text-primary-600 transition-colors">
+                        {langStat.language.toUpperCase()}
+                      </h3>
+                      <div class={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm ${getPercentageColor(langStat.percentage)}`}>
                         {langStat.percentage}%
                       </div>
                     </div>
-                    <div class="space-y-2">
-                      <div class="text-sm text-gray-600">
+                    <div class="space-y-3">
+                      <div class="text-sm text-gray-600 font-medium">
                         {langStat.translatedKeys} / {langStat.totalKeys} keys translated
                       </div>
-                      <div class="w-full bg-gray-200 rounded-full h-2">
+                      <div class="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
                         <div 
-                          class="bg-blue-600 h-2 rounded-full transition-all"
+                          class={`h-3 rounded-full bg-gradient-to-r ${getProgressColor(langStat.percentage)} transition-all duration-500`}
                           style={`width: ${langStat.percentage}%`}
                         />
                       </div>

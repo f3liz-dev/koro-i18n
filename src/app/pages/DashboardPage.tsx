@@ -106,8 +106,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div class="min-h-screen bg-gray-50">
-      {/* Header */}
+    <div class="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50/30">
       <PageHeader
         title="koro-i18n"
         subtitle={`<span class="text-gray-300">/</span> <span class="text-sm text-gray-600">${user()?.username}</span>`}
@@ -115,21 +114,23 @@ export default function DashboardPage() {
         menuItems={menuItems}
       />
 
-      {/* Content */}
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-2xl font-semibold text-gray-900">Projects</h2>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
+        <div class="flex items-center justify-between mb-8">
+          <div>
+            <h2 class="text-3xl font-bold text-gray-900 mb-1">Your Projects</h2>
+            <p class="text-gray-600">Manage your translation projects</p>
+          </div>
           <button
             ref={createProjectButtonRef}
             onClick={() => navigate('/projects/create')}
-            class="px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 active:scale-[0.98] transition"
+            class="px-6 py-3 text-sm font-semibold bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
           >
-            Create Project
+            + New Project
           </button>
         </div>
         
         <Show when={isLoading()}>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
@@ -137,48 +138,59 @@ export default function DashboardPage() {
         </Show>
 
         <Show when={!isLoading() && projects().length === 0}>
-          <div class="bg-white rounded-lg border p-12 text-center">
-            <div class="text-gray-400 mb-2">No projects yet</div>
-            <div class="text-sm text-gray-400">Create a project to get started with translations</div>
+          <div class="bg-white rounded-2xl border border-gray-200 p-16 text-center shadow-sm">
+            <div class="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div class="text-xl font-semibold text-gray-900 mb-2">No projects yet</div>
+            <div class="text-gray-500 mb-6">Create your first project to start managing translations</div>
+            <button
+              onClick={() => navigate('/projects/create')}
+              class="px-6 py-3 text-sm font-semibold bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
+            >
+              Create Project
+            </button>
           </div>
         </Show>
 
         <Show when={!isLoading() && projects().length > 0}>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <For each={projects()}>
               {(project) => {
-const projectCardRef = useForesight({
-  prefetchUrls: [`/api/projects/${project.id}/files/summary`],
-  debugName: `project-card-${project.id}`,
-  hitSlop: 10,
-});
+                const projectCardRef = useForesight({
+                  prefetchUrls: [`/api/projects/${project.id}/files/summary`],
+                  debugName: `project-card-${project.id}`,
+                  hitSlop: 10,
+                });
                 
                 const isOwner = () => project.userId === user()?.id;
 
                 return (
-                   <div class="bg-white rounded-lg border p-6 hover:border-gray-300 hover:shadow-sm active:scale-[0.98] transition">
+                  <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 group">
                     <button
                       ref={projectCardRef}
                       onClick={() => navigate(`/projects/${project.id}`)}
                       class="w-full text-left mb-4"
                     >
                       <div class="mb-4">
-                        <h3 class="font-semibold text-gray-900 mb-1">{project.name}</h3>
-                        <code class="text-xs text-gray-500">{project.repository}</code>
+                        <h3 class="text-lg font-bold text-gray-900 mb-2 group-hover:text-primary-600 transition-colors">{project.name}</h3>
+                        <code class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">{project.repository}</code>
                       </div>
                       <Show when={project.languages.length > 0} fallback={
-                        <div class="text-xs text-gray-400 italic">No files uploaded yet</div>
+                        <div class="text-xs text-gray-400 italic py-2">No files uploaded yet</div>
                       }>
                         <div class="flex flex-wrap gap-2">
                           <For each={project.languages.slice(0, 4)}>
                             {(lang) => (
-                              <span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
+                              <span class="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-primary-100 to-accent-100 text-primary-700 rounded-lg">
                                 {lang.toUpperCase()}
                               </span>
                             )}
                           </For>
                           <Show when={project.languages.length > 4}>
-                            <span class="px-2 py-1 text-xs font-medium text-gray-500">
+                            <span class="px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100 rounded-lg">
                               +{project.languages.length - 4}
                             </span>
                           </Show>
@@ -186,12 +198,12 @@ const projectCardRef = useForesight({
                       </Show>
                     </button>
                     <Show when={isOwner()}>
-<button
-  onClick={() => navigate(`/projects/${project.id}/settings`)}
-  class="w-full px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 active:bg-gray-100 transition"
->
-  Manage Project
-</button>
+                      <button
+                        onClick={() => navigate(`/projects/${project.id}/settings`)}
+                        class="w-full px-4 py-2.5 text-sm font-medium border-2 border-gray-200 text-gray-700 rounded-xl hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 transition-all"
+                      >
+                        Manage Project
+                      </button>
                     </Show>
                   </div>
                 );

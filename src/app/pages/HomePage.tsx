@@ -16,30 +16,39 @@ export default function HomePage() {
   });
 
   return (
-    <div class="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center px-6">
-      <div class="text-center max-w-2xl mx-auto">
-        <div class="mb-8 flex justify-center">
-          <img 
-            src="/logo.png" 
-            alt="Koro i18n - Kawaii hermit crab mascot" 
-            class="w-32 h-32 object-contain"
-          />
+    <div class="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50 flex items-center justify-center px-6">
+      <div class="text-center max-w-2xl mx-auto animate-slide-up">
+        <div class="mb-12 flex justify-center">
+          <div class="relative">
+            <div class="absolute inset-0 bg-primary-200 rounded-full blur-3xl opacity-30 animate-pulse"></div>
+            <img 
+              src="/logo.png" 
+              alt="Koro i18n - Kawaii hermit crab mascot" 
+              class="relative w-40 h-40 object-contain drop-shadow-lg"
+            />
+          </div>
         </div>
-        <h1 class="text-5xl font-bold text-gray-900 mb-4">koro-i18n</h1>
-        <p class="text-lg text-gray-600 mb-12">Modern translation management platform</p>
+        
+        <h1 class="text-6xl font-bold bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent mb-4">
+          koro-i18n
+        </h1>
+        <p class="text-xl text-gray-700 mb-12 font-medium">
+          Modern translation management made simple
+        </p>
+        
         {user() ? (
           <button
             ref={dashboardButtonRef}
             onClick={() => navigate('/dashboard')}
-            class="px-8 py-3 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 active:scale-[0.98] transition"
+            class="px-10 py-4 text-base font-semibold bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
           >
-            Go to Dashboard
+            Go to Dashboard →
           </button>
         ) : (
           <button
             ref={loginButtonRef}
             onClick={() => navigate('/login')}
-            class="px-8 py-3 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 active:scale-[0.98] transition"
+            class="px-10 py-4 text-base font-semibold bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
           >
             Sign in with GitHub
           </button>

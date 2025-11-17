@@ -19,11 +19,9 @@ export default function JoinProjectPage() {
   const [allProjects, setAllProjects] = createSignal<Project[]>([]);
   const [requestedProjects, setRequestedProjects] = createSignal<Set<string>>(new Set());
 
-  // Get my projects from store
   const projectsStore = projectsCache.get();
   const myProjects = () => projectsStore.projects.map(p => p.id);
 
-  // ForesightJS refs
   const backButtonRef = useForesight({
     prefetchUrls: ['/api/projects'],
     debugName: 'back-to-dashboard',
@@ -61,9 +59,7 @@ export default function JoinProjectPage() {
   };
 
   onMount(() => {
-    // Fetch my projects in background
     projectsCache.fetch(false);
-    // Fetch all available projects
     loadAllProjects();
   });
 
@@ -72,52 +68,62 @@ export default function JoinProjectPage() {
   );
 
   return (
-    <div class="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div class="bg-white border-b">
+    <div class="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50/30">
+      <div class="bg-white border-b border-gray-200 backdrop-blur-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div class="flex items-center gap-3">
             <button
               ref={backButtonRef}
               onClick={() => navigate('/dashboard')}
-              class="text-gray-400 hover:text-gray-600 active:text-gray-700 transition"
+              class="text-gray-400 hover:text-primary-600 transition-colors p-2 -ml-2 rounded-lg hover:bg-primary-50"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </button>
-            <h1 class="text-xl font-semibold text-gray-900">Join a Project</h1>
+            <h1 class="text-xl font-bold text-gray-900">Join a Project</h1>
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-fade-in">
+        <div class="mb-8">
+          <h2 class="text-3xl font-bold text-gray-900 mb-2">Available Projects</h2>
+          <p class="text-gray-600">Request to join a project to start contributing translations</p>
+        </div>
+
         <Show when={availableProjects().length === 0}>
-          <div class="bg-white rounded-lg border p-12 text-center">
-            <div class="text-gray-400 mb-2">No projects available</div>
-            <div class="text-sm text-gray-400">All projects have been joined or there are no public projects</div>
+          <div class="bg-white rounded-2xl border border-gray-200 p-16 text-center shadow-sm">
+            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+            </div>
+            <div class="text-xl font-semibold text-gray-900 mb-2">No projects available</div>
+            <div class="text-gray-500">All projects have been joined or there are no public projects</div>
           </div>
         </Show>
 
-        <div class="space-y-3">
+        <div class="space-y-4">
           <For each={availableProjects()}>
             {(project) => (
-              <div class="bg-white rounded-lg border p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-gray-300 active:scale-[0.98] transition">
-                <div>
-                  <h3 class="font-medium text-gray-900 mb-1">{project.name}</h3>
-                  <code class="text-xs text-gray-500">{project.repository}</code>
+              <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-lg transition-all group">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div class="flex-1">
+                    <h3 class="text-lg font-bold text-gray-900 mb-2 group-hover:text-primary-600 transition-colors">{project.name}</h3>
+                    <code class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">{project.repository}</code>
+                  </div>
+                  <button
+                    onClick={() => handleJoin(project.id)}
+                    disabled={requestedProjects().has(project.id) || !!project.membershipStatus}
+                    class="px-6 py-3 text-sm font-semibold border-2 border-gray-200 rounded-xl hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-50 disabled:hover:border-gray-200 disabled:hover:text-gray-700 transition-all whitespace-nowrap"
+                  >
+                    {requestedProjects().has(project.id) || project.membershipStatus === 'pending' ? '✓ Request Sent' : 
+                     project.membershipStatus === 'approved' ? '✓ Already Member' :
+                     project.membershipStatus === 'rejected' ? '✗ Request Rejected' :
+                     'Request to Join'}
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleJoin(project.id)}
-                  disabled={requestedProjects().has(project.id) || !!project.membershipStatus}
-                  class="px-4 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-50 transition"
-                >
-                  {requestedProjects().has(project.id) || project.membershipStatus === 'pending' ? 'Request Sent' : 
-                   project.membershipStatus === 'approved' ? 'Already Member' :
-                   project.membershipStatus === 'rejected' ? 'Request Rejected' :
-                   'Request to Join'}
-                </button>
               </div>
             )}
           </For>
