@@ -1,9 +1,8 @@
 import { lazy, Suspense } from 'solid-js';
 import { Router, Route } from '@solidjs/router';
 import type { RouteSectionProps } from '@solidjs/router';
-import { ErrorBoundary, LoadingSpinner, NavigationLoadingBar } from './components';
+import { ErrorBoundary, LoadingSpinner } from './components';
 
-// All pages use lazy loading for optimal initial bundle size
 const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -17,16 +16,11 @@ const TranslationSuggestionsPage = lazy(() => import('./pages/TranslationSuggest
 const JoinProjectPage = lazy(() => import('./pages/JoinProjectPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
-// Root component that wraps all routes and provides router context
 function RootLayout(props: RouteSectionProps) {
   return (
-    <>
-      {/* Navigation loading bar - only shows for slow transitions (>300ms) */}
-      <NavigationLoadingBar threshold={300} />
-      <Suspense fallback={<LoadingSpinner />}>
-        {props.children}
-      </Suspense>
-    </>
+    <Suspense fallback={<LoadingSpinner />}>
+      {props.children}
+    </Suspense>
   );
 }
 
@@ -42,7 +36,7 @@ export default function App() {
         <Route path="/projects/:id" component={LanguageSelectionPage} />
         <Route path="/projects/:id/language/:language" component={FileSelectionPage} />
         <Route path="/projects/:id/settings" component={ProjectSettingsPage} />
-        <Route path="/projects/:id/manage" component={ProjectSettingsPage} /> {/* Backward compatibility */}
+        <Route path="/projects/:id/manage" component={ProjectSettingsPage} />
         <Route path="/projects/:projectId/translate/:language/:filename" component={TranslationEditorPage} />
         <Route path="/projects/:projectId/translate/:language?" component={TranslationEditorPage} />
         <Route path="/projects/:projectId/suggestions" component={TranslationSuggestionsPage} />

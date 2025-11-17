@@ -1,8 +1,7 @@
 import { useNavigate } from '@solidjs/router';
-import { createSignal, onMount, For, Show } from 'solid-js';
+import { createSignal, onMount, For, Show, createResource } from 'solid-js';
 import { user } from '../auth';
-import { useForesight } from '../utils/useForesight';
-import { projectsCache } from '../utils/dataStore';
+import { projects } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface Project {
@@ -16,28 +15,20 @@ interface Project {
 
 export default function JoinProjectPage() {
   const navigate = useNavigate();
-  const [allProjects, setAllProjects] = createSignal<Project[]>([]);
   const [requestedProjects, setRequestedProjects] = createSignal<Set<string>>(new Set());
 
-  const projectsStore = projectsCache.get();
-  const myProjects = () => projectsStore.projects.map(p => p.id);
-
-  const backButtonRef = useForesight({
-    prefetchUrls: ['/api/projects'],
-    debugName: 'back-to-dashboard',
+  const [allProjects] = createResource(async () => {
+    const res = await authFetch('/api/projects/all', { credentials: 'include' });
+    if (!res.ok) return [];
+    const data = await res.json() as { projects: Project[] };
+    return data.projects;
   });
 
-  const loadAllProjects = async () => {
-    try {
-      const res = await authFetch('/api/projects/all', { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json() as { projects: Project[] };
-        setAllProjects(data.projects);
-      }
-    } catch (error) {
-      console.error('Failed to load all projects:', error);
-    }
-  };
+  const myProjectIds = () => (projects() || []).map(p => p.id);
+
+  const availableProjects = () => (allProjects() || []).filter(p => 
+    !myProjectIds().includes(p.id) && p.userId !== user()?.id
+  );
 
   const handleJoin = async (projectId: string) => {
     try {
@@ -58,22 +49,12 @@ export default function JoinProjectPage() {
     }
   };
 
-  onMount(() => {
-    projectsCache.fetch(false);
-    loadAllProjects();
-  });
-
-  const availableProjects = () => allProjects().filter(p => 
-    !myProjects().includes(p.id) && p.userId !== user()?.id
-  );
-
   return (
     <div class="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50/30">
       <div class="bg-white border-b border-gray-200 backdrop-blur-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div class="flex items-center gap-3">
             <button
-              ref={backButtonRef}
               onClick={() => navigate('/dashboard')}
               class="text-gray-400 hover:text-primary-600 transition-colors p-2 -ml-2 rounded-lg hover:bg-primary-50"
             >
@@ -92,7 +73,7 @@ export default function JoinProjectPage() {
           <p class="text-gray-600">Request to join a project to start contributing translations</p>
         </div>
 
-        <Show when={availableProjects().length === 0}>
+        <Show when={!allProjects.loading && availableProjects().length === 0}>
           <div class="bg-white rounded-2xl border border-gray-200 p-16 text-center shadow-sm">
             <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
