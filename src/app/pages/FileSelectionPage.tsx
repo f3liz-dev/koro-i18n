@@ -41,8 +41,8 @@ export default function FileSelectionPage() {
   const language = () => params.language || '';
   
   // Use 'source-language' to automatically detect the actual source language from uploaded files
-  const sourceFilesStore = () => filesSummaryCache.get(params.id || '', 'source-language');
-  const targetFilesStore = () => filesSummaryCache.get(params.id || '', language());
+  const sourceFilesStore = () => params.id ? filesSummaryCache.get([params.id, 'source-language']) : undefined;
+  const targetFilesStore = () => params.id && language() ? filesSummaryCache.get([params.id, language()]) : undefined;
   
   const sourceFilesData = () => sourceFilesStore()?.data;
   const targetFilesData = () => targetFilesStore()?.data;
@@ -151,8 +151,8 @@ export default function FileSelectionPage() {
     
     if (projectId && targetLanguage) {
       // Use 'source-language' to automatically detect the actual source language
-      filesSummaryCache.fetch(projectId, 'source-language');
-      filesSummaryCache.fetch(projectId, targetLanguage);
+      if (projectId) filesSummaryCache.fetch([projectId, 'source-language']);
+      if (projectId && targetLanguage) filesSummaryCache.fetch([projectId, targetLanguage]);
       
       // Prefetch summary endpoints for this page
       void prefetchData(`/api/projects/${projectId}/files/summary?lang=${targetLanguage}`);

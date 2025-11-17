@@ -42,21 +42,17 @@ function createCacheStore<
 }) {
   const [store, setStore] = createStore<State>(initialState);
 
-  function get(...args: KeyArgs) {
+  function get(args: KeyArgs) {
     const key = makeKey(...args);
     return (store as any)[key];
   }
 
-  async function fetch(
-    keyArgs: KeyArgs,
-    fetchArgs: FetchArgs,
-    force = false
-  ) {
-    const key = makeKey(...keyArgs);
-    const url = makeUrl(...fetchArgs);
+  async function fetch(args: KeyArgs, force = false) {
+    const key = makeKey(...args);
+    const url = makeUrl(...args);
     const existing = (store as any)[key];
     const etag = force ? undefined : existing?.etag;
-    let params: RequestInit = fetchParams ? fetchParams(...fetchArgs) : {};
+    let params: RequestInit = fetchParams ? fetchParams(...args) : {};
     if (!params.credentials) params.credentials = 'include' as RequestCredentials;
 
     revalidateAndUpdate<any, any>(
