@@ -2,14 +2,11 @@
  * Authentication-aware fetch wrapper that automatically handles token expiration.
  *
  * This utility intercepts 401 Unauthorized responses and:
- * 1. Clears all dataStore caches
- * 2. Logs out the user
- * 3. Redirects to the login page
+ * 1. Logs out the user
+ * 2. Redirects to the login page
  *
  * Use this for all API calls that require authentication.
  */
-
-import { clearAllCaches } from './dataStore';
 
 /**
  * Enhanced fetch that handles authentication errors automatically.
@@ -35,10 +32,7 @@ export async function authFetch(
 
   // Check for 401 Unauthorized - token is invalid or expired
   if (response.status === 401) {
-    // Clear all caches to prevent stale data from being used
-    console.log("[AuthFetch] 401 Unauthorized - clearing caches");
-    clearAllCaches(); // Clear dataStore caches
-    // Browser HTTP cache is now managed by default
+    console.log("[AuthFetch] 401 Unauthorized");
 
     // If already on public pages, just return the response without redirecting
     if (

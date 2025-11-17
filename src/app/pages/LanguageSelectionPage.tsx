@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
-import { createSignal, createMemo, onMount, For, Show } from 'solid-js';
+import { createSignal, createMemo, onMount, For, Show, createResource } from 'solid-js';
 import { user, auth } from '../auth';
-import { projects, fetchProject, fetchFiles, fetchFilesSummary, fetchTranslations, fetchSuggestions, fetchMembers, refreshProjects } from '../utils/store';
+import { projects, fetchFilesSummary } from '../utils/store';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
 
@@ -30,20 +30,22 @@ export default function LanguageSelectionPage() {
   
   const [isOwner, setIsOwner] = createSignal(false);
 
-  // Access stores directly - returns cached data immediately
-  const projectsStore = projectsCache.get();
-  const project = () => projectsStore.projects.find((p: any) => p.name === params.id) || null;
+  const project = () => (projects() || []).find((p: any) => p.name === params.id) || null;
   
-  // Get the actual source language files using the special query parameter
-  const sourceFilesStore = () => filesSummaryCache.get(params.id || '', 'source-language');
-  const sourceFilesData = () => sourceFilesStore()?.data;
+  const [sourceFiles] = createResource(
+    () => params.id,
+    async (projectId) => projectId ? fetchFilesSummary(projectId, 'source-language') : null
+  );
   
-  // Get all files to determine available languages
-  const allFilesStore = () => filesSummaryCache.get(params.id || '');
-  const allFilesData = () => allFilesStore()?.data;
+  const [allFiles] = createResource(
+    () => params.id,
+    async (projectId) => projectId ? fetchFilesSummary(projectId) : null
+  );
   
-  // Show loading only if we don't have cached data
-  const isLoadingFiles = () => !sourceFilesStore()?.lastFetch || !allFilesStore()?.lastFetch;
+  const sourceFilesData = () => sourceFiles();
+  const allFilesData = () => allFiles();
+  
+  const isLoadingFiles = () => sourceFiles.loading || allFiles.loading;
   
   // Compute language stats from the resource
   // Helper to match files with language-specific names
@@ -61,12 +63,12 @@ export default function LanguageSelectionPage() {
     if (!sourceData || !allData) return [];
     
     // Get the actual source language from the fetched source files
-    const sourceFiles = sourceData.files;
+    const sourceFiles = (sourceData as any).files || [];
     const actualSourceLang = sourceFiles.length > 0 ? sourceFiles[0].lang : '';
     
     // Get all languages except the source language
     const languages = new Set<string>();
-    allData.files.forEach(file => {
+    (allData as any).files?.forEach((file: any) => {
       if (file.lang !== actualSourceLang) {
         languages.add(file.lang);
       }
@@ -77,7 +79,7 @@ export default function LanguageSelectionPage() {
     for (const lang of Array.from(languages)) {
       // Only include valid language codes (e.g. "en", "es", "ja", "en-US")
       if (!/^[a-z]{2,3}(-[A-Z]{2})?$/.test(lang)) continue;
-      const targetFiles = allData.files.filter(f => f.lang === lang);
+      const targetFiles = ((allData as any).files || []).filter((f: any) => f.lang === lang);
 
       let totalKeys = 0;
       let translatedKeys = 0;
@@ -109,26 +111,9 @@ export default function LanguageSelectionPage() {
   
   const isLoading = () => isLoadingFiles();
 
-
-
-
   onMount(() => {
     auth.refresh();
     
-    // Fetch data in background - will update stores when data arrives
-    projectsCache.fetch(false);
-    
-    const projectId = params.id;
-    if (projectId) {
-      // Fetch source language files using the special query parameter
-      filesSummaryCache.fetch(projectId, 'source-language');
-      // Also fetch all files to get all available languages
-      filesSummaryCache.fetch(projectId);
-      
-      // Use smart prefetch for project-languages route
-    }
-    
-    // Set isOwner based on project data
     const proj = project();
     if (proj) {
       setIsOwner(proj.userId === user()?.id);
@@ -155,13 +140,11 @@ export default function LanguageSelectionPage() {
     {
       label: 'Settings',
       onClick: () => navigate(`/projects/${params.id}/settings`),
-      ref: settingsButtonRef,
       show: isOwner(),
     },
     {
       label: 'Suggestions',
       onClick: () => navigate(`/projects/${params.id}/suggestions`),
-      ref: suggestionsButtonRef,
       variant: 'primary',
     },
     {
@@ -177,7 +160,6 @@ export default function LanguageSelectionPage() {
         subtitle={`<code class="text-xs text-gray-500">${project()?.repository || ''}</code>`}
         backButton={{
           onClick: () => navigate('/dashboard'),
-          ref: backButtonRef,
         }}
         menuItems={menuItems}
       />
@@ -219,7 +201,6 @@ export default function LanguageSelectionPage() {
               {(langStat) => {
                 return (
                   <button
-                    
                     onClick={() => navigate(`/projects/${params.id}/language/${langStat.language}`)}
                     class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 text-left group"
                   >
