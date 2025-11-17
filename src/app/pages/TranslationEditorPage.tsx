@@ -18,6 +18,7 @@ import {
   type MergedTranslation,
   type WebTranslation,
 } from '../utils/translationApi';
+import { suggestionsCache } from '../utils/dataStore';
 import { authFetch } from '../utils/authFetch';
 
 interface Project {
@@ -127,13 +128,13 @@ export default function TranslationEditorPage() {
   }
 
   // Load suggestions for selected key
-  async function loadSuggestions() {
+  async function loadSuggestions(force = false) {
     const proj = project();
     const key = selectedKey();
     if (!proj || !key) return;
 
     try {
-      const suggs = await fetchSuggestions(proj.id, language(), filename(), key);
+      const suggs = await fetchSuggestions(proj.id, language(), filename(), key, force);
       setSuggestions(suggs);
     } catch (error) {
       console.error('Failed to load suggestions:', error);
@@ -263,7 +264,10 @@ export default function TranslationEditorPage() {
 
       // Reload translations
       await loadTranslations();
-      await loadSuggestions();
+  // force a fresh revalidation to avoid browser cached suggestions
+  await loadSuggestions(true);
+  // update global store used by suggestions page to reflect the new suggestion immediately
+  await suggestionsCache.fetch(proj.id, language(), key, true);
 
       alert('Translation saved successfully!');
     } catch (error) {
@@ -278,7 +282,8 @@ export default function TranslationEditorPage() {
     try {
       await approveSuggestion(id);
       await loadTranslations();
-      await loadSuggestions();
+  await loadSuggestions(true);
+  await suggestionsCache.fetch(project()?.id || '', language(), selectedKey() || undefined, true);
       alert('Suggestion approved!');
     } catch (error) {
       console.error('Failed to approve:', error);
@@ -291,7 +296,8 @@ export default function TranslationEditorPage() {
 
     try {
       await rejectSuggestion(id);
-      await loadSuggestions();
+  await loadSuggestions(true);
+  await suggestionsCache.fetch(project()?.id || '', language(), selectedKey() || undefined, true);
       alert('Suggestion rejected!');
     } catch (error) {
       console.error('Failed to reject:', error);

@@ -232,14 +232,18 @@ export async function fetchSuggestions(
   projectId: string,
   language: string,
   filename: string,
-  key?: string
+  key?: string,
+  // If true, bypass browser cache and force revalidation
+  force = false
 ): Promise<WebTranslation[]> {
   const params = new URLSearchParams({ projectId, language, filename });
   if (key) params.append('key', key);
 
   const response = await authFetch(
     `/api/translations/suggestions?${params}`,
-    { credentials: 'include' }
+    // When force is true, instruct the browser to reload the resource from network
+    // (this avoids max-age serving stale responses)
+    { credentials: 'include', ...(force ? { cache: 'reload' } : {}) }
   );
 
   if (!response.ok) throw new Error('Failed to fetch suggestions');

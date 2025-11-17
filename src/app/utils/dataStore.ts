@@ -15,7 +15,153 @@
 
 import { createStore } from 'solid-js/store';
 import { authFetch } from './authFetch';
-import { isFirstLoad } from './appState';
+
+/**
+ * Generic cache store factory for SolidJS.
+ * Handles store creation, fetch with ETag, get, and clear logic.
+ */
+function createCacheStore<
+  State extends object,
+  Data,
+  KeyArgs extends any[] = any[],
+  FetchArgs extends any[] = any[]
+>({
+  initialState,
+  makeKey,
+  makeUrl,
+  extractData,
+  extractEtag,
+  fetchParams,
+}: {
+  initialState: State;
+  makeKey: (...args: KeyArgs) => string;
+  makeUrl: (...args: FetchArgs) => string;
+  extractData: (result: any) => Data;
+  extractEtag?: (result: any) => string | undefined;
+  fetchParams?: (...args: FetchArgs) => RequestInit;
+}) {
+  const [store, setStore] = createStore<State>(initialState);
+
+  function get(...args: KeyArgs) {
+    const key = makeKey(...args);
+    return (store as any)[key];
+  }
+
+  async function fetch(
+    keyArgs: KeyArgs,
+    fetchArgs: FetchArgs,
+    force = false
+  ) {
+    const key = makeKey(...keyArgs);
+    const url = makeUrl(...fetchArgs);
+    const existing = (store as any)[key];
+    const etag = force ? undefined : existing?.etag;
+    let params: RequestInit = fetchParams ? fetchParams(...fetchArgs) : {};
+    if (!params.credentials) params.credentials = 'include' as RequestCredentials;
+
+    revalidateAndUpdate<any, any>(
+      url,
+      params,
+      existing,
+      etag,
+      (res) => {
+        if ('data' in res) {
+          setStore(key as any, {
+            ...extractData(res.data),
+            lastFetch: Date.now(),
+            etag: extractEtag ? extractEtag(res) : res.etag,
+          });
+        } else {
+          setStore(key as any, {
+            ...(existing || {}),
+            lastFetch: Date.now(),
+            etag: existing?.etag,
+          });
+        }
+      }
+    ).catch((err) => console.error(`[DataStore] Failed to revalidate for ${key}:`, err));
+  }
+
+  function clear(prefix?: string) {
+    clearKeyedStore(store as Record<string, unknown>, setStore as any, prefix);
+  }
+
+  return { get, fetch, clear, _store: store };
+}
+
+// Helper: perform conditional fetch using ETag and authFetch.
+// Uses cache: 'no-cache' so the browser revalidates with the origin.
+// Returns an object describing the result or null on network error.
+async function fetchWithETag<T>(
+  url: string,
+  options: RequestInit,
+  existingEtag?: string,
+): Promise<
+  | { status: 'not-modified' }
+  | { status: 'ok'; data: T; etag?: string }
+  | { status: 'error'; code: number }
+  | null
+> {
+  try {
+    const headers = new Headers(options.headers || {});
+    if (existingEtag) headers.set('If-None-Match', existingEtag);
+
+    const fetchOptions: RequestInit = {
+      ...options,
+      headers,
+      cache: 'no-cache', // ask browser to revalidate
+      credentials: options.credentials ?? 'include',
+    };
+
+    const res = await authFetch(url, fetchOptions);
+
+    if (res.status === 304) {
+      return { status: 'not-modified' };
+    }
+
+    if (!res.ok) {
+      return { status: 'error', code: res.status };
+    }
+
+    const etag = res.headers.get('ETag') ?? undefined;
+    const data = (await res.json()) as T;
+    return { status: 'ok', data, etag };
+  } catch (err) {
+    console.error('[DataStore] fetchWithETag error', err);
+    return null;
+  }
+}
+
+// Generic helper to revalidate a resource and update a store using a provided setter.
+// updateFn is responsible for writing to the store. It receives an object:
+// - if notModified: { notModified: true, existing }
+// - if ok: { notModified: false, data, etag }
+async function revalidateAndUpdate<T, E>(
+  url: string,
+  options: RequestInit,
+  existing: E | undefined,
+  existingEtag: string | undefined,
+  updateFn: (result: { notModified: true; existing?: E } | { notModified: false; data: T; etag?: string }) => void,
+) {
+  const result = await fetchWithETag<T>(url, options, existingEtag);
+  if (!result) return;
+
+  if (result.status === 'not-modified') {
+    updateFn({ notModified: true, existing });
+  } else if (result.status === 'ok') {
+    updateFn({ notModified: false, data: result.data, etag: result.etag });
+  }
+}
+
+// Helper to clear keyed stores (calls setFn(key, undefined))
+function clearKeyedStore(storeObj: Record<string, unknown>, setFn: (key: string, val: any) => void, projectId?: string) {
+  if (projectId) {
+    const keysToDelete = Object.keys(storeObj).filter(k => k.startsWith(projectId));
+    keysToDelete.forEach(key => setFn(key, undefined as any));
+  } else {
+    Object.keys(storeObj).forEach(key => setFn(key, undefined as any));
+  }
+}
 
 // Projects store
 interface Project {
@@ -31,6 +177,7 @@ interface Project {
 interface ProjectsState {
   projects: Project[];
   lastFetch: number | null;
+  etag?: string | null;
 }
 
 const [projectsStore, setProjectsStore] = createStore<ProjectsState>({
@@ -42,42 +189,33 @@ export const projectsCache = {
   get: () => projectsStore,
   
   async fetch(includeLanguages = true, force = false) {
-    // Check if cache is still fresh (within 5 minutes)
-    const cacheAge = projectsStore.lastFetch ? Date.now() - projectsStore.lastFetch : Infinity;
-    const maxAge = 5 * 60 * 1000; // 5 minutes in milliseconds
-    
-    // Skip fetch if cache is fresh and not forced
-    if (!force && cacheAge < maxAge && projectsStore.projects.length > 0) {
-      console.log(`[DataStore] Using cached projects (age: ${Math.round(cacheAge / 1000)}s)`);
-      return;
-    }
-    
-    // Fetch in background, don't block
+    // Fetch in background, don't block — server controls freshness via ETag
     // includeLanguages: whether to include language list (more expensive)
     const url = includeLanguages 
       ? '/api/projects?includeLanguages=true' 
       : '/api/projects';
     
-    // On page reload, bypass cache to ensure fresh data
-    const fetchOptions: RequestInit = { 
-      credentials: 'include',
-      ...(force ? { cache: 'reload' } : {})
-    };
-    
-    authFetch(url, fetchOptions)
-      .then(async (res) => {
-        if (res.ok) {
-          const data = await res.json() as { projects: Project[] };
+    // On page reload, revalidate with the server using ETag
+    const existing = projectsStore;
+    // Fire-and-forget revalidation so UI is not blocked
+    revalidateAndUpdate<{ projects: Project[] }, ProjectsState>(
+      url,
+      { credentials: 'include' },
+      existing,
+      force ? undefined : existing.etag ?? undefined,
+      (res) => {
+        if ('data' in res) {
           setProjectsStore({
-            projects: data.projects,
+            projects: res.data.projects,
             lastFetch: Date.now(),
+            etag: res.etag ?? null,
           });
-          console.log(`[DataStore] Updated projects cache (${data.projects.length} projects)`);
+          console.log(`[DataStore] Updated projects cache (${res.data.projects.length} projects)`);
+        } else {
+          setProjectsStore({ lastFetch: Date.now(), etag: existing.etag ?? null });
         }
-      })
-      .catch((error) => {
-        console.error('Failed to fetch projects:', error);
-      });
+      },
+    ).catch((err) => console.error('Failed to revalidate projects:', err));
   },
   
   clear() {
@@ -85,7 +223,9 @@ export const projectsCache = {
   },
 };
 
-// Files store - keyed by projectId and language
+/**
+ * Files store - keyed by projectId and language
+ */
 interface FileData {
   filename: string;
   lang: string;
@@ -97,72 +237,30 @@ interface FilesState {
   [key: string]: {
     files: FileData[];
     lastFetch: number;
+    etag?: string;
   };
 }
 
-const [filesStore, setFilesStore] = createStore<FilesState>({});
-
-export const filesCache = {
-  get: (projectId: string, language?: string) => {
-    const key = language ? `${projectId}:${language}` : projectId;
-    return filesStore[key];
-  },
-  
-  async fetch(projectId: string, language?: string, filename?: string, force = false) {
-    const key = language ? `${projectId}:${language}` : projectId;
-    
-    // Check if cache is still fresh (within 10 minutes)
-    const existing = filesStore[key];
-    if (existing && !force) {
-      const cacheAge = Date.now() - existing.lastFetch;
-      const maxAge = 10 * 60 * 1000; // 10 minutes in milliseconds
-      
-      if (cacheAge < maxAge) {
-        console.log(`[DataStore] Using cached files for ${key} (age: ${Math.round(cacheAge / 1000)}s)`);
-        return;
-      }
-    }
-    
+export const filesCache = createCacheStore<FilesState, { files: FileData[] }, [string, string?], [string, string?, string?]>({
+  initialState: {},
+  makeKey: (projectId: string, language?: string) =>
+    language ? `${projectId}:${language}` : projectId,
+  makeUrl: (projectId: string, language?: string, filename?: string) => {
     let url = `/api/projects/${projectId}/files`;
     const params = new URLSearchParams();
     if (language) params.append('lang', language);
     if (filename) params.append('filename', filename);
     if (params.toString()) url += `?${params.toString()}`;
-    
-    // Fetch in background, don't block
-    authFetch(url, { credentials: 'include' })
-      .then(async (res) => {
-        if (res.ok) {
-          const data = await res.json() as { files: FileData[] };
-          setFilesStore(key, {
-            files: data.files,
-            lastFetch: Date.now(),
-          });
-          console.log(`[DataStore] Updated files cache for ${key} (${data.files.length} files)`);
-        }
-      })
-      .catch((error) => {
-        console.error(`Failed to fetch files for ${key}:`, error);
-      });
+    return url;
   },
-  
-  clear(projectId?: string) {
-    if (projectId) {
-      // Clear all entries for this project
-      const keysToDelete = Object.keys(filesStore).filter(k => k.startsWith(projectId));
-      keysToDelete.forEach(key => {
-        setFilesStore(key, undefined as any);
-      });
-    } else {
-      // Clear all
-      Object.keys(filesStore).forEach(key => {
-        setFilesStore(key, undefined as any);
-      });
-    }
-  },
-};
+  extractData: (data: any) => ({ files: data.files }),
+  extractEtag: (res: any) => res.etag,
+  fetchParams: () => ({ credentials: 'include' }),
+});
 
-// Files summary store - for file selection pages
+/**
+ * Files summary store - for file selection pages
+ */
 interface FileSummaryData {
   files: Array<{
     filename: string;
@@ -177,67 +275,27 @@ interface FilesSummaryState {
   [key: string]: {
     data: FileSummaryData;
     lastFetch: number;
+    etag?: string;
   };
 }
 
-const [filesSummaryStore, setFilesSummaryStore] = createStore<FilesSummaryState>({});
-
-export const filesSummaryCache = {
-  get: (projectId: string, language?: string) => {
-    const key = language ? `${projectId}:${language}` : projectId;
-    return filesSummaryStore[key];
-  },
-  
-  async fetch(projectId: string, language?: string, force = false) {
-    const key = language ? `${projectId}:${language}` : projectId;
-    
-    // Check if cache is still fresh (within 10 minutes)
-    const existing = filesSummaryStore[key];
-    if (existing && !force) {
-      const cacheAge = Date.now() - existing.lastFetch;
-      const maxAge = 10 * 60 * 1000; // 10 minutes in milliseconds
-      
-      if (cacheAge < maxAge) {
-        console.log(`[DataStore] Using cached file summary for ${key} (age: ${Math.round(cacheAge / 1000)}s)`);
-        return;
-      }
-    }
-    
+export const filesSummaryCache = createCacheStore<FilesSummaryState, { data: FileSummaryData }, [string, string?], [string, string?]>({
+  initialState: {},
+  makeKey: (projectId: string, language?: string) =>
+    language ? `${projectId}:${language}` : projectId,
+  makeUrl: (projectId: string, language?: string) => {
     let url = `/api/projects/${projectId}/files/summary`;
     if (language) url += `?lang=${language}`;
-    
-    // Fetch in background, don't block
-    authFetch(url, { credentials: 'include' })
-      .then(async (res) => {
-        if (res.ok) {
-          const data = await res.json() as FileSummaryData;
-          setFilesSummaryStore(key, {
-            data,
-            lastFetch: Date.now(),
-          });
-          console.log(`[DataStore] Updated file summary cache for ${key}`);
-        }
-      })
-      .catch((error) => {
-        console.error(`Failed to fetch file summary for ${key}:`, error);
-      });
+    return url;
   },
-  
-  clear(projectId?: string) {
-    if (projectId) {
-      const keysToDelete = Object.keys(filesSummaryStore).filter(k => k.startsWith(projectId));
-      keysToDelete.forEach(key => {
-        setFilesSummaryStore(key, undefined as any);
-      });
-    } else {
-      Object.keys(filesSummaryStore).forEach(key => {
-        setFilesSummaryStore(key, undefined as any);
-      });
-    }
-  },
-};
+  extractData: (data: any) => ({ data }),
+  extractEtag: (res: any) => res.etag,
+  fetchParams: () => ({ credentials: 'include' }),
+});
 
-// Translations store
+/**
+ * Translations store
+ */
 interface Translation {
   id: string;
   key: string;
@@ -254,68 +312,27 @@ interface TranslationsState {
   [key: string]: {
     translations: Translation[];
     lastFetch: number;
+    etag?: string;
   };
 }
 
-const [translationsStore, setTranslationsStore] = createStore<TranslationsState>({});
-
-export const translationsCache = {
-  get: (projectId: string, language: string, status?: string) => {
-    const key = `${projectId}:${language}${status ? `:${status}` : ''}`;
-    return translationsStore[key];
-  },
-  
-  async fetch(projectId: string, language: string, status?: string, force = false) {
-    const key = `${projectId}:${language}${status ? `:${status}` : ''}`;
-    
-    // Check if cache is still fresh (within 1 minute for translations - they change more frequently)
-    const existing = translationsStore[key];
-    if (existing && !force) {
-      const cacheAge = Date.now() - existing.lastFetch;
-      const maxAge = 60 * 1000; // 1 minute in milliseconds
-      
-      if (cacheAge < maxAge) {
-        console.log(`[DataStore] Using cached translations for ${key} (age: ${Math.round(cacheAge / 1000)}s)`);
-        return;
-      }
-    }
-    
+export const translationsCache = createCacheStore<TranslationsState, { translations: Translation[] }, [string, string, string?], [string, string, string?]>({
+  initialState: {},
+  makeKey: (projectId: string, language: string, status?: string) =>
+    `${projectId}:${language}${status ? `:${status}` : ''}`,
+  makeUrl: (projectId: string, language: string, status?: string) => {
     const params = new URLSearchParams({ projectId, language });
     if (status) params.append('status', status);
-    const url = `/api/translations?${params}`;
-    
-    // Fetch in background, don't block
-    authFetch(url, { credentials: 'include' })
-      .then(async (res) => {
-        if (res.ok) {
-          const data = await res.json() as { translations: Translation[] };
-          setTranslationsStore(key, {
-            translations: data.translations,
-            lastFetch: Date.now(),
-          });
-          console.log(`[DataStore] Updated translations cache for ${key} (${data.translations.length} translations)`);
-        }
-      })
-      .catch((error) => {
-        console.error(`Failed to fetch translations for ${key}:`, error);
-      });
+    return `/api/translations?${params}`;
   },
-  
-  clear(projectId?: string) {
-    if (projectId) {
-      const keysToDelete = Object.keys(translationsStore).filter(k => k.startsWith(projectId));
-      keysToDelete.forEach(key => {
-        setTranslationsStore(key, undefined as any);
-      });
-    } else {
-      Object.keys(translationsStore).forEach(key => {
-        setTranslationsStore(key, undefined as any);
-      });
-    }
-  },
-};
+  extractData: (data: any) => ({ translations: data.translations }),
+  extractEtag: (res: any) => res.etag,
+  fetchParams: () => ({ credentials: 'include' }),
+});
 
-// Translation suggestions store
+/**
+ * Translation suggestions store
+ */
 interface Suggestion {
   id: string;
   projectId: string;
@@ -334,68 +351,27 @@ interface SuggestionsState {
   [key: string]: {
     suggestions: Suggestion[];
     lastFetch: number;
+    etag?: string;
   };
 }
 
-const [suggestionsStore, setSuggestionsStore] = createStore<SuggestionsState>({});
-
-export const suggestionsCache = {
-  get: (projectId: string, language: string, key?: string) => {
-    const cacheKey = key ? `${projectId}:${language}:${key}` : `${projectId}:${language}`;
-    return suggestionsStore[cacheKey];
-  },
-  
-  async fetch(projectId: string, language: string, key?: string, force = false) {
-    const cacheKey = key ? `${projectId}:${language}:${key}` : `${projectId}:${language}`;
-    
-    // Check if cache is still fresh (within 30 seconds for suggestions - real-time data)
-    const existing = suggestionsStore[cacheKey];
-    if (existing && !force) {
-      const cacheAge = Date.now() - existing.lastFetch;
-      const maxAge = 30 * 1000; // 30 seconds in milliseconds
-      
-      if (cacheAge < maxAge) {
-        console.log(`[DataStore] Using cached suggestions for ${cacheKey} (age: ${Math.round(cacheAge / 1000)}s)`);
-        return;
-      }
-    }
-    
+export const suggestionsCache = createCacheStore<SuggestionsState, { suggestions: Suggestion[] }, [string, string, string?], [string, string, string?]>({
+  initialState: {},
+  makeKey: (projectId: string, language: string, key?: string) =>
+    key ? `${projectId}:${language}:${key}` : `${projectId}:${language}`,
+  makeUrl: (projectId: string, language: string, key?: string) => {
     const params = new URLSearchParams({ projectId, language });
     if (key) params.append('key', key);
-    const url = `/api/translations/suggestions?${params}`;
-    
-    // Fetch in background, don't block
-    authFetch(url, { credentials: 'include' })
-      .then(async (res) => {
-        if (res.ok) {
-          const data = await res.json() as { suggestions: Suggestion[] };
-          setSuggestionsStore(cacheKey, {
-            suggestions: data.suggestions,
-            lastFetch: Date.now(),
-          });
-          console.log(`[DataStore] Updated suggestions cache for ${cacheKey} (${data.suggestions.length} suggestions)`);
-        }
-      })
-      .catch((error) => {
-        console.error(`Failed to fetch suggestions for ${cacheKey}:`, error);
-      });
+    return `/api/translations/suggestions?${params}`;
   },
-  
-  clear(projectId?: string) {
-    if (projectId) {
-      const keysToDelete = Object.keys(suggestionsStore).filter(k => k.startsWith(projectId));
-      keysToDelete.forEach(key => {
-        setSuggestionsStore(key, undefined as any);
-      });
-    } else {
-      Object.keys(suggestionsStore).forEach(key => {
-        setSuggestionsStore(key, undefined as any);
-      });
-    }
-  },
-};
+  extractData: (data: any) => ({ suggestions: data.suggestions }),
+  extractEtag: (res: any) => res.etag,
+  fetchParams: () => ({ credentials: 'include' }),
+});
 
-// Members store
+/**
+ * Members store
+ */
 interface Member {
   id: string;
   userId: string;
@@ -410,56 +386,18 @@ interface MembersState {
   [projectId: string]: {
     members: Member[];
     lastFetch: number;
+    etag?: string;
   };
 }
 
-const [membersStore, setMembersStore] = createStore<MembersState>({});
-
-export const membersCache = {
-  get: (projectId: string) => {
-    return membersStore[projectId];
-  },
-  
-  async fetch(projectId: string, force = false) {
-    // Check if cache is still fresh (within 5 minutes)
-    const existing = membersStore[projectId];
-    if (existing && !force) {
-      const cacheAge = Date.now() - existing.lastFetch;
-      const maxAge = 5 * 60 * 1000; // 5 minutes in milliseconds
-      
-      if (cacheAge < maxAge) {
-        console.log(`[DataStore] Using cached members for ${projectId} (age: ${Math.round(cacheAge / 1000)}s)`);
-        return;
-      }
-    }
-    
-    // Fetch in background, don't block
-    authFetch(`/api/projects/${projectId}/members`, { credentials: 'include' })
-      .then(async (res) => {
-        if (res.ok) {
-          const data = await res.json() as { members: Member[] };
-          setMembersStore(projectId, {
-            members: data.members,
-            lastFetch: Date.now(),
-          });
-          console.log(`[DataStore] Updated members cache for ${projectId} (${data.members.length} members)`);
-        }
-      })
-      .catch((error) => {
-        console.error(`Failed to fetch members for ${projectId}:`, error);
-      });
-  },
-  
-  clear(projectId?: string) {
-    if (projectId) {
-      setMembersStore(projectId, undefined as any);
-    } else {
-      Object.keys(membersStore).forEach(key => {
-        setMembersStore(key, undefined as any);
-      });
-    }
-  },
-};
+export const membersCache = createCacheStore<MembersState, { members: Member[] }, [string], [string]>({
+  initialState: {},
+  makeKey: (projectId: string) => projectId,
+  makeUrl: (projectId: string) => `/api/projects/${projectId}/members`,
+  extractData: (data: any) => ({ members: data.members }),
+  extractEtag: (res: any) => res.etag,
+  fetchParams: () => ({ credentials: 'include' }),
+});
 
 // Clear all caches
 export function clearAllCaches() {
