@@ -1,8 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user } from '../auth';
-import { useForesight } from '../utils/useForesight';
-import { projectsCache, membersCache } from '../utils/dataStore';
+import { projects, fetchProject, fetchFiles, fetchFilesSummary, fetchTranslations, fetchSuggestions, fetchMembers, refreshProjects } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface Member {
@@ -40,11 +39,6 @@ export default function ProjectSettingsPage() {
   const [errorMessage, setErrorMessage] = createSignal('');
   const [actionInProgress, setActionInProgress] = createSignal<string | null>(null);
 
-  // ForesightJS ref
-  const backButtonRef = useForesight({
-    prefetchUrls: [`/api/projects/${params.id}/files/summary`],
-    debugName: 'back-to-project',
-  });
 
   const handleApprove = async (memberId: string, status: 'approved' | 'rejected') => {
     const pid = projectId();
@@ -185,7 +179,7 @@ export default function ProjectSettingsPage() {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div class="flex items-center gap-3">
             <button
-              ref={backButtonRef}
+              
               onClick={() => navigate(`/projects/${params.id}`)}
               class="text-gray-400 hover:text-gray-600 active:text-gray-700 transition"
             >

@@ -1,9 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
-import { prefetchData } from '../utils/prefetch';
-import { useForesight } from '../utils/useForesight';
-import { projectsCache, filesSummaryCache } from '../utils/dataStore';
+import { projects, fetchProject, fetchFiles, fetchFilesSummary, fetchTranslations, fetchSuggestions, fetchMembers, refreshProjects } from '../utils/store';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
 
@@ -124,21 +122,8 @@ export default function FileSelectionPage() {
   
   const isLoading = () => isLoadingFiles();
 
-  // ForesightJS refs for navigation buttons
-  const backButtonRef = useForesight({
-    prefetchUrls: [`/api/projects/${params.id}/files/summary`],
-    debugName: 'back-to-languages',
-  });
 
-  const settingsButtonRef = useForesight({
-    prefetchUrls: [],
-    debugName: 'project-settings',
-  });
 
-  const suggestionsButtonRef = useForesight({
-    prefetchUrls: [`/api/projects/${params.id}/suggestions`],
-    debugName: 'suggestions-button',
-  });
 
   onMount(() => {
     auth.refresh();
@@ -251,15 +236,9 @@ export default function FileSelectionPage() {
           <div class="space-y-4">
             <For each={fileStats()}>
               {(fileStat) => {
-                const fileCardRef = useForesight({
-                  prefetchUrls: [`/api/translations?projectId=${params.id}&language=${language()}&filename=${encodeURIComponent(fileStat.filename)}`],
-                  debugName: `file-card-${fileStat.filename}`,
-                  hitSlop: 10,
-                });
-
                 return (
                   <button
-                    ref={fileCardRef}
+                    
                     onClick={() => navigate(`/projects/${params.id}/translate/${language()}/${encodeURIComponent(fileStat.targetFilename)}`)}
                     class="w-full bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-left group"
                   >

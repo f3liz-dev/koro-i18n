@@ -2,7 +2,7 @@ import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show } from 'solid-js';
 import { user } from '../auth';
 import { SkeletonTableRow } from '../components';
-import { projectsCache, membersCache } from '../utils/dataStore';
+import { projects, fetchProject, fetchFiles, fetchFilesSummary, fetchTranslations, fetchSuggestions, fetchMembers, refreshProjects } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface Member {

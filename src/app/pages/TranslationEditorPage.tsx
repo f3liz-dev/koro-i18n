@@ -18,7 +18,6 @@ import {
   type MergedTranslation,
   type WebTranslation,
 } from '../utils/translationApi';
-import { suggestionsCache } from '../utils/dataStore';
 import { authFetch } from '../utils/authFetch';
 
 interface Project {
