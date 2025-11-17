@@ -3,10 +3,11 @@ import { createEffect, For, onMount, Show } from 'solid-js';
 import { user, auth } from '../auth';
 import { prefetchForRoute } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
-import { SkeletonCard } from '../components/Skeleton';
+import { SkeletonCard } from '../components';
 import { projectsCache } from '../utils/dataStore';
 import { authFetch } from '../utils/authFetch';
-import PageHeader, { MenuItem } from '../components/PageHeader';
+import { PageHeader } from '../components';
+import type { MenuItem } from '../components';
 
 interface Project {
   id: string;

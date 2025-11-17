@@ -9,7 +9,7 @@ interface TranslationEditorHeaderProps {
   showMobileMenu: boolean;
 }
 
-export default function TranslationEditorHeader(props: TranslationEditorHeaderProps) {
+export function TranslationEditorHeader(props: TranslationEditorHeaderProps) {
   const navigate = useNavigate();
 
   return (

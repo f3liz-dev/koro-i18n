@@ -1,6 +1,6 @@
 import { Show, For } from "solid-js";
-import type { MergedTranslation } from "../utils/translationApi";
-import type { SortMethod } from "../pages/TranslationEditorPage";
+import type { MergedTranslation } from "../../utils/translationApi";
+import type { SortMethod } from "../../pages/TranslationEditorPage";
 
 interface TranslationListProps {
   translationStrings: MergedTranslation[];
@@ -16,7 +16,7 @@ interface TranslationListProps {
   onSortMethodChange: (method: SortMethod) => void;
 }
 
-export default function TranslationList(props: TranslationListProps) {
+export function TranslationList(props: TranslationListProps) {
   return (
     <div class="bg-white rounded-lg shadow overflow-hidden flex flex-col h-full max-h-[calc(100vh-120px)]">
       {/* Header */}

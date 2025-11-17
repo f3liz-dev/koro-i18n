@@ -1,5 +1,5 @@
 import { For, Show } from 'solid-js';
-import { SkeletonListItem } from './Skeleton';
+import { SkeletonListItem } from '../Skeleton';
 
 interface SuggestionEntry {
   id: string;
@@ -23,7 +23,7 @@ interface TranslationSuggestionsPanelProps {
   onReject?: (id: string) => void;
 }
 
-export default function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelProps) {
+export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();

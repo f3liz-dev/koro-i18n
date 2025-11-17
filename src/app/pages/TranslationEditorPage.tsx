@@ -1,10 +1,12 @@
 import { createSignal, onMount, createEffect, Show } from 'solid-js';
 import { useParams, useNavigate, useSearchParams } from '@solidjs/router';
 import { user } from '../auth';
-import TranslationEditorHeader from '../components/TranslationEditorHeader';
-import TranslationEditorPanel from '../components/TranslationEditorPanel';
-import TranslationList from '../components/TranslationList';
-import MobileMenuOverlay from '../components/MobileMenuOverlay';
+import {
+  TranslationEditorHeader,
+  TranslationEditorPanel,
+  TranslationList,
+} from '../components';
+import { MobileMenuOverlay } from '../components';
 import {
   fetchR2File,
   fetchWebTranslations,
@@ -381,6 +383,7 @@ export default function TranslationEditorPage() {
             currentIndex={getCurrentIndex()}
             totalCount={filteredTranslations().length}
             isSaving={isSaving()}
+            isLoading={isLoading()}
             onTranslationChange={setTranslationValue}
             onSave={handleSave}
             onToggleSuggestions={() => setShowSuggestions(!showSuggestions())}

@@ -1,6 +1,6 @@
 import { Show } from "solid-js";
 import TranslationSuggestionsPanel from "./TranslationSuggestionsPanel";
-import type { MergedTranslation, WebTranslation } from "../utils/translationApi";
+import type { MergedTranslation, WebTranslation } from "../../utils/translationApi";
 
 interface TranslationEditorPanelProps {
   selectedKey: string | null;
@@ -13,6 +13,7 @@ interface TranslationEditorPanelProps {
   currentIndex: number;
   totalCount: number;
   isSaving: boolean;
+  isLoading: boolean;
   onTranslationChange: (value: string) => void;
   onSave: () => void;
   onToggleSuggestions: () => void;
@@ -22,7 +23,7 @@ interface TranslationEditorPanelProps {
   onNext: () => void;
 }
 
-export default function TranslationEditorPanel(props: TranslationEditorPanelProps) {
+export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
   const translation = () =>
     props.translations.find((t) => t.key === props.selectedKey);
 
@@ -205,6 +206,7 @@ export default function TranslationEditorPanel(props: TranslationEditorPanelProp
           <TranslationSuggestionsPanel
             show={props.showSuggestions}
             suggestions={props.suggestions}
+            isLoading={props.isLoading}
             onApprove={props.onApproveSuggestion}
             onReject={props.onRejectSuggestion}
           />

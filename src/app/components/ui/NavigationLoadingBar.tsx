@@ -15,7 +15,7 @@ interface NavigationLoadingBarProps {
  * Shows a progress bar at the top of the screen when navigating between routes,
  * but only if the transition takes longer than the threshold.
  */
-export default function NavigationLoadingBar(props: NavigationLoadingBarProps) {
+export function NavigationLoadingBar(props: NavigationLoadingBarProps) {
   const threshold = props.threshold ?? 300;
   const location = useLocation();
   

@@ -1,6 +1,6 @@
 import { createSignal, For, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { SkeletonListItem } from '../components/Skeleton';
+import { SkeletonListItem } from '../components';
 import { tryGetCached, createCachedFetcher } from '../utils/cachedFetch';
 import { authFetch } from '../utils/authFetch';
 

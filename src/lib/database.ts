@@ -11,29 +11,25 @@ export async function logTranslationHistory(
   translationId: string,
   projectId: string,
   language: string,
+  filename: string,
   key: string,
   value: string,
   userId: string,
   action: string,
-  commitSha?: string,
-  sourceContent?: string,
-  commitAuthor?: string,
-  commitEmail?: string
+  sourceHash?: string
 ) {
-  await prisma.translationHistory.create({
+  await prisma.webTranslationHistory.create({
     data: {
       id: crypto.randomUUID(),
       translationId,
       projectId,
       language,
+      filename,
       key,
       value,
       userId,
       action,
-      commitSha: commitSha || null,
-      sourceContent: sourceContent || null,
-      commitAuthor: commitAuthor || null,
-      commitEmail: commitEmail || null,
+      sourceHash: sourceHash || null,
     },
   });
 }

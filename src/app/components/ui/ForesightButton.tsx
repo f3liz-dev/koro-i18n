@@ -20,7 +20,7 @@ interface ForesightButtonProps extends JSX.ButtonHTMLAttributes<HTMLButtonElemen
 /**
  * A button that integrates with ForesightJS for smart prefetching
  */
-export default function ForesightButton(props: ForesightButtonProps) {
+export function ForesightButton(props: ForesightButtonProps) {
   const [local, buttonProps] = splitProps(props, ['prefetchUrls', 'hitSlop', 'debugName']);
   let buttonRef: HTMLButtonElement | undefined;
 

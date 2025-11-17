@@ -4,7 +4,8 @@ import { user, auth } from '../auth';
 import { prefetchForRoute } from '../utils/prefetch';
 import { useForesight } from '../utils/useForesight';
 import { projectsCache, filesSummaryCache } from '../utils/dataStore';
-import PageHeader, { MenuItem } from '../components/PageHeader';
+import { PageHeader } from '../components';
+import type { MenuItem } from '../components';
 
 interface Project {
   id: string;

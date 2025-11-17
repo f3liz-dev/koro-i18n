@@ -161,11 +161,12 @@ src/app/
 │   ├── ErrorBoundary.tsx        # Error handling boundary
 │   ├── NavigationLoadingBar.tsx # Top loading bar for navigation
 │   ├── TopLoadingBar.tsx        # Utility loading bar
-│   ├── TranslationList.tsx      # Translation key list
-│   ├── TranslationEditorPanel.tsx # Translation editing panel
-│   ├── TranslationEditorHeader.tsx # Editor page header
-│   ├── TranslationHistoryPanel.tsx # History display
-│   ├── TranslationSuggestionsPanel.tsx # Suggestions display
+│   ├── translation/             # Translation-related components
+│   │   ├── TranslationList.tsx      # Translation key list
+│   │   ├── TranslationEditorPanel.tsx # Translation editing panel
+│   │   ├── TranslationEditorHeader.tsx # Editor page header
+│   │   ├── TranslationHistoryPanel.tsx # History display
+│   │   └── TranslationSuggestionsPanel.tsx # Suggestions display
 │   ├── MobileMenuOverlay.tsx    # Mobile navigation menu
 │   └── ForesightButton.tsx      # Button with prefetching
 │
@@ -699,7 +700,7 @@ interface PageHeaderProps {
 
 ---
 
-### TranslationList (`TranslationList.tsx`)
+### TranslationList (`components/translation/TranslationList.tsx`)
 
 List of translation keys with search and filters.
 
@@ -724,7 +725,7 @@ interface TranslationListProps {
 
 ---
 
-### TranslationEditorPanel (`TranslationEditorPanel.tsx`)
+### TranslationEditorPanel (`components/translation/TranslationEditorPanel.tsx`)
 
 Translation editing panel with source and target sections.
 

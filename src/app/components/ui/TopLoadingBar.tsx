@@ -151,7 +151,7 @@ export function useLoadingBar(threshold = 300) {
 /**
  * Standalone loading bar with built-in state management
  */
-export default function StandaloneLoadingBar(props: TopLoadingBarProps) {
+export function StandaloneLoadingBar(props: TopLoadingBarProps) {
   const { visible, progress } = useLoadingBar(props.threshold);
 
   return (

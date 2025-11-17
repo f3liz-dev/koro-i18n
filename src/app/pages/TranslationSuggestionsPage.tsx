@@ -2,7 +2,7 @@ import { createSignal, For, Show, onMount, createEffect } from 'solid-js';
 import { useParams, useNavigate } from '@solidjs/router';
 import { user } from '../auth';
 import { useForesight } from '../utils/useForesight';
-import { SkeletonListItem } from '../components/Skeleton';
+import { SkeletonListItem } from '../components';
 import { suggestionsCache } from '../utils/dataStore';
 import { authFetch } from '../utils/authFetch';
 

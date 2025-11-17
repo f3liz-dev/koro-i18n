@@ -1,5 +1,5 @@
 import { For, Show } from 'solid-js';
-import { SkeletonListItem } from './Skeleton';
+import { SkeletonListItem } from '../Skeleton';
 
 interface HistoryEntry {
   id: string;
@@ -18,7 +18,7 @@ interface TranslationHistoryPanelProps {
   show: boolean;
 }
 
-export default function TranslationHistoryPanel(props: TranslationHistoryPanelProps) {
+export function TranslationHistoryPanel(props: TranslationHistoryPanelProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();

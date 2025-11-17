@@ -1,7 +1,7 @@
-import { Show, createSignal } from 'solid-js';
-import TranslationList from './TranslationList';
-import type { MergedTranslation } from '../utils/translationApi';
-import type { SortMethod } from '../pages/TranslationEditorPage';
+import { Show } from 'solid-js';
+import { TranslationList } from '../translation';
+import type { MergedTranslation } from '../../utils/translationApi';
+import type { SortMethod } from '../../pages/TranslationEditorPage';
 
 interface MobileMenuOverlayProps {
   show: boolean;
@@ -19,7 +19,7 @@ interface MobileMenuOverlayProps {
   onSortMethodChange: (method: SortMethod) => void;
 }
 
-export default function MobileMenuOverlay(props: MobileMenuOverlayProps) {
+export function MobileMenuOverlay(props: MobileMenuOverlayProps) {
   const handleSelectKey = (key: string) => {
     props.onSelectKey(key);
     props.onClose(); // Close menu after selection on mobile

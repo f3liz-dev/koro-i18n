@@ -37,7 +37,7 @@
 - Search and filter
 - Keyboard shortcuts
 
-### 3. TranslationEditorPanel (`src/app/components/TranslationEditorPanel.tsx`)
+### 3. TranslationEditorPanel (`src/app/components/translation/TranslationEditorPanel.tsx`)
 **Updated to show git info and validation**
 
 **New Features:**
@@ -62,7 +62,7 @@
 </span>
 ```
 
-### 4. TranslationList (`src/app/components/TranslationList.tsx`)
+### 4. TranslationList (`src/app/components/translation/TranslationList.tsx`)
 **Updated to show validation and source**
 
 **New Features:**

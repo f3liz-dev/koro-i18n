@@ -56,7 +56,7 @@ export function createWorkerApp(env: Env) {
       return c.json({ error: 'Missing required parameters' }, 400);
     }
 
-    const history = await prisma.translationHistory.findMany({
+    const history = await prisma.webTranslationHistory.findMany({
       where: { projectId, language, key },
       orderBy: { createdAt: 'desc' },
     });
