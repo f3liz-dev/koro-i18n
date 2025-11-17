@@ -281,7 +281,10 @@ export const filesSummaryCache = createCacheStore<FilesSummaryState, { data: Fil
     language ? `${projectId}:${language}` : projectId,
   makeUrl: (projectId: string, language?: string) => {
     let url = `/api/projects/${projectId}/files/summary`;
-    if (language) url += `?lang=${language}`;
+    // Only append lang if it's a valid language code (e.g. "en", "es", "ja", "en-US")
+    if (language && /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language)) {
+      url += `?lang=${language}`;
+    }
     return url;
   },
   extractData: (data: any) => ({ data }),

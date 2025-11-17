@@ -159,7 +159,7 @@ export default function DashboardPage() {
                    <div class="bg-white rounded-lg border p-6 hover:border-gray-300 hover:shadow-sm active:scale-[0.98] transition">
                     <button
                       ref={projectCardRef}
-                      onClick={() => navigate(`/projects/${project.name}`)}
+                      onClick={() => navigate(`/projects/${project.id}`)}
                       class="w-full text-left mb-4"
                     >
                       <div class="mb-4">

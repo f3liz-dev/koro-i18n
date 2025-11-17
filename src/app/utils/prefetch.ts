@@ -87,9 +87,11 @@ export function prefetchForRoute(route: string, projectId?: string, language?: s
   const prefetchMap: Record<string, string[]> = {
     dashboard: ['/api/projects'],
     'project-languages': projectId ? [`/api/projects/${projectId}/files/summary`] : [],
-    'project-files': projectId && language 
+    'project-files': projectId && language && /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language)
       ? [`/api/projects/${projectId}/files/summary?lang=${language}`]
-      : [],
+      : projectId
+        ? [`/api/projects/${projectId}/files/summary`]
+        : [],
     'translation-editor': projectId && language
       ? [
           `/api/projects`,
@@ -149,5 +151,3 @@ export function clearPrefetchCache(): void {
  * Get the ForesightManager instance for advanced usage
  */
 export { ForesightManager };
-
-

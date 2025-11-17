@@ -77,23 +77,25 @@ export default function LanguageSelectionPage() {
     const stats: LanguageStats[] = [];
     
     for (const lang of Array.from(languages)) {
+      // Only include valid language codes (e.g. "en", "es", "ja", "en-US")
+      if (!/^[a-z]{2,3}(-[A-Z]{2})?$/.test(lang)) continue;
       const targetFiles = allData.files.filter(f => f.lang === lang);
-      
+
       let totalKeys = 0;
       let translatedKeys = 0;
-      
+
       for (const sourceFile of sourceFiles) {
         totalKeys += sourceFile.totalKeys || 0;
-        
+
         // Match files handling both same-name and language-specific names
-        const targetFile = targetFiles.find(f => 
+        const targetFile = targetFiles.find(f =>
           matchFiles(sourceFile.filename, f.filename, actualSourceLang, lang)
         );
         if (targetFile) {
           translatedKeys += targetFile.translatedKeys || 0;
         }
       }
-      
+
       const percentage = totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0;
       stats.push({
         language: lang,
