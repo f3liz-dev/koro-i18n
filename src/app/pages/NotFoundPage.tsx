@@ -10,10 +10,14 @@ export default function NotFoundPage() {
   });
 
   return (
-    <div class="min-h-screen bg-gray-50 flex items-center justify-center px-6">
-      <div class="text-center max-w-md">
-        <h1 class="text-9xl font-bold text-gray-900 mb-4">404</h1>
-        <h2 class="text-2xl font-semibold text-gray-800 mb-2">Page Not Found</h2>
+    <div class="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50/30 flex items-center justify-center px-6">
+      <div class="text-center max-w-md animate-slide-up">
+        <div class="mb-8 flex justify-center">
+          <div class="w-32 h-32 bg-gradient-to-br from-primary-100 to-accent-100 rounded-full flex items-center justify-center">
+            <span class="text-6xl font-bold bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent">404</span>
+          </div>
+        </div>
+        <h2 class="text-3xl font-bold text-gray-900 mb-3">Page Not Found</h2>
         <p class="text-gray-600 mb-8">
           The page you're looking for doesn't exist or has been moved.
         </p>
@@ -21,13 +25,13 @@ export default function NotFoundPage() {
           <button
             ref={homeButtonRef}
             onClick={() => navigate('/')}
-            class="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-950 active:scale-[0.98] transition"
+            class="px-8 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
           >
             Go to Home
           </button>
           <button
             onClick={() => window.history.back()}
-            class="px-6 py-3 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 active:bg-gray-400 active:scale-[0.98] transition"
+            class="px-8 py-3 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-semibold hover:border-gray-300 hover:bg-gray-50 transition-all"
           >
             Go Back
           </button>
