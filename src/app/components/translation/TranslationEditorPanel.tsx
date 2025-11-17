@@ -1,5 +1,5 @@
 import { Show } from "solid-js";
-import TranslationSuggestionsPanel from "./TranslationSuggestionsPanel";
+import { TranslationSuggestionsPanel } from "./TranslationSuggestionsPanel";
 import type { MergedTranslation, WebTranslation } from "../../utils/translationApi";
 
 interface TranslationEditorPanelProps {

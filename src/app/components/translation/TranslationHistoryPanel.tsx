@@ -1,5 +1,5 @@
 import { For, Show } from 'solid-js';
-import { SkeletonListItem } from '../Skeleton';
+import { SkeletonListItem } from '../ui';
 
 interface HistoryEntry {
   id: string;
