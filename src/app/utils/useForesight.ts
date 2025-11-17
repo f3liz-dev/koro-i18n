@@ -59,7 +59,7 @@ export function useForesight(options: UseForesightOptions) {
           try {
             await fetch(url, {
               credentials: 'include',
-              priority: 'low' as RequestPriority,
+              cache: 'no-cache',
             });
             console.log(`[ForesightJS] Prefetched: ${url}`);
           } catch (error) {

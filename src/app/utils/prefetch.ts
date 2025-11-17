@@ -48,17 +48,18 @@ export async function prefetchData(url: string): Promise<void> {
     
     // Perform actual fetch - this will be cached by the browser
     // Don't await to prevent blocking navigation
-    fetch(url, { 
+    fetch(url, {
       credentials: 'include',
-      // Use low priority so it doesn't interfere with user-initiated requests
-      priority: 'low' as RequestPriority,
-    }).then(() => {
-      console.log(`[ForesightJS] Prefetched: ${url}`);
-    }).catch((error) => {
-      // Remove from cache on error so it can be retried
-      prefetchCache.delete(url);
-      console.warn(`[ForesightJS] Failed to prefetch ${url}:`, error);
-    });
+      cache: 'no-cache',
+    })
+      .then(() => {
+        console.log(`[ForesightJS] Prefetched: ${url}`);
+      })
+      .catch((error) => {
+        // Remove from cache on error so it can be retried
+        prefetchCache.delete(url);
+        console.warn(`[ForesightJS] Failed to prefetch ${url}:`, error);
+      });
   } catch (error) {
     // Remove from cache on error so it can be retried
     prefetchCache.delete(url);

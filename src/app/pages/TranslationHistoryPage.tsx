@@ -1,7 +1,6 @@
 import { createSignal, For, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { SkeletonListItem } from '../components';
-import { tryGetCached, createCachedFetcher } from '../utils/cachedFetch';
 import { authFetch } from '../utils/authFetch';
 
 interface HistoryEntry {
@@ -17,14 +16,7 @@ async function fetchHistory(projectId: string, language: string, key: string) {
   const params = new URLSearchParams({ projectId, language, key });
   const url = `/api/translations/history?${params}`;
   
-  // Try to get cached data first
-  const cached = await tryGetCached(url, { credentials: 'include' });
-  if (cached) {
-    const data = await cached.json() as { history: HistoryEntry[] };
-    return data.history;
-  }
-  
-  // Fallback to network fetch
+  // Always fetch from network (dataStore handles caching)
   const response = await authFetch(url, { credentials: 'include' });
   if (!response.ok) throw new Error('Failed to fetch history');
   const data = await response.json() as { history: HistoryEntry[] };
