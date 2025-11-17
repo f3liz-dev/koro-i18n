@@ -1,7 +1,5 @@
 import { createSignal, createResource, onMount } from 'solid-js';
 import { authFetch } from './utils/authFetch';
-import { clearAllCaches } from './utils/dataStore';
-import { isFirstLoad } from './utils/appState';
 
 interface User {
   id: string;
@@ -17,10 +15,9 @@ const [error, setError] = createSignal<string | null>(null);
 
 const fetchUser = async (bypassCache = false) => {
   try {
-    // On page reload (first load), bypass cache to ensure fresh data
     const fetchOptions: RequestInit = { 
       credentials: 'include',
-      // Use 'reload' cache mode to bypass cache on page reload
+      // Use 'reload' cache mode to bypass cache if needed
       ...(bypassCache ? { cache: 'reload' } : {})
     };
     
@@ -36,13 +33,10 @@ const fetchUser = async (bypassCache = false) => {
   }
 };
 
-// Initialize createResource - force fresh fetch on page reload
+// Initialize createResource
 const [initialUser, { refetch }] = createResource(
   async () => {
-    // Check if this is first load (page reload) - if so, bypass cache
-    const isPageReload = isFirstLoad();
-    console.log(`[Auth] ${isPageReload ? 'Page reload detected - fetching fresh data' : 'Using cached auth data'}`);
-    return fetchUser(isPageReload);
+    return fetchUser(false);
   }
 );
 
@@ -60,10 +54,6 @@ export const auth = {
 
   async logout() {
     try {
-      // Clear all caches first to prevent stale data
-      console.log('[Auth] Clearing all caches');
-      clearAllCaches(); // Clear dataStore caches
-
       // Call logout endpoint to clear server-side cookie
       await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' });
       setUser(null);
