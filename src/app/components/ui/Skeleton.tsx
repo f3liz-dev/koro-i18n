@@ -16,7 +16,7 @@ export function Skeleton(props: SkeletonProps) {
 
   return (
     <div
-      class={`bg-gray-200 animate-pulse ${roundedClass} ${props.className || ''}`}
+      class={`kawaii-ghost animate-pulse ${roundedClass} ${props.className || ''}`}
       style={{
         width: props.width || '100%',
         height: props.height || '1rem',
@@ -47,7 +47,7 @@ interface SkeletonCardProps {
 
 export function SkeletonCard(props: SkeletonCardProps) {
   return (
-    <div class={`bg-white rounded-lg border p-6 ${props.className || ''}`}>
+    <div class={`kawaii-card p-6 ${props.className || ''}`}>
       <div class="mb-4">
         <Skeleton width="60%" height="1.25rem" className="mb-2" />
         <Skeleton width="80%" height="0.75rem" />
@@ -84,7 +84,7 @@ interface SkeletonPanelProps {
 
 export function SkeletonPanel(props: SkeletonPanelProps) {
   return (
-    <div class={`bg-white rounded-lg shadow p-4 ${props.className || ''}`}>
+    <div class={`kawaii-panel p-4 ${props.className || ''}`}>
       <Skeleton width="50%" height="1rem" className="mb-4" />
       <div class="space-y-3">
         <div>
@@ -108,7 +108,7 @@ interface SkeletonTableRowProps {
 export function SkeletonTableRow(props: SkeletonTableRowProps) {
   const columns = props.columns || 3;
   return (
-    <div class={`border rounded-lg p-4 flex items-center justify-between ${props.className || ''}`}>
+    <div class={`kawaii-card p-4 flex items-center justify-between ${props.className || ''}`}>
       <div class="flex items-center gap-3 flex-1">
         <Skeleton width="2.5rem" height="2.5rem" rounded="full" />
         <div class="flex-1">

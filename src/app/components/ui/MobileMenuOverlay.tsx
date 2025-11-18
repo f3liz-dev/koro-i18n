@@ -28,20 +28,20 @@ export function MobileMenuOverlay(props: MobileMenuOverlayProps) {
   return (
     <Show when={props.show}>
       {/* Backdrop */}
-      <div 
-        class="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40" 
-        onClick={props.onClose} 
+      <div
+        class="lg:hidden fixed inset-0 bg-black bg-opacity-30 z-40"
+        onClick={props.onClose}
       />
-      
+
       {/* Slide-in Menu */}
-      <div class="lg:hidden fixed top-0 left-0 bottom-0 w-[85%] max-w-sm bg-white shadow-lg z-50 flex flex-col">
+      <div class="lg:hidden fixed top-0 left-0 bottom-0 w-[85%] max-w-sm z-50 flex flex-col kawaii-panel">
         {/* Header */}
-        <div class="flex items-center justify-between p-4 border-b">
-          <h2 class="text-lg font-semibold">Translation Strings</h2>
+        <div class="flex items-center justify-between p-4 border-b border-transparent">
+          <h2 class="text-lg font-semibold">翻訳文字列</h2>
           <button
             onClick={props.onClose}
-            class="p-2 hover:bg-gray-100 active:bg-gray-200 rounded transition"
-            aria-label="Close"
+            class="kawaii-ghost p-2 rounded transition"
+            aria-label="閉じる"
           >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
