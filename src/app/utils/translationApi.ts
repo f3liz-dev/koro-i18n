@@ -30,7 +30,7 @@ export async function fetchR2File(
     });
     
     const metadataResponse = await authFetch(
-      `/api/projects/${projectId}/files?${params}`,
+      `/api/projects/${encodeURIComponent(projectId)}/files?${params}`,
       { credentials: 'include' }
     );
     

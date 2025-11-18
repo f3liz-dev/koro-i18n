@@ -56,7 +56,7 @@ export async function fetchProject(id: string): Promise<Project | null> {
 }
 
 export async function fetchFiles(projectId: string, language?: string, filename?: string) {
-  let url = `/api/projects/${projectId}/files`;
+  let url = `/api/projects/${encodeURIComponent(projectId)}/files`;
   const params = new URLSearchParams();
   if (language) params.append('lang', language);
   if (filename) params.append('filename', filename);
@@ -77,7 +77,7 @@ export async function fetchFiles(projectId: string, language?: string, filename?
 }
 
 export async function fetchFilesSummary(projectId: string, language?: string) {
-  let url = `/api/projects/${projectId}/files/summary`;
+  let url = `/api/projects/${encodeURIComponent(projectId)}/files/summary`;
   if (language && (language === 'source-language' || /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language))) {
     url += `?lang=${language}`;
   }
@@ -154,13 +154,13 @@ export const fetchAllProjectsQuery = async () => {
 };
 
 export async function fetchMembers(projectId: string) {
-  const res = await authFetch(`/api/projects/${projectId}/members`, { credentials: 'include' });
+  const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/members`, { credentials: 'include' });
   if (!res.ok) throw new Error('Failed to fetch members');
   return res.json();
 }
 
 export const fetchMembersQuery = async (projectId: string) => {
-  const res = await authFetch(`/api/projects/${projectId}/members`, { credentials: 'include' });
+  const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/members`, { credentials: 'include' });
   if (!res.ok) throw new Error('Failed to fetch members');
   const data = await res.json();
   return data;
@@ -184,7 +184,7 @@ export function createProjectsQuery() {
 
 export function createFetchFilesSummaryQuery() {
   return query(async (projectId: string, language?: string) => {
-    let url = `/api/projects/${projectId}/files/summary`;
+    let url = `/api/projects/${encodeURIComponent(projectId)}/files/summary`;
     if (language && (language === 'source-language' || /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language))) {
       url += `?lang=${language}`;
     }
@@ -230,7 +230,7 @@ export function createFetchAllProjectsQuery() {
 
 export function createFetchMembersQuery() {
   return query(async (projectId: string) => {
-    const res = await authFetch(`/api/projects/${projectId}/members`, { credentials: 'include' });
+    const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/members`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to fetch members');
     const data = await res.json();
     return data;
