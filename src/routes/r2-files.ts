@@ -83,38 +83,69 @@ export function createR2FileRoutes(prisma: PrismaClient, env: Env) {
     return response;
   });
 
-  // Get file by R2 key directly
-  app.get('/by-key/:r2Key', async (c) => {
-    const payload = await requireAuth(c, env.JWT_SECRET);
-    if (payload instanceof Response) return payload;
+    // Get file by R2 key directly
+    app.get('/by-key/:r2Key', async (c) => {
+      const payload = await requireAuth(c, env.JWT_SECRET);
+      if (payload instanceof Response) return payload;
 
-    const r2Key = c.req.param('r2Key');
+      const r2Key = c.req.param('r2Key');
 
-    // Get file from R2
-    const fileData = await getFile(env.TRANSLATION_BUCKET, r2Key);
+      // Get file from R2
+      const fileData = await getFile(env.TRANSLATION_BUCKET, r2Key);
 
-    if (!fileData) {
-      return c.json({ error: 'File not found in R2' }, 404);
-    }
+      if (!fileData) {
+        return c.json({ error: 'File not found in R2' }, 404);
+      }
 
-    const response = c.json({
-      raw: fileData.raw,
-      metadata: fileData.metadata,
-      sourceHash: fileData.sourceHash,
-      commitSha: fileData.commitSha,
-      uploadedAt: fileData.uploadedAt,
+      const response = c.json({
+        raw: fileData.raw,
+        metadata: fileData.metadata,
+        sourceHash: fileData.sourceHash,
+        commitSha: fileData.commitSha,
+        uploadedAt: fileData.uploadedAt,
+      });
+
+      // Set ETag when uploadedAt is available and return cache control
+      if (fileData.uploadedAt) {
+        try {
+            response.headers.set('ETag', `"${new Date(fileData.uploadedAt).getTime()}"`);
+        } catch {}
+      }
+      response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+
+      return response;
     });
 
-    // Set ETag when uploadedAt is available and return cache control
-    if (fileData.uploadedAt) {
+    // New: expose misc metadata stored at "{r2Key}-misc-git"
+    app.get('/misc/:r2Key', async (c) => {
+      const payload = await requireAuth(c, env.JWT_SECRET);
+      if (payload instanceof Response) return payload;
+
+      const r2Key = c.req.param('r2Key');
+      const miscKey = `${r2Key}-misc-git`;
+
       try {
-          response.headers.set('ETag', `"${new Date(fileData.uploadedAt).getTime()}"`);
-      } catch {}
-    }
-    response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+        const object = await env.TRANSLATION_BUCKET.get(miscKey);
+        if (!object) {
+          // Not found - return empty metadata object
+          const resp = c.json({ metadata: {} });
+          resp.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+          return resp;
+        }
 
-    return response;
-  });
+        const buffer = await object.arrayBuffer();
+        // Decode msgpack
+        const { decode } = await import('@msgpack/msgpack');
+        const metadata = decode(new Uint8Array(buffer));
 
-  return app;
-}
+        const resp = c.json({ metadata });
+        resp.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+        return resp;
+      } catch (err) {
+        console.warn('[r2-files] failed to fetch misc metadata', err);
+        return c.json({ metadata: {} }, 200);
+      }
+    });
+
+    return app;
+  }

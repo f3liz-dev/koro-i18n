@@ -67,7 +67,32 @@ export async function fetchR2File(
       throw new Error('Failed to fetch R2 file');
     }
     
-    return response.json();
+    // Parse main file data
+    const fileData = await response.json() as R2FileData;
+
+    // Ensure metadata has the required shape when missing
+    const emptyMetadata = { gitBlame: {}, charRanges: {}, sourceHashes: {} };
+
+    // Fetch misc metadata separately from /api/r2/misc/:r2Key
+    try {
+      const miscResp = await authFetch(
+        `/api/r2/misc/${encodeURIComponent(fileInfo.r2Key)}`,
+        { credentials: 'include' }
+      );
+      if (miscResp.ok) {
+        const miscJson = await miscResp.json() as { metadata?: any };
+        fileData.metadata = miscJson.metadata ?? emptyMetadata;
+      } else {
+        // Not found or not ok -> use existing metadata if present, otherwise empty shape
+        fileData.metadata = (fileData.metadata as any) ?? emptyMetadata;
+      }
+    } catch (err) {
+      // Network or parse error - preserve main file data and ensure metadata shape
+      fileData.metadata = (fileData.metadata as any) ?? emptyMetadata;
+      console.warn('[R2] Failed to fetch misc metadata:', err);
+    }
+
+    return fileData;
   } catch (error) {
     console.error('[R2] Fetch error:', error);
     return null;

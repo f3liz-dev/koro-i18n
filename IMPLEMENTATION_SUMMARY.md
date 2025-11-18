@@ -1,12 +1,12 @@
-# Implementation Summary: Auxiliary Workers with Rust
+# Rust compute worker — summary
 
-## Overview
-Successfully implemented an auxiliary Rust-based Cloudflare Worker to handle compute-intensive operations, particularly for file upload and translation validation processes.
+The Rust worker (`rust-worker/`) handles CPU-heavy tasks (batch hashing, validation, R2 + D1 operations). The TypeScript worker delegates heavy work to Rust and falls back if the Rust endpoint is unavailable.
 
 ## What Was Implemented
 
-### 1. Rust Compute Worker
-**Location**: `rust-worker/`
+## Quick start
+
+Build and test:
 
 **Features**:
 - Batch hash computation (SHA-256) - 6x faster than TypeScript
@@ -20,16 +20,16 @@ Successfully implemented an auxiliary Rust-based Cloudflare Worker to handle com
 - `rust-worker/wrangler.toml` - Cloudflare Workers configuration
 - `rust-worker/build.sh` - Automated build script
 
-**Tests**: 3 passing tests covering hash computation and validation logic
+```pwsh
+pnpm run build:rust
+pnpm run test:rust
+```
 
-### 2. TypeScript Integration
-**Location**: `src/lib/rust-worker-client.ts`
+Configure compute worker URL and redeploy:
 
-**Features**:
-- HTTP client for calling Rust worker
-- Automatic fallback to TypeScript implementations
-- Graceful degradation if Rust worker unavailable
-- Health check support
+1. Deploy Rust worker: `pnpm run deploy:rust`
+2. Set `COMPUTE_WORKER_URL` in `wrangler.toml` for main worker
+3. Redeploy main worker: `pnpm run deploy`
 
 **Tests**: 9 passing tests covering all scenarios including fallbacks
 
@@ -48,13 +48,7 @@ Successfully implemented an auxiliary Rust-based Cloudflare Worker to handle com
 #### Workers Configuration (`src/workers.ts`)
 - Added `COMPUTE_WORKER_URL` to environment interface
 
-### 4. Documentation
-
-Created comprehensive documentation:
-- `docs/RUST_WORKER.md` - Complete integration guide (6KB)
-- `rust-worker/README.md` - Quick start and features (3.5KB)
-- `rust-worker/DEPLOYMENT.md` - Step-by-step deployment (6.5KB)
-- Updated main `README.md` with Rust worker references
+The rest of the details (docs, benchmarks, and coverage) are in `docs/RUST_WORKER.md` and `rust-worker/README.md`.
 
 ### 5. Build Tools & Scripts
 
@@ -73,18 +67,7 @@ Added npm scripts for easy operation:
 - Created `rust-worker/.gitignore` for Rust-specific exclusions
 - Added build optimization configuration in `Cargo.toml`
 
-## Performance Improvements
-
-### Before (TypeScript Only)
-- 50 translation validations: ~50ms CPU time
-- Risk of exceeding 10ms CPU limit
-- Sequential processing bottleneck
-
-### After (With Rust Worker)
-- 50 translation validations: ~8ms CPU time
-- **84% reduction in CPU time**
-- Safely stays under 10ms limit
-- Batch processing efficiency
+Design note: compute worker reduces main worker CPU usage; TypeScript fallback ensures reliability.
 
 ### Benchmarks
 
@@ -225,17 +208,7 @@ Potential optimizations to add:
 4. **Caching layer** - Add caching in Rust worker
 5. **More operations** - Identify other CPU-intensive operations
 
-## Conclusion
-
-This implementation successfully addresses the problem statement by:
-1. ✅ Implementing auxiliary workers for compute-critical processes
-2. ✅ Using Rust for optimal performance
-3. ✅ Focusing on upload and validation operations
-4. ✅ Providing 6x performance improvement
-5. ✅ Maintaining system reliability
-6. ✅ Staying within free tier limits
-
-The solution is production-ready and ready for deployment.
+Short conclusion: Rust worker provides a reliable compute offload with TypeScript fallback; setup and usage are in `rust-worker/README.md`.
 
 ## References
 

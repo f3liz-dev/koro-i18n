@@ -1,8 +1,6 @@
-# 🌸 i18n Implementation - Quick Start Guide
+# i18n Quick Start
 
-## What Was Built
-
-A complete internationalization system supporting **English** and **Japanese** with kawaii styling for the koro-i18n frontend application.
+Minimal developer reference for the frontend i18n implementation.
 
 ## Quick Demo
 
@@ -20,19 +18,12 @@ Subtitle: シンプルで使いやすい翻訳管理プラットフォーム ✨
 Button: GitHubでログイン
 ```
 
-## Key Features
+## Quick facts
 
-### 🎌 Automatic Language Detection
-- Japanese browser → Japanese UI automatically
-- Saves your language preference
-- Easy switching anytime
-
-### 🦀 Kawaii Japanese Styling
-Strategic emojis throughout:
-- 🦀 Welcome messages (koro mascot)
-- 🌸 Call-to-action prompts
-- ✨ Success notifications
-- 🎯 Goal-oriented messages
+- Source-of-truth: `src/app/locales/en/translations.json`
+- Hook: `useI18n()` from `src/app/utils/i18n.tsx`
+- Selector component: `src/app/components/ui/LanguageSelector.tsx`
+- Primary pages updated: Home, Login, Dashboard, Create/Join Project, Translation History, NotFound
 
 ### 🔄 Pages Updated
 7 core pages fully translated:
@@ -44,13 +35,7 @@ Strategic emojis throughout:
 6. Translation History Page
 7. 404 Not Found Page
 
-## How to Switch Languages
-
-Look for the dropdown selector (usually top-right corner):
-- **English** 🇬🇧
-- **日本語** 🇯🇵
-
-Your selection is saved automatically!
+Use the `LanguageSelector` component (import from `src/app/components`) to switch languages; it persists preference in `localStorage`.
 
 ## For Developers
 
@@ -64,10 +49,10 @@ function MyComponent() {
 }
 ```
 
-### Adding New Translations
-1. Edit `src/app/locales/en/translations.json`
-2. Edit `src/app/locales/ja/translations.json`  
-3. Use with `t('your.key')`
+### Adding translations
+1. Add key to `src/app/locales/en/translations.json`.
+2. Add translation to `src/app/locales/<lang>/translations.json`.
+3. Access translation: `t('path.to.key')` via `useI18n()`.
 
 ### Translation Files
 - **English**: `src/app/locales/en/translations.json`
@@ -86,19 +71,20 @@ Pages use useI18n():
   const { t, language, setLanguage } = useI18n();
 ```
 
-## Build & Test
+## Build & test
 
 ✅ **Build Status**: Success
 ✅ **Security**: 0 CodeQL alerts
 ✅ **Tests**: 110/115 passing (96%)
 
-```bash
+```pwsh
 pnpm install
-pnpm run build    # Builds successfully
-pnpm test         # Runs test suite
+pnpm run build
+pnpm run test
 ```
 
-## Translation Examples
+## Notes
+Keep English as the canonical source; tests check fallback behavior when keys are missing.
 
 ### Common Phrases
 | English | Japanese |

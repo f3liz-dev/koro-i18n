@@ -39,9 +39,9 @@ model OauthState {
   @@index([expiresAt])
 }
 
-// R2 File Index (GitHub imports - mutable, stored in R2)
-// This table stores metadata and pointers to R2, not the actual file contents
-// Files are OVERWRITTEN on each upload, git history is in the metadata
+-- R2 File Index (GitHub imports - mutable, stored in R2)
+-- This table stores metadata and pointers to R2, not the actual file contents
+-- Files are OVERWRITTEN on each upload, git history is in the metadata
 model R2File {
   id          String   @id
   projectId   String
@@ -54,6 +54,15 @@ model R2File {
   totalKeys   Int      // Total number of translation keys
   uploadedAt  DateTime @default(now())
   lastUpdated DateTime @default(now()) @updatedAt // For ETag
+
+  // Deletion state used to coordinate transactional-like cleanup
+  // Set to true when a cleanup worker starts deleting the R2 objects so
+  // concurrent processes can detect in-progress deletions and avoid races.
+  deleting     Boolean  @default(false)
+
+  // Optional misc metadata R2 key stored alongside main r2Key.
+  // This allows cleanup and tooling to know the exact misc object name.
+  miscR2Key    String?
 
   @@unique([projectId, branch, lang, filename])
   @@index([projectId, branch])

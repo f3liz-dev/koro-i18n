@@ -108,31 +108,42 @@ export async function getFile(
   const buffer = await object.arrayBuffer();
   const rawData = decode(new Uint8Array(buffer)) as any;
   
-  // Handle new format with metadataBase64
+  // New flow: main object contains only the packed file data.
+  // Metadata lives in a separate R2 object named "{r2Key}-misc-git".
   let data: R2FileData;
-  if (rawData.metadataBase64) {
-    // New optimized format - decode metadata from base64
-    const metadataBuffer = Buffer.from(rawData.metadataBase64, 'base64');
-    const metadata = decode(new Uint8Array(metadataBuffer));
-    
-    data = {
-      raw: rawData.raw,
-      metadata: metadata as any,
-      sourceHash: rawData.sourceHash,
-      commitSha: rawData.commitSha,
-      uploadedAt: rawData.uploadedAt,
-    };
-  } else {
-    // Old format - metadata already decoded
-    data = rawData as R2FileData;
+
+  const miscKey = `${r2Key}-misc-git`;
+  let metadataObj: any = {};
+
+  try {
+    const miscObject = await bucket.get(miscKey);
+    if (miscObject) {
+      const mBuf = await miscObject.arrayBuffer();
+      metadataObj = decode(new Uint8Array(mBuf));
+    } else {
+      // No misc object found — metadata stays empty (migration pending)
+      metadataObj = {};
+    }
+  } catch (err) {
+    // If fetching misc key fails, proceed without metadata
+    console.warn(`[r2-storage] failed to fetch misc metadata for ${miscKey}:`, (err as any)?.message || err);
+    metadataObj = {};
   }
-  
+
+  data = {
+    raw: rawData.raw,
+    metadata: metadataObj as any,
+    sourceHash: rawData.sourceHash,
+    commitSha: rawData.commitSha,
+    uploadedAt: rawData.uploadedAt,
+  };
+
   // Cache for 1 hour
   r2Cache.set(r2Key, {
     data,
     expires: Date.now() + CACHE_TTL,
   });
-  
+
   return data;
 }
 
@@ -174,25 +185,79 @@ export async function cleanupOrphanedFiles(
   });
 
   const deletedFiles: string[] = [];
-  
+
   for (const file of existingFiles) {
     const fileKey = `${file.lang}/${file.filename}`;
-    
-    // If file is not in source, delete it
+
+    // If file is not in source, perform coordinated deletion:
+    // 1) mark D1 record as deleting = true
+    // 2) delete main R2 object and misc metadata (best-effort)
+    // 3) remove D1 record only if deleting is still true (deleteMany guard)
+    // If step 3 fails, reset deleting flag to false so other workers may retry.
     if (!sourceFileKeys.has(fileKey)) {
-      // Delete from R2
-      await bucket.delete(file.r2Key);
-      
-      // Delete from D1
-      await prisma.r2File.delete({
-        where: { id: file.id },
-      });
-      
-      deletedFiles.push(fileKey);
-      console.log(`[cleanup] Deleted orphaned file: ${fileKey} (${file.r2Key})`);
+      // Step 1: mark record as deleting
+      try {
+        await prisma.r2File.update({
+          where: { id: file.id },
+          data: { deleting: true },
+        });
+      } catch (err) {
+        console.warn(`[cleanup] failed to mark D1 record deleting for ${fileKey} (id=${file.id}):`, (err as any)?.message || err);
+        // If we can't mark it, skip this file to avoid racing with other processes
+        continue;
+      }
+
+      // Step 2: delete R2 objects (best-effort)
+      try {
+        await bucket.delete(file.r2Key);
+      } catch (err) {
+        console.warn(`[cleanup] failed to delete main R2 object ${file.r2Key}:`, (err as any)?.message || err);
+      }
+
+      const miscKey = `${file.r2Key}-misc-git`;
+      try {
+        await bucket.delete(miscKey);
+      } catch (err) {
+        console.warn(`[cleanup] failed to delete misc metadata ${miscKey}:`, (err as any)?.message || err);
+      }
+
+      // Step 3: delete D1 record only if deleting flag was set by us (guarded delete)
+      try {
+        const result = await prisma.r2File.deleteMany({
+          where: { id: file.id, deleting: true },
+        });
+
+        if (result.count === 1) {
+          // Successfully removed
+          deletedFiles.push(fileKey);
+          console.log(`[cleanup] Deleted orphaned file: ${fileKey} (${file.r2Key})`);
+        } else {
+          // Deletion did not occur; reset deleting flag to false to allow retries
+          console.warn(`[cleanup] conditional delete did not remove D1 record for ${fileKey} (id=${file.id}), resetting deleting flag`);
+          try {
+            await prisma.r2File.update({
+              where: { id: file.id },
+              data: { deleting: false },
+            });
+          } catch (err) {
+            console.warn(`[cleanup] failed to reset deleting flag for ${fileKey} (id=${file.id}):`, (err as any)?.message || err);
+          }
+        }
+      } catch (err) {
+        console.warn(`[cleanup] failed during D1 transactional delete for ${fileKey} (id=${file.id}):`, (err as any)?.message || err);
+        // Attempt to reset deleting flag to false
+        try {
+          await prisma.r2File.update({
+            where: { id: file.id },
+            data: { deleting: false },
+          });
+        } catch (e) {
+          console.warn(`[cleanup] failed to reset deleting flag after transaction error for ${fileKey} (id=${file.id}):`, (e as any)?.message || e);
+        }
+      }
     }
   }
-  
+
   return {
     deleted: deletedFiles.length,
     files: deletedFiles,

@@ -30,7 +30,7 @@ export interface TranslationFile {
   lang: string;
   filename: string;
   contents: Record<string, any>;
-  metadata: string; // Base64-encoded MessagePack
+  metadata: string; // Base64-encoded MessagePack (uploaded separately via /upload-misc-git)
   sourceHash: string;
   packedData?: string; // Optional: pre-packed base64 data for R2 (zero server CPU)
 }
@@ -359,9 +359,10 @@ function prePackFiles(files: TranslationFile[], commitSha: string): void {
   const uploadedAt = new Date().toISOString();
   
   for (const file of files) {
+    // Do NOT inline metadata into the main R2 object.
+    // Metadata will be uploaded separately to /upload-misc-git.
     const fileData = {
       raw: file.contents,
-      metadataBase64: file.metadata,
       sourceHash: file.sourceHash,
       commitSha,
       uploadedAt,
@@ -510,7 +511,7 @@ export async function upload(
   prePackFiles(filesToUpload, commitSha);
 
   // If files are small enough, use single upload
-  if (filesToUpload.length <= chunkSize) {
+    if (filesToUpload.length <= chunkSize) {
     const payload = {
       branch,
       commitSha,
@@ -535,6 +536,34 @@ export async function upload(
     const result = await response.json();
     console.log('✅ Upload successful:', result);
     
+    // Upload metadata separately to /upload-misc-git for each file
+    for (const f of filesToUpload) {
+      if (f.metadata) {
+        try {
+          const r2Key = `${projectName}-${f.lang}-${f.filename.replace(/[\\/]/g, '-')}`;
+          const mres = await fetch(`${platformUrl}/api/projects/${projectName}/upload-misc-git`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              project_id: projectName,
+              r2_key: r2Key,
+              metadata_base64: f.metadata,
+              lang: f.lang,
+              filename: f.filename,
+            }),
+          });
+          if (!mres.ok) {
+            console.warn(`⚠ metadata upload failed for ${f.filename} (${mres.status})`);
+          }
+        } catch (err: any) {
+          console.warn(`⚠ metadata upload error for ${f.filename}: ${err.message}`);
+        }
+      }
+    }
+
     // Run cleanup after successful upload
     await runCleanup(projectName, platformUrl, token, branch, allSourceFileKeys);
     return;
@@ -588,6 +617,35 @@ export async function upload(
     // Show final summary and run cleanup on last chunk
     if (chunkIndex === totalChunks) {
       console.log('✅ Upload successful:', result);
+
+      // Upload metadata for all chunked files after final chunk completes
+      for (const f of filesToUpload) {
+        if (f.metadata) {
+          try {
+            const r2Key = `${projectName}-${f.lang}-${f.filename.replace(/[\\/]/g, '-')}`;
+            const mres = await fetch(`${platformUrl}/api/projects/${projectName}/upload-misc-git`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                project_id: projectName,
+                r2_key: r2Key,
+                metadata_base64: f.metadata,
+                lang: f.lang,
+                filename: f.filename,
+              }),
+            });
+            if (!mres.ok) {
+              console.warn(`⚠ metadata upload failed for ${f.filename} (${mres.status})`);
+            }
+          } catch (err: any) {
+            console.warn(`⚠ metadata upload error for ${f.filename}: ${err.message}`);
+          }
+        }
+      }
+
       await runCleanup(projectName, platformUrl, token, branch, allSourceFileKeys);
     }
   }

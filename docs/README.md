@@ -1,8 +1,9 @@
-# koro-i18n Documentation
+# koro-i18n documentation
 
-Lightweight i18n platform using Cloudflare Workers, D1, and R2.
+Concise documentation for the koro-i18n platform.
 
-## Features
+
+## Quick links
 
 - **R2 Storage**: GitHub imports stored in R2 (unlimited size)
 - **Source Validation**: Auto-detect outdated translations
@@ -25,34 +26,32 @@ Display → R2 API + D1 API → Merge in UI
 - Source validation via hash comparison
 - Individual file storage: `[project]-[lang]-[filename]`
 
-## Quick Start
+## Quick start
 
-```bash
-# Install dependencies
+1. Install dependencies and Prisma client:
+
+```pwsh
 pnpm install
-
-# Generate Prisma client
 pnpm run prisma:generate
+```
 
-# Create R2 bucket
+2. Cloudflare setup (R2 + D1) — one-time:
+
+```pwsh
 wrangler r2 bucket create koro-i18n-translations
-
-# Apply migrations
 pnpm run prisma:migrate:local
+```
 
-# Run development
+3. Start local development or deploy:
+
+```pwsh
 pnpm run dev:all
-
-# Deploy
 pnpm run deploy
 ```
 
 ## Documentation
 
-**Getting Started:**
-- **[Setup Guide](SETUP.md)** - Installation & configuration
-- **[Client Setup](CLIENT_SETUP.md)** - Repository integration
-- **[Deployment](DEPLOYMENT.md)** - Production deployment
+Find full docs under this folder: `SETUP.md`, `FRONTEND.md`, `BACKEND_API.md`, `RUST_WORKER.md`.
 
 **Frontend Documentation:**
 - **[Frontend Guide](FRONTEND.md)** - Complete frontend documentation (SolidJS, routing, state management, components, utilities)

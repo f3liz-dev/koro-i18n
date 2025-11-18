@@ -1,35 +1,26 @@
-# i18n Implementation Summary
+# i18n Implementation (concise)
 
-## Overview
-This document summarizes the implementation of internationalization (i18n) support for English and Japanese languages in the koro-i18n frontend application.
+This document describes the current, minimal i18n implementation used in the frontend.
 
 ## What Has Been Implemented
 
-### 1. Core i18n Infrastructure ✅
+## Core details
 
-#### Translation Files
-- **Location**: `src/app/locales/en/translations.json` and `src/app/locales/ja/translations.json`
-- **Structure**: Organized by page/feature with nested keys
-- **Languages**: 
-  - English (en): Default language with all strings
-  - Japanese (ja): Complete translations with kawaii style
+- Translation files: `src/app/locales/<lang>/translations.json` (English `en` is the source of truth).
+- Context: `I18nProvider` in `src/app/utils/i18n.tsx`, use `useI18n()` in components.
+- Selector: `LanguageSelector` available in `src/app/components`.
+- Missing key fallback: English.
 
-#### i18n Context Provider
-- **File**: `src/app/utils/i18n.tsx`
-- **Features**:
-  - Language detection from browser preferences (auto-detects Japanese)
-  - Language persistence in localStorage
-  - Fallback to English for missing keys
-  - Type-safe translation function `t(key)`
-  - Easy language switching with `setLanguage()`
+### How to add translations
 
-#### Language Selector Component
-- **File**: `src/app/components/ui/LanguageSelector.tsx`
-- **Features**:
-  - Dropdown selector with English and Japanese options
-  - Integrated with the i18n context
-  - Styled to match the kawaii aesthetic
-  - Available on multiple pages for easy switching
+1. Add English source string: `src/app/locales/en/translations.json`.
+2. Add or update other languages at `src/app/locales/<lang>/translations.json`.
+3. Use `const { t } = useI18n();` and `t('key.path')` in components.
+
+### Testing & validation
+
+- Manual: start app (`pnpm run dev`) and test language switching and fallbacks.
+- Programmatic: translation keys are referenced in tests that ensure English source coverage and fallback behavior.
 
 ### 2. Pages Updated with i18n ✅
 
@@ -104,33 +95,9 @@ t('dashboard.noProjectsYet')     // English: "No projects yet"
                                  // Japanese: "プロジェクトがまだありません"
 ```
 
-## Pages Remaining (Complex/Internal)
+Keep English up-to-date as the canonical source; add new keys to `en` first.
 
-The following pages have not been updated yet as they are either complex internal tools or contain mostly dynamic content:
 
-- **LanguageSelectionPage**: Complex page with dynamic language stats
-- **FileSelectionPage**: Dynamic file listings
-- **TranslationEditorPage**: Main editor with many dynamic elements
-- **ProjectSettingsPage**: Settings form with multiple sections
-- **TranslationSuggestionsPage**: Complex suggestion management interface
-- **PageHeader**: Shared component that could benefit from i18n
-
-These pages can be updated in future iterations if needed.
-
-## How to Use
-
-### For Users
-1. Visit any page of the application
-2. Look for the language selector (dropdown) typically in the top-right corner
-3. Select your preferred language (English or 日本語)
-4. The preference will be saved automatically
-
-### For Developers
-
-#### Adding New Translations
-1. Add the English translation to `src/app/locales/en/translations.json`
-2. Add the Japanese translation to `src/app/locales/ja/translations.json`
-3. Use the `t()` function in your component:
 
 ```tsx
 import { useI18n } from '../utils/i18n';

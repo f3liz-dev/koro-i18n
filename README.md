@@ -1,6 +1,6 @@
 # koro-i18n
 
-Lightweight i18n platform using Cloudflare Workers, D1, and R2.
+Lightweight i18n platform powered by Cloudflare Workers, D1, and R2.
 
 ## Features
 
@@ -12,31 +12,38 @@ Lightweight i18n platform using Cloudflare Workers, D1, and R2.
 - **Web Translations** - User translations in D1
 - **Free Tier Optimized** - <1GB storage, minimal operations
 
-## Quick Start
+## Quick start
 
-```bash
-# Install
+1. Install dependencies and generate Prisma client:
+
+```pwsh
 pnpm install
-
-# Setup
 pnpm run prisma:generate
+```
+
+2. Create R2 *and* D1 (Cloudflare) resources and apply migrations:
+
+```pwsh
 wrangler r2 bucket create koro-i18n-translations
 pnpm run prisma:migrate:local
+```
 
-# Develop
-pnpm run dev:all
+3. Run locally:
 
-# Deploy
+```pwsh
+pnpm run dev:all    # frontend + workers + rust (if enabled)
+```
+
+4. Build & deploy:
+
+```pwsh
+pnpm run build
 pnpm run deploy
 ```
 
 ## Architecture
 
-```
-GitHub → Client (preprocess) → Worker → R2 (files) + D1 (index)
-Web UI → Worker → D1 (web translations)
-Display → R2 API + D1 API → Merge in UI
-```
+GitHub → Client (preprocess) → Worker → R2 (files) + D1 (index). Web UI queries Worker → D1 for web translations.
 
 **Key Concepts:**
 - R2 files are mutable (overwrite on upload)
@@ -46,10 +53,12 @@ Display → R2 API + D1 API → Merge in UI
 
 ## Documentation
 
-**Getting Started:**
-- **[Setup Guide](docs/SETUP.md)** - Installation & configuration
-- **[Client Setup](docs/CLIENT_SETUP.md)** - Repository integration
-- **[Deployment](docs/DEPLOYMENT.md)** - Production deployment
+Concise docs are in `docs/` — key ones:
+- `docs/SETUP.md` — install + Cloudflare setup
+- `docs/FRONTEND.md` — frontend notes
+- `docs/FRONTEND_ARCHITECTURE.md` — architecture and patterns
+- `docs/RUST_WORKER.md` — compute worker details
+- `docs/BACKEND_API.md` — endpoints and examples
 
 **Frontend Documentation:**
 - **[Frontend Guide](docs/FRONTEND.md)** - Complete frontend documentation (SolidJS, routing, state management)
@@ -109,23 +118,15 @@ GET /api/r2/by-key/:r2Key
 - MessagePack compression
 - Individual file storage
 
-## Development
+## Development commands
 
-```bash
-# Run frontend dev server
-pnpm run dev
+Run components individually or together:
 
-# Run worker dev server
-pnpm run dev:workers
-
-# Run both
-pnpm run dev:all
-
-# Build
-pnpm run build
-
-# Test
-pnpm run test
+```pwsh
+pnpm run dev          # frontend
+pnpm run dev:workers  # wrangler dev
+pnpm run dev:all      # run all services together
+pnpm run test         # run vitest
 ```
 
 ## License

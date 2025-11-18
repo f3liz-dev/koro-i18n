@@ -3,16 +3,10 @@
 ## Overview
 This rewrite focused on removing over-engineered performance optimizations and complex state management to create a more maintainable, intuitive frontend codebase.
 
-## What Was Removed
-### Performance Utilities (Removed ~700 lines)
-- **ForesightJS Integration** (`useForesight.ts`, `prefetch.ts`, `preloadPages.ts`) - 302 lines
-  - Predictive prefetching added unnecessary complexity
-  - Modern browsers handle caching well enough
-  - SolidJS's lazy loading is sufficient
+## What changed
 
-- **Deferred Rendering** (`deferredRendering.ts`) - 190 lines
-  - Over-optimization for perceived performance
-  - Added cognitive overhead without measurable benefit
+- Removed custom prefetch & predictive utilities and deferred rendering.
+- Replaced complex `dataStore` caching with `createResource` + backend caching.
   
 ### Complex State Management (Removed ~414 lines)
 - **dataStore.ts** - Replaced 414-line complex caching system with 90-line simple store
@@ -30,9 +24,7 @@ This rewrite focused on removing over-engineered performance optimizations and c
 - Removed unit tests for deleted utilities
 - Tests should focus on integration/E2E, not implementation details
 
-## What Was Simplified
-
-### Pages Updated (8 pages)
+### Pages updated
 1. **HomePage** - Removed ForesightJS refs
 2. **LoginPage** - Removed ForesightJS refs
 3. **NotFoundPage** - Removed ForesightJS refs
@@ -42,7 +34,7 @@ This rewrite focused on removing over-engineered performance optimizations and c
 7. **TranslationEditorPage** - Cleaned up imports
 8. **App.tsx & index.tsx** - Removed initialization overhead
 
-### New Simplified Store (`store.ts` - 90 lines)
+### New simplified store
 ```typescript
 // Simple resource-based data fetching
 export const [projects] = createResource(projectsKey, async () => {
@@ -56,11 +48,7 @@ export async function fetchFiles(projectId, language, filename) {
 }
 ```
 
-**Benefits:**
-- Standard SolidJS patterns
-- Browser handles HTTP caching
-- Easier to understand and debug
-- Less code to maintain
+Benefits: fewer utilities, consistent fetch patterns with `createResource`, rely on HTTP cache headers.
 
 ## Remaining Work
 
