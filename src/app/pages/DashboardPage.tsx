@@ -63,25 +63,25 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div class="kawaii-page" style="min-height: 100vh;">
+    <div class="page" style="min-height: 100vh;">
       <PageHeader
         title={t('common.appName')}
-        subtitle={`<span style="color: var(--kawaii-muted);">/</span> <span style="font-size: 13px; color: var(--kawaii-muted);">${user()?.username}</span>`}
+        subtitle={`<span style="color: var(--color-gray-500);">/</span> <span style="font-size: 0.813rem; color: var(--color-gray-500);">${user()?.username}</span>`}
         logo={true}
         menuItems={menuItems}
       />
 
-      <div class="kawaii-container animate-fade-in">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px;">
+      <div class="container animate-fade-in">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
           <div>
-            <h2 style="font-size: 32px; font-weight: 800; color: var(--kawaii-ink); margin-bottom: 4px;">{t('dashboard.title')}</h2>
-            <p style="color: var(--kawaii-muted); font-size: 14px;">{t('dashboard.subtitle')}</p>
+            <h2 style="font-size: 2rem; font-weight: 700; color: var(--color-black); margin-bottom: 0.25rem;">{t('dashboard.title')}</h2>
+            <p style="color: var(--color-gray-600); font-size: 0.875rem;">{t('dashboard.subtitle')}</p>
           </div>
-          <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
             <LanguageSelector />
             <button
               onClick={() => navigate('/projects/create')}
-              class="kawaii-btn primary"
+              class="btn primary"
             >
               {t('dashboard.newProject')}
             </button>
@@ -89,7 +89,7 @@ export default function DashboardPage() {
         </div>
         
         <Show when={projects.loading}>
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); gap: 1.25rem;">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
@@ -97,7 +97,7 @@ export default function DashboardPage() {
         </Show>
 
         <Show when={!projects.loading && (projects() || []).length === 0}>
-          <div class="kawaii-card kawaii-empty-state">
+          <div class="card empty-state">
             <div class="icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -107,7 +107,7 @@ export default function DashboardPage() {
             <div class="description">{t('dashboard.noProjectsDescription')}</div>
             <button
               onClick={() => navigate('/projects/create')}
-              class="kawaii-btn primary"
+              class="btn primary"
             >
               {t('dashboard.createProject')}
             </button>
@@ -115,34 +115,55 @@ export default function DashboardPage() {
         </Show>
 
         <Show when={!projects.loading && (projects() || []).length > 0}>
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); gap: 1.25rem;">
             <For each={projects()}>
               {(project) => {
                 const isOwner = () => project.userId === user()?.id;
 
                 return (
-                  <div class="kawaii-card hover-lift transition-all" style="cursor: pointer;">
+                  <div class="card hover-lift transition-all" style="cursor: pointer;">
                     <button
                       onClick={() => navigate(`/projects/${project.id}`)}
-                      style="width: 100%; text-align: left; background: none; border: none; cursor: pointer; padding: 0; margin-bottom: 16px;"
+                      style="
+                        width: 100%;
+                        text-align: left;
+                        background: none;
+                        border: none;
+                        cursor: pointer;
+                        padding: 0;
+                        margin-bottom: 1rem;
+                      "
                     >
-                      <div style="margin-bottom: 16px;">
-                        <h3 style="font-size: 18px; font-weight: 700; color: var(--kawaii-ink); margin-bottom: 8px; transition: var(--kawaii-transition);" class="project-title">{project.name}</h3>
-                        <code style="font-size: 11px; color: var(--kawaii-muted); background: var(--kawaii-surface); padding: 4px 8px; border-radius: 6px; display: inline-block;">{project.repository}</code>
+                      <div style="margin-bottom: 1rem;">
+                        <h3 class="project-title" style="
+                          font-size: 1.125rem;
+                          font-weight: 600;
+                          color: var(--color-black);
+                          margin-bottom: 0.5rem;
+                          transition: var(--transition);
+                        ">{project.name}</h3>
+                        <code style="
+                          font-size: 0.75rem;
+                          color: var(--color-gray-500);
+                          background: var(--color-gray-50);
+                          padding: 0.25rem 0.5rem;
+                          border-radius: 0.375rem;
+                          display: inline-block;
+                        ">{project.repository}</code>
                       </div>
                       <Show when={(project.languages || []).length > 0} fallback={
-                        <div style="font-size: 12px; color: var(--kawaii-muted); font-style: italic; padding: 8px 0;">{t('dashboard.noFilesUploaded')}</div>
+                        <div style="font-size: 0.813rem; color: var(--color-gray-500); font-style: italic; padding: 0.5rem 0;">{t('dashboard.noFilesUploaded')}</div>
                       }>
-                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                           <For each={(project.languages || []).slice(0, 4)}>
                             {(lang) => (
-                              <span style="padding: 6px 12px; font-size: 11px; font-weight: 700; background: var(--kawaii-pink-light); border: 2px solid var(--kawaii-pink); color: var(--kawaii-ink); border-radius: 999px;">
+                              <span class="badge primary">
                                 {lang.toUpperCase()}
                               </span>
                             )}
                           </For>
                           <Show when={(project.languages || []).length > 4}>
-                            <span style="padding: 6px 12px; font-size: 11px; font-weight: 700; color: var(--kawaii-muted); background: #fff; border: 2px solid var(--kawaii-border-color); border-radius: 999px;">
+                            <span class="badge">
                               +{(project.languages || []).length - 4}
                             </span>
                           </Show>
@@ -152,7 +173,7 @@ export default function DashboardPage() {
                     <Show when={isOwner()}>
                       <button
                         onClick={() => navigate(`/projects/${project.id}/settings`)}
-                        class="kawaii-btn secondary"
+                        class="btn"
                         style="width: 100%; justify-content: center;"
                       >
                         {t('dashboard.manageProject')}
@@ -168,10 +189,10 @@ export default function DashboardPage() {
       
       <style>{`
         .project-title {
-          transition: var(--kawaii-transition);
+          transition: var(--transition);
         }
-        .kawaii-card:hover .project-title {
-          color: var(--kawaii-pink);
+        .card:hover .project-title {
+          color: var(--color-primary);
         }
       `}</style>
     </div>
