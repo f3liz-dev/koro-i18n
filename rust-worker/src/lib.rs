@@ -105,7 +105,7 @@ pub fn hash_value(value: &str) -> String {
 }
 
 // Helper: Count keys and bytes for a given FileToUpload
-fn count_keys_and_bytes(file: &FileToUpload) -> Result<(usize, usize), String> {
+fn count_keys_and_bytes(file: &FileToUpload) -> std::result::Result<(usize, usize), String> {
     // Keys count
     let mut keys: usize = 0;
     let mut bytes: usize = 0;
