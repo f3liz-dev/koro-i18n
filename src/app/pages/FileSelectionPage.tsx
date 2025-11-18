@@ -169,7 +169,7 @@ export default function FileSelectionPage() {
   ];
 
   return (
-    <div class="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50/30">
+    <div class="kawaii-page" style="min-height: 100vh;">
       <PageHeader
         title={project()?.name || ''}
         subtitle={`
@@ -183,10 +183,10 @@ export default function FileSelectionPage() {
         menuItems={menuItems}
       />
 
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
+      <div class="kawaii-container animate-fade-in">
         <div class="mb-8">
-          <h2 class="text-3xl font-bold text-gray-900 mb-2">Select File</h2>
-          <p class="text-gray-600">Choose a file to translate for {language().toUpperCase()}</p>
+          <h2 style="font-size: 32px; font-weight: 800; color: var(--kawaii-ink); margin-bottom: 8px;">Select File</h2>
+          <p style="color: var(--kawaii-muted); font-size: 14px;">Choose a file to translate for {language().toUpperCase()}</p>
         </div>
 
         <Show when={isLoading()}>
