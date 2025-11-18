@@ -1,6 +1,7 @@
 import { useNavigate } from '@solidjs/router';
 import { user } from '../auth';
 import { useI18n } from '../utils/i18n';
+import { LanguageSelector } from '../components';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -8,6 +9,9 @@ export default function HomePage() {
 
   return (
     <div class="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50 flex items-center justify-center px-6">
+      <div class="absolute top-4 right-4">
+        <LanguageSelector />
+      </div>
       <div class="text-center max-w-2xl mx-auto animate-slide-up">
         <div class="mb-12 flex justify-center">
           <div class="relative">
