@@ -1,27 +1,24 @@
 :root {
-  /* Kawaii pastel palette (Japanese natural, lightweight) */
+  /* Simple kawaii palette - flat colors only */
   --kawaii-bg: #fffafc;
-  /* very pale pink */
-  --kawaii-surface: #fff1f6;
-  /* soft surface */
-  --kawaii-pink: #ffd6e8;
-  --kawaii-peach: #fff1e6;
-  --kawaii-mint: #e6fff4;
-  --kawaii-blue: #e6f0ff;
-  --kawaii-lavender: #f0e6ff;
+  --kawaii-surface: #ffffff;
+  --kawaii-pink: #ffb3d9;
+  --kawaii-pink-light: #ffe6f2;
+  --kawaii-peach: #ffd4a3;
+  --kawaii-mint: #b3f0d9;
+  --kawaii-blue: #b3d9ff;
+  --kawaii-lavender: #d9b3ff;
   --kawaii-ink: #2b2b2b;
   --kawaii-muted: #6b6b6b;
-  --kawaii-accent: #f38baf;
-  --kawaii-accent-hover: #ff9dc0;
+  --kawaii-border-color: #ffe6f2;
   --kawaii-radius: 12px;
   --kawaii-radius-lg: 16px;
-  --kawaii-soft-shadow: 0 6px 18px rgba(243, 139, 175, 0.08);
-  --kawaii-hover-shadow: 0 8px 24px rgba(243, 139, 175, 0.12);
-  --kawaii-border: 1px solid rgba(43, 43, 43, 0.06);
-  --kawaii-focus: rgba(243, 139, 175, 0.25);
+  --kawaii-soft-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --kawaii-border: 2px solid var(--kawaii-border-color);
+  --kawaii-focus: rgba(255, 179, 217, 0.3);
   --kawaii-space: 12px;
   --kawaii-font-sans: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --kawaii-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --kawaii-transition: all 0.15s ease;
 }
 
 /* Global layout / background */
@@ -29,7 +26,7 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(180deg, var(--kawaii-bg), #fff);
+  background: var(--kawaii-bg);
   color: var(--kawaii-ink);
 }
 
@@ -53,26 +50,25 @@ select:focus-visible {
   border-radius: calc(var(--kawaii-radius) - 4px);
 }
 
-/* Gentle base shapes */
+/* Simple card */
 .kawaii-card {
-  background: linear-gradient(180deg, var(--kawaii-surface), #fff);
+  background: var(--kawaii-surface);
   border-radius: var(--kawaii-radius);
   border: var(--kawaii-border);
   box-shadow: var(--kawaii-soft-shadow);
-  padding: calc(var(--kawaii-space) * 1.25);
+  padding: calc(var(--kawaii-space) * 1.5);
 }
 
-/* Buttons — rounded, lightweight */
+/* Simple buttons */
 .kawaii-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
-  background: var(--kawaii-pink);
+  padding: 10px 18px;
+  background: var(--kawaii-pink-light);
   color: var(--kawaii-ink);
   border-radius: 999px;
-  border: none;
-  box-shadow: var(--kawaii-soft-shadow);
+  border: 2px solid var(--kawaii-pink);
   cursor: pointer;
   transition: var(--kawaii-transition);
   font-weight: 600;
@@ -80,51 +76,51 @@ select:focus-visible {
 }
 
 .kawaii-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--kawaii-hover-shadow);
-  background: linear-gradient(135deg, var(--kawaii-pink), var(--kawaii-accent));
+  background: var(--kawaii-pink);
+  transform: scale(1.02);
 }
 
 .kawaii-btn:active {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 
 .kawaii-btn.secondary {
-  background: var(--kawaii-peach);
+  background: #fff;
+  border-color: var(--kawaii-border-color);
 }
 
 .kawaii-btn.secondary:hover {
-  background: linear-gradient(135deg, var(--kawaii-peach), var(--kawaii-pink));
+  background: var(--kawaii-pink-light);
+  border-color: var(--kawaii-pink);
 }
 
 .kawaii-btn.primary {
-  background: linear-gradient(135deg, var(--kawaii-accent), var(--kawaii-pink));
+  background: var(--kawaii-pink);
   color: white;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  border-color: var(--kawaii-pink);
 }
 
 .kawaii-btn.primary:hover {
-  background: linear-gradient(135deg, var(--kawaii-accent-hover), var(--kawaii-accent));
+  opacity: 0.9;
 }
 
 .kawaii-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
   transform: none;
 }
 
 .kawaii-btn:disabled:hover {
   transform: none;
-  box-shadow: var(--kawaii-soft-shadow);
+  background: var(--kawaii-pink-light);
 }
 
-/* Inputs / textareas */
+/* Simple inputs */
 .kawaii-input {
   background: #fff;
-  border: 2px solid rgba(43, 43, 43, 0.06);
-  padding: 12px 14px;
+  border: 2px solid var(--kawaii-border-color);
+  padding: 12px 16px;
   border-radius: var(--kawaii-radius);
-  box-shadow: var(--kawaii-soft-shadow);
   transition: var(--kawaii-transition);
   font-size: 14px;
   font-family: inherit;
@@ -132,13 +128,12 @@ select:focus-visible {
 }
 
 .kawaii-input:hover {
-  border-color: rgba(243, 139, 175, 0.2);
+  border-color: var(--kawaii-pink);
 }
 
 .kawaii-input:focus {
-  border-color: var(--kawaii-accent);
-  box-shadow: 0 0 0 4px var(--kawaii-focus), var(--kawaii-soft-shadow);
-  transform: translateY(-1px);
+  border-color: var(--kawaii-pink);
+  box-shadow: 0 0 0 3px var(--kawaii-focus);
   outline: none;
 }
 
@@ -166,38 +161,47 @@ select:focus-visible {
   color: var(--kawaii-muted);
 }
 
-/* Tiny decorative badge */
+/* Simple badge */
 .kawaii-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px;
+  padding: 6px 10px;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--kawaii-mint), var(--kawaii-blue));
+  background: var(--kawaii-pink-light);
+  border: 2px solid var(--kawaii-pink);
   color: var(--kawaii-ink);
   font-size: 12px;
   font-weight: 700;
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.04);
 }
 
-/* Lightweight list / panels */
+/* Simple panel */
 .kawaii-panel {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), #fff);
-  border-radius: 10px;
-  padding: 10px;
-  border: 1px solid rgba(43, 43, 43, 0.04);
+  background: var(--kawaii-surface);
+  border-radius: var(--kawaii-radius);
+  padding: 12px;
+  border: var(--kawaii-border);
 }
 
 /* Small helpers */
 .kawaii-soft {
   border-radius: 8px;
   padding: 8px;
-  background: var(--kawaii-pink);
+  background: var(--kawaii-pink-light);
+  border: 2px solid var(--kawaii-pink);
 }
 
 .kawaii-ghost {
   background: transparent;
-  border: 1px dashed rgba(43, 43, 43, 0.05);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 8px;
+  transition: var(--kawaii-transition);
+}
+
+.kawaii-ghost:hover {
+  background: var(--kawaii-pink-light);
+  border-color: var(--kawaii-pink);
 }
 
 /* Keep existing accessibility helpers intact */
@@ -286,14 +290,11 @@ select:focus-visible {
 
 /* Additional kawaii helpers */
 .kawaii-bg {
-  background: linear-gradient(180deg, var(--kawaii-bg), #fff);
+  background: var(--kawaii-bg);
 }
 
-.kawaii-text-gradient {
-  background: linear-gradient(135deg, var(--kawaii-accent), var(--kawaii-pink));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+.kawaii-text-pink {
+  color: var(--kawaii-pink);
 }
 
 .kawaii-label {
@@ -311,8 +312,8 @@ select:focus-visible {
 }
 
 .kawaii-error {
-  background: linear-gradient(135deg, #ffe6e6, #fff0f0);
-  border: 2px solid #ffcccc;
+  background: #fff0f0;
+  border: 2px solid #ffb3b3;
   padding: 12px 16px;
   border-radius: var(--kawaii-radius);
   color: #cc0000;
@@ -321,8 +322,8 @@ select:focus-visible {
 }
 
 .kawaii-success {
-  background: linear-gradient(135deg, var(--kawaii-mint), #f0fff8);
-  border: 2px solid #b3f0d9;
+  background: #f0fff8;
+  border: 2px solid var(--kawaii-mint);
   padding: 12px 16px;
   border-radius: var(--kawaii-radius);
   color: #006644;
@@ -339,18 +340,18 @@ select:focus-visible {
   width: 64px;
   height: 64px;
   margin: 0 auto 16px;
-  background: linear-gradient(135deg, var(--kawaii-pink), var(--kawaii-peach));
+  background: var(--kawaii-pink-light);
+  border: 3px solid var(--kawaii-pink);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--kawaii-soft-shadow);
 }
 
 .kawaii-empty-state .icon svg {
   width: 32px;
   height: 32px;
-  color: white;
+  color: var(--kawaii-pink);
 }
 
 .kawaii-empty-state .title {
@@ -373,12 +374,12 @@ select:focus-visible {
 
 /* Hover lift effect */
 .hover-lift:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--kawaii-hover-shadow);
+  transform: translateY(-2px);
+  box-shadow: var(--kawaii-soft-shadow);
 }
 
 .hover-lift:active {
-  transform: translateY(-1px);
+  transform: translateY(0);
 }
 
 /* Page layout */

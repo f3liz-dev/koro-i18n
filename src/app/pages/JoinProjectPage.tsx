@@ -55,9 +55,7 @@ export default function JoinProjectPage() {
           <button
             onClick={() => navigate('/dashboard')}
             class="kawaii-ghost"
-            style="padding: 8px; margin-left: -8px; border-radius: 8px; background: transparent; border: 1px dashed transparent; cursor: pointer; transition: var(--kawaii-transition); display: flex; align-items: center; justify-content: center;"
-            onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--kawaii-accent)'}
-            onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
+            style="padding: 8px; margin-left: -8px; cursor: pointer; display: flex; align-items: center; justify-content: center;"
           >
             <svg style="width: 20px; height: 20px; color: var(--kawaii-muted);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -121,7 +119,7 @@ export default function JoinProjectPage() {
           transition: var(--kawaii-transition);
         }
         .kawaii-card:hover .project-title {
-          color: var(--kawaii-accent);
+          color: var(--kawaii-pink);
         }
       `}</style>
     </div>

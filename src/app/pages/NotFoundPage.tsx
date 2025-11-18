@@ -9,8 +9,8 @@ export default function NotFoundPage() {
     <div class="kawaii-page flex items-center justify-center px-6">
       <div class="text-center max-w-md animate-slide-up">
         <div style="margin-bottom: 32px; display: flex; justify-content: center;">
-          <div style="width: 128px; height: 128px; background: linear-gradient(135deg, var(--kawaii-pink), var(--kawaii-peach)); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: var(--kawaii-hover-shadow);">
-            <span class="kawaii-text-gradient" style="font-size: 56px; font-weight: 900;">404</span>
+          <div style="width: 128px; height: 128px; background: var(--kawaii-pink-light); border: 4px solid var(--kawaii-pink); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+            <span class="kawaii-text-pink" style="font-size: 56px; font-weight: 900;">404</span>
           </div>
         </div>
         <h2 style="font-size: 28px; font-weight: 800; color: var(--kawaii-ink); margin-bottom: 12px;">{t('notFound.title')}</h2>

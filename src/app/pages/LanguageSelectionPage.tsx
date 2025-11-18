@@ -125,15 +125,15 @@ export default function LanguageSelectionPage() {
   };
 
   const getPercentageColor = (percentage: number) => {
-    if (percentage >= 90) return 'color: #16a34a; background: linear-gradient(135deg, #dcfce7, #f0fdf4);';
-    if (percentage >= 50) return 'color: #d97706; background: linear-gradient(135deg, #fef3c7, #fefce8);';
-    return 'color: #dc2626; background: linear-gradient(135deg, #fee2e2, #fef2f2);';
+    if (percentage >= 90) return 'color: #16a34a; background: #dcfce7;';
+    if (percentage >= 50) return 'color: #d97706; background: #fef3c7;';
+    return 'color: #dc2626; background: #fee2e2;';
   };
 
-  const getProgressColor = (percentage: number) => {
-    if (percentage >= 90) return 'linear-gradient(135deg, #16a34a, #22c55e)';
-    if (percentage >= 50) return 'linear-gradient(135deg, #d97706, #f59e0b)';
-    return 'linear-gradient(135deg, #dc2626, #ef4444)';
+  const getProgressBarColor = (percentage: number) => {
+    if (percentage >= 90) return '#16a34a';
+    if (percentage >= 50) return '#d97706';
+    return '#dc2626';
   };
 
   const menuItems: MenuItem[] = [
@@ -172,14 +172,12 @@ export default function LanguageSelectionPage() {
 
         <Show when={isLoading()}>
           <div style="text-align: center; padding: 64px 0;">
-            <div style="animation: pulse 2s ease-in-out infinite;">
-              <div style="width: 64px; height: 64px; background: linear-gradient(135deg, var(--kawaii-pink), var(--kawaii-peach)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; box-shadow: var(--kawaii-soft-shadow);">
-                <svg style="width: 32px; height: 32px; color: white; animation: spin 1s linear infinite;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </div>
-              <div style="color: var(--kawaii-muted); font-weight: 600; font-size: 14px;">Loading languages...</div>
+            <div style="width: 64px; height: 64px; background: var(--kawaii-pink-light); border: 3px solid var(--kawaii-pink); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+              <svg style="width: 32px; height: 32px; color: var(--kawaii-pink); animation: spin 1s linear infinite;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
             </div>
+            <div style="color: var(--kawaii-muted); font-weight: 600; font-size: 14px;">Loading languages...</div>
           </div>
         </Show>
 
@@ -217,9 +215,9 @@ export default function LanguageSelectionPage() {
                       <div style="font-size: 13px; color: var(--kawaii-muted); font-weight: 600;">
                         {langStat.translatedKeys} / {langStat.totalKeys} keys translated
                       </div>
-                      <div style="width: 100%; background: var(--kawaii-surface); border-radius: 999px; height: 12px; overflow: hidden;">
+                      <div style="width: 100%; background: #f5f5f5; border-radius: 999px; height: 12px; overflow: hidden; border: 2px solid var(--kawaii-border-color);">
                         <div
-                          style={`height: 12px; border-radius: 999px; background: ${getProgressColor(langStat.percentage)}; transition: var(--kawaii-transition); width: ${langStat.percentage}%;`}
+                          style={`height: 12px; border-radius: 999px; background: ${getProgressBarColor(langStat.percentage)}; transition: var(--kawaii-transition); width: ${langStat.percentage}%;`}
                         />
                       </div>
                     </div>
@@ -243,7 +241,7 @@ export default function LanguageSelectionPage() {
           transition: var(--kawaii-transition);
         }
         .kawaii-card:hover .lang-title {
-          color: var(--kawaii-accent);
+          color: var(--kawaii-pink);
         }
       `}</style>
     </div>
