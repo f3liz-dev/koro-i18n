@@ -53,7 +53,7 @@ export function PageHeader(props: PageHeaderProps) {
             </div>
           </div>
 
-          <nav style="display: none;" class="md:flex" style:display="flex" style:align-items="center" style:gap="8px">
+          <nav class="hidden md:flex" style="align-items: center; gap: 8px;">
             <For each={props.menuItems}>{(item) => (
               <Show when={item.show ?? true}>
                 <button
