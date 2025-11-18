@@ -353,7 +353,7 @@ DELETE /api/translations/:id
    ```typescript
    const r2Data = await fetchR2File(projectId, lang, filename)
    
-   GET /api/r2/:projectId/:lang/:filename
+  GET /api/r2/:projectName/:lang/:filename
    Returns: {
      raw: { "key": "value" },
      metadata: {

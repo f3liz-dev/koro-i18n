@@ -44,7 +44,7 @@ DELETE /api/translations/:id
 **Already implemented**
 
 ```typescript
-GET /api/r2/:projectId/:lang/:filename
+GET /api/r2/:projectName/:lang/:filename
   - Returns R2 file with metadata
   - Includes git blame, source hashes
   - ETag support
