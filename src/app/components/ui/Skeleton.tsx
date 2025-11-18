@@ -16,10 +16,11 @@ export function Skeleton(props: SkeletonProps) {
 
   return (
     <div
-      class={`kawaii-ghost animate-pulse ${roundedClass} ${props.className || ''}`}
+      class={`animate-pulse ${roundedClass} ${props.className || ''}`}
       style={{
         width: props.width || '100%',
         height: props.height || '1rem',
+        background: 'var(--color-gray-200)',
       }}
     />
   );
@@ -47,7 +48,7 @@ interface SkeletonCardProps {
 
 export function SkeletonCard(props: SkeletonCardProps) {
   return (
-    <div class={`kawaii-card p-6 ${props.className || ''}`}>
+    <div class={`card p-6 ${props.className || ''}`}>
       <div class="mb-4">
         <Skeleton width="60%" height="1.25rem" className="mb-2" />
         <Skeleton width="80%" height="0.75rem" />
