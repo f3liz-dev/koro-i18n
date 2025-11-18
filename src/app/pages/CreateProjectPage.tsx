@@ -1,5 +1,5 @@
 import { useNavigate } from '@solidjs/router';
-import { createSignal, onMount } from 'solid-js';
+import { createSignal, onMount, Show } from 'solid-js';
 import { user } from '../auth';
 import { authFetch } from '../utils/authFetch';
 import { useI18n } from '../utils/i18n';
@@ -53,33 +53,34 @@ export default function CreateProjectPage() {
   };
 
   return (
-    <div class="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50/30">
-      <div class="bg-white border-b border-gray-200 backdrop-blur-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div class="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/dashboard')}
-              class="text-gray-400 hover:text-primary-600 transition-colors p-2 -ml-2 rounded-lg hover:bg-primary-50"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </button>
-            <h1 class="text-xl font-bold text-gray-900">{t('createProject.title')}</h1>
-          </div>
+    <div class="kawaii-page" style="min-height: 100vh;">
+      <div class="kawaii-card" style="position: sticky; top: 0; z-index: 50; border-radius: 0; border-left: none; border-right: none; border-top: none; padding: 16px 24px; margin: 0;">
+        <div class="kawaii-container" style="display: flex; align-items: center; gap: 12px; padding: 0;">
+          <button
+            onClick={() => navigate('/dashboard')}
+            class="kawaii-ghost"
+            style="padding: 8px; margin-left: -8px; border-radius: 8px; background: transparent; border: 1px dashed transparent; cursor: pointer; transition: var(--kawaii-transition); display: flex; align-items: center; justify-content: center;"
+            onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--kawaii-accent)'}
+            onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
+          >
+            <svg style="width: 20px; height: 20px; color: var(--kawaii-muted);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
+          <h1 style="font-size: 20px; font-weight: 700; color: var(--kawaii-ink); margin: 0;">{t('createProject.title')}</h1>
         </div>
       </div>
 
-      <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-slide-up">
-        <div class="bg-white rounded-2xl border border-gray-200 shadow-xl p-8">
-          <div class="mb-8">
-            <h2 class="text-2xl font-bold text-gray-900 mb-2">{t('createProject.heading')}</h2>
-            <p class="text-gray-600">{t('createProject.description')}</p>
+      <div style="max-width: 640px; margin: 0 auto; padding: 48px 24px;" class="animate-slide-up">
+        <div class="kawaii-card">
+          <div style="margin-bottom: 32px;">
+            <h2 style="font-size: 24px; font-weight: 800; color: var(--kawaii-ink); margin-bottom: 8px;">{t('createProject.heading')}</h2>
+            <p style="color: var(--kawaii-muted); font-size: 14px;">{t('createProject.description')}</p>
           </div>
           
-          <form onSubmit={handleCreateProject} class="space-y-6">
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-2">
+          <form onSubmit={handleCreateProject}>
+            <div class="kawaii-form-group">
+              <label class="kawaii-label">
                 {t('createProject.githubRepository')}
               </label>
               <input
@@ -88,15 +89,15 @@ export default function CreateProjectPage() {
                 onInput={(e) => setProjectRepo(e.currentTarget.value)}
                 placeholder={t('createProject.repositoryPlaceholder')}
                 required
-                class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-100 transition-all"
+                class="kawaii-input"
               />
-              <p class="text-xs text-gray-500 mt-2">
+              <p class="kawaii-hint">
                 {t('createProject.repositoryHelp')}
               </p>
             </div>
 
-            <div>
-              <label class="block text-sm font-semibold text-gray-900 mb-2">
+            <div class="kawaii-form-group">
+              <label class="kawaii-label">
                 {t('createProject.projectName')}
               </label>
               <input
@@ -105,31 +106,33 @@ export default function CreateProjectPage() {
                 onInput={(e) => setProjectName(e.currentTarget.value)}
                 placeholder={t('createProject.projectNamePlaceholder')}
                 required
-                class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-100 transition-all"
+                class="kawaii-input"
               />
-              <p class="text-xs text-gray-500 mt-2">
+              <p class="kawaii-hint">
                 {t('createProject.projectNameHelp')}
               </p>
             </div>
 
-            {error() && (
-              <div class="p-4 bg-red-50 border-2 border-red-200 rounded-xl text-sm text-red-700 animate-slide-down">
+            <Show when={error()}>
+              <div class="kawaii-error">
                 {error()}
               </div>
-            )}
+            </Show>
 
-            <div class="flex gap-3 pt-4">
+            <div style="display: flex; gap: 12px; padding-top: 16px;">
               <button
                 type="submit"
                 disabled={!projectRepo() || !projectName() || isSubmitting()}
-                class="flex-1 px-6 py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-200"
+                class="kawaii-btn primary"
+                style="flex: 1; justify-content: center;"
               >
                 {isSubmitting() ? t('createProject.creating') : t('createProject.createProject')}
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/dashboard')}
-                class="px-6 py-3.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all"
+                class="kawaii-btn secondary"
+                style="justify-content: center;"
               >
                 {t('common.cancel')}
               </button>
