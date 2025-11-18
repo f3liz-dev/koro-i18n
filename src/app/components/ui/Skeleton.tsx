@@ -20,7 +20,8 @@ export function Skeleton(props: SkeletonProps) {
       style={{
         width: props.width || '100%',
         height: props.height || '1rem',
-        background: 'var(--color-gray-200)',
+        background: 'var(--color-cream)',
+        'border-radius': props.rounded === 'full' ? '50%' : props.rounded === 'lg' ? 'var(--radius-lg)' : props.rounded === 'md' ? 'var(--radius)' : props.rounded === 'sm' ? 'var(--radius)' : '0',
       }}
     />
   );
@@ -48,12 +49,12 @@ interface SkeletonCardProps {
 
 export function SkeletonCard(props: SkeletonCardProps) {
   return (
-    <div class={`card p-6 ${props.className || ''}`}>
-      <div class="mb-4">
+    <div class={`card ${props.className || ''}`} style="padding: 1.5rem;">
+      <div style="margin-bottom: 1rem;">
         <Skeleton width="60%" height="1.25rem" className="mb-2" />
         <Skeleton width="80%" height="0.75rem" />
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
         <Skeleton width="3rem" height="1.5rem" rounded="sm" />
         <Skeleton width="3rem" height="1.5rem" rounded="sm" />
         <Skeleton width="3rem" height="1.5rem" rounded="sm" />

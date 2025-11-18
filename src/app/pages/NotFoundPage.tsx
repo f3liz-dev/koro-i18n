@@ -10,34 +10,35 @@ export default function NotFoundPage() {
       <div class="animate-slide-up" style="text-align: center; max-width: 28rem;">
         <div style="margin-bottom: 2rem; display: flex; justify-content: center;">
           <div style="
-            width: 8rem;
-            height: 8rem;
-            background: var(--color-gray-100);
-            border: 2px solid var(--color-gray-300);
+            width: 9rem;
+            height: 9rem;
+            background: linear-gradient(135deg, var(--color-peach-soft) 0%, var(--color-lavender-soft) 50%, var(--color-gray-blue) 100%);
+            border: var(--border);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
+            box-shadow: var(--shadow-medium);
           ">
-            <span style="font-size: 3.5rem; font-weight: 800; color: var(--color-gray-600);">404</span>
+            <span style="font-size: 3rem; font-weight: 700; color: var(--color-bg-surface);">404</span>
           </div>
         </div>
-        <h2 style="font-size: 1.75rem; font-weight: 700; color: var(--color-black); margin-bottom: 0.75rem;">{t('notFound.title')}</h2>
-        <p style="color: var(--color-gray-600); margin-bottom: 2rem; font-size: 0.875rem;">
+        <h2 style="font-size: 1.75rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.75rem;">{t('notFound.title')}</h2>
+        <p style="color: var(--color-text-secondary); margin-bottom: 2rem; font-size: 0.875rem; line-height: 1.6;">
           {t('notFound.description')}
         </p>
         <div style="display: flex; flex-direction: column; gap: 0.75rem; justify-content: center;">
           <button
             onClick={() => navigate('/')}
             class="btn primary"
-            style="justify-content: center;"
+            style="justify-content: center; border-radius: var(--radius);"
           >
             {t('common.goHome')}
           </button>
           <button
             onClick={() => window.history.back()}
             class="btn"
-            style="justify-content: center;"
+            style="justify-content: center; border-radius: var(--radius);"
           >
             {t('common.goBack')}
           </button>

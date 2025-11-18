@@ -125,15 +125,15 @@ export default function LanguageSelectionPage() {
   };
 
   const getPercentageColor = (percentage: number) => {
-    if (percentage >= 90) return 'color: #16a34a; background: var(--color-mint-light);';
-    if (percentage >= 50) return 'color: #d97706; background: var(--color-peach-light);';
-    return 'color: #dc2626; background: #fee2e2;';
+    if (percentage >= 90) return 'color: #3d6b54; background: var(--color-mint-light);';
+    if (percentage >= 50) return 'color: #8a5a3d; background: var(--color-peach-light);';
+    return 'color: #a03838; background: #fff5f5;';
   };
 
   const getProgressBarColor = (percentage: number) => {
-    if (percentage >= 90) return 'var(--color-mint)';
-    if (percentage >= 50) return 'var(--color-peach)';
-    return '#dc2626';
+    if (percentage >= 90) return 'var(--color-accent-mint)';
+    if (percentage >= 50) return 'var(--color-accent-peach)';
+    return '#f87171';
   };
 
   const menuItems: MenuItem[] = [
@@ -165,29 +165,30 @@ export default function LanguageSelectionPage() {
       />
 
       <div class="container animate-fade-in">
-        <div style="margin-bottom: 2rem;">
-          <h2 style="font-size: 2rem; font-weight: 700; color: var(--color-black); margin-bottom: 0.5rem;">Select Language</h2>
-          <p style="color: var(--color-gray-600); font-size: 0.875rem;">Choose a language to view and translate files</p>
+        <div style="margin-bottom: 2.5rem;">
+          <h2 style="font-size: 1.875rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.625rem;">Select Language</h2>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem; line-height: 1.6;">Choose a language to view and translate files</p>
         </div>
 
         <Show when={isLoading()}>
           <div style="text-align: center; padding: 4rem 0;">
             <div style="
-              width: 4rem;
-              height: 4rem;
-              background: var(--color-gray-100);
-              border: 2px solid var(--color-gray-300);
+              width: 5rem;
+              height: 5rem;
+              background: linear-gradient(135deg, var(--color-peach-soft) 0%, var(--color-lavender-soft) 100%);
+              border: var(--border);
               border-radius: 50%;
               display: flex;
               align-items: center;
               justify-content: center;
               margin: 0 auto 1rem;
+              box-shadow: var(--shadow-soft);
             ">
-              <svg style="width: 2rem; height: 2rem; color: var(--color-gray-600); animation: spin 1s linear infinite;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg style="width: 2.5rem; height: 2.5rem; color: var(--color-text-secondary); animation: spin 1s linear infinite;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </div>
-            <div style="color: var(--color-gray-600); font-weight: 500; font-size: 0.875rem;">Loading languages...</div>
+            <div style="color: var(--color-text-secondary); font-weight: 500; font-size: 0.875rem;">Loading languages...</div>
           </div>
         </Show>
 
@@ -204,7 +205,7 @@ export default function LanguageSelectionPage() {
         </Show>
 
         <Show when={!isLoading() && languageStats().length > 0}>
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr)); gap: 1.25rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr)); gap: 1.5rem;">
             <For each={languageStats()}>
               {(langStat) => {
                 return (
@@ -216,39 +217,40 @@ export default function LanguageSelectionPage() {
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
                       <h3 class="lang-title" style="
                         font-size: 1.5rem;
-                        font-weight: 700;
-                        color: var(--color-black);
+                        font-weight: 600;
+                        color: var(--color-text-primary);
                         transition: var(--transition);
                       ">
                         {langStat.language.toUpperCase()}
                       </h3>
                       <div style={`
-                        padding: 0.5rem 0.75rem;
-                        border-radius: 999px;
+                        padding: 0.5rem 0.875rem;
+                        border-radius: var(--radius-xl);
                         font-size: 0.813rem;
                         font-weight: 600;
-                        box-shadow: var(--shadow);
+                        box-shadow: var(--shadow-soft);
+                        border: var(--border);
                         ${getPercentageColor(langStat.percentage)}
                       `}>
                         {langStat.percentage}%
                       </div>
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                      <div style="font-size: 0.813rem; color: var(--color-gray-600); font-weight: 500;">
+                      <div style="font-size: 0.813rem; color: var(--color-text-secondary); font-weight: 500;">
                         {langStat.translatedKeys} / {langStat.totalKeys} keys translated
                       </div>
                       <div style="
                         width: 100%;
-                        background: var(--color-gray-100);
-                        border-radius: 999px;
-                        height: 0.5rem;
+                        background: var(--color-cream);
+                        border-radius: var(--radius-xl);
+                        height: 0.625rem;
                         overflow: hidden;
                         border: var(--border);
                       ">
                         <div
                           style={`
-                            height: 0.5rem;
-                            border-radius: 999px;
+                            height: 0.625rem;
+                            border-radius: var(--radius-xl);
                             background: ${getProgressBarColor(langStat.percentage)};
                             transition: var(--transition);
                             width: ${langStat.percentage}%;
@@ -272,7 +274,7 @@ export default function LanguageSelectionPage() {
           transition: var(--transition);
         }
         .card:hover .lang-title {
-          color: var(--color-primary);
+          color: var(--color-accent-peach);
         }
       `}</style>
     </div>

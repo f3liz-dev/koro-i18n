@@ -69,25 +69,25 @@ export default function CreateProjectPage() {
           <button
             onClick={() => navigate('/dashboard')}
             class="btn"
-            style="padding: 0.5rem; margin-left: -0.5rem; background: none; border: none;"
+            style="padding: 0.625rem; margin-left: -0.625rem; background: none; border: none; box-shadow: none;"
           >
-            <svg style="width: 1.25rem; height: 1.25rem; color: var(--color-gray-600);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg style="width: 1.25rem; height: 1.25rem; color: var(--color-text-secondary);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </button>
-          <h1 style="font-size: 1.25rem; font-weight: 600; color: var(--color-black); margin: 0;">{t('createProject.title')}</h1>
+          <h1 style="font-size: 1.25rem; font-weight: 600; color: var(--color-text-primary); margin: 0;">{t('createProject.title')}</h1>
         </div>
       </div>
 
       <div class="animate-slide-up" style="max-width: 40rem; margin: 0 auto; padding: 3rem 1.5rem;">
         <div class="card">
           <div style="margin-bottom: 2rem;">
-            <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--color-black); margin-bottom: 0.5rem;">{t('createProject.heading')}</h2>
-            <p style="color: var(--color-gray-600); font-size: 0.875rem;">{t('createProject.description')}</p>
+            <h2 style="font-size: 1.5rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.625rem;">{t('createProject.heading')}</h2>
+            <p style="color: var(--color-text-secondary); font-size: 0.875rem; line-height: 1.6;">{t('createProject.description')}</p>
           </div>
           
           <form onSubmit={handleCreateProject}>
-            <div style="margin-bottom: 1.25rem;">
+            <div style="margin-bottom: 1.5rem;">
               <label class="label">
                 {t('createProject.githubRepository')}
               </label>
@@ -99,12 +99,12 @@ export default function CreateProjectPage() {
                 required
                 class="input"
               />
-              <p style="font-size: 0.75rem; color: var(--color-gray-500); margin-top: 0.375rem;">
+              <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem; line-height: 1.5;">
                 {t('createProject.repositoryHelp')}
               </p>
             </div>
 
-            <div style="margin-bottom: 1.25rem;">
+            <div style="margin-bottom: 1.5rem;">
               <label class="label">
                 {t('createProject.projectName')}
               </label>
@@ -116,13 +116,13 @@ export default function CreateProjectPage() {
                 required
                 class="input"
               />
-              <p style="font-size: 0.75rem; color: var(--color-gray-500); margin-top: 0.375rem;">
+              <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem; line-height: 1.5;">
                 {t('createProject.projectNameHelp')}
               </p>
             </div>
 
             <Show when={error()}>
-              <div class="message error">
+              <div class="message error" style="margin-bottom: 1rem;">
                 {error()}
               </div>
             </Show>
@@ -132,7 +132,7 @@ export default function CreateProjectPage() {
                 type="submit"
                 disabled={!projectRepo() || !projectName() || isSubmitting()}
                 class="btn primary"
-                style="flex: 1; justify-content: center;"
+                style="flex: 1; justify-content: center; border-radius: var(--radius);"
               >
                 {isSubmitting() ? t('createProject.creating') : t('createProject.createProject')}
               </button>
@@ -140,6 +140,7 @@ export default function CreateProjectPage() {
                 type="button"
                 onClick={() => navigate('/dashboard')}
                 class="btn"
+                style="border-radius: var(--radius);"
               >
                 {t('common.cancel')}
               </button>

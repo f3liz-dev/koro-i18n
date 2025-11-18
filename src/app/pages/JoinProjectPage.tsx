@@ -65,20 +65,20 @@ export default function JoinProjectPage() {
           <button
             onClick={() => navigate('/dashboard')}
             class="btn"
-            style="padding: 0.5rem; margin-left: -0.5rem; background: none; border: none;"
+            style="padding: 0.625rem; margin-left: -0.625rem; background: none; border: none; box-shadow: none;"
           >
-            <svg style="width: 1.25rem; height: 1.25rem; color: var(--color-gray-600);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg style="width: 1.25rem; height: 1.25rem; color: var(--color-text-secondary);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </button>
-          <h1 style="font-size: 1.25rem; font-weight: 600; color: var(--color-black); margin: 0;">{t('joinProject.title')}</h1>
+          <h1 style="font-size: 1.25rem; font-weight: 600; color: var(--color-text-primary); margin: 0;">{t('joinProject.title')}</h1>
         </div>
       </div>
 
       <div class="container animate-fade-in" style="max-width: 60rem; padding-top: 3rem;">
-        <div style="margin-bottom: 2rem;">
-          <h2 style="font-size: 2rem; font-weight: 700; color: var(--color-black); margin-bottom: 0.5rem;">{t('joinProject.heading')}</h2>
-          <p style="color: var(--color-gray-600); font-size: 0.875rem;">{t('joinProject.description')}</p>
+        <div style="margin-bottom: 2.5rem;">
+          <h2 style="font-size: 1.875rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.625rem;">{t('joinProject.heading')}</h2>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem; line-height: 1.6;">{t('joinProject.description')}</p>
         </div>
 
         <Show when={!allProjects.loading && availableProjects().length === 0}>
@@ -93,7 +93,7 @@ export default function JoinProjectPage() {
           </div>
         </Show>
 
-        <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
           <For each={availableProjects()}>
             {(project) => (
               <div class="card hover-lift transition-all">
@@ -102,24 +102,25 @@ export default function JoinProjectPage() {
                     <h3 class="project-title" style="
                       font-size: 1.125rem;
                       font-weight: 600;
-                      color: var(--color-black);
-                      margin-bottom: 0.5rem;
+                      color: var(--color-text-primary);
+                      margin-bottom: 0.625rem;
                       transition: var(--transition);
                     ">{project.name}</h3>
                     <code style="
                       font-size: 0.75rem;
-                      color: var(--color-gray-500);
-                      background: var(--color-gray-50);
-                      padding: 0.25rem 0.5rem;
-                      border-radius: 0.375rem;
+                      color: var(--color-text-secondary);
+                      background: var(--color-cream);
+                      padding: 0.375rem 0.625rem;
+                      border-radius: var(--radius);
                       display: inline-block;
+                      border: var(--border);
                     ">{project.repository}</code>
                   </div>
                   <button
                     onClick={() => handleJoin(project.id)}
                     disabled={requestedProjects().has(project.id) || !!project.membershipStatus}
                     class="btn"
-                    style="width: 100%; justify-content: center;"
+                    style="width: 100%; justify-content: center; border-radius: var(--radius);"
                     classList={{
                       primary: !requestedProjects().has(project.id) && !(project as any).membershipStatus
                     }}
@@ -140,8 +141,8 @@ export default function JoinProjectPage() {
         .project-title {
           transition: var(--transition);
         }
-        .kawaii-card:hover .project-title {
-          color: var(--kawaii-pink);
+        .card:hover .project-title {
+          color: var(--color-accent-peach);
         }
       `}</style>
     </div>

@@ -40,38 +40,48 @@ export default function LoginPage() {
 
   return (
     <div class="page" style="display: flex; align-items: center; justify-content: center; padding: 1.5rem;">
-      <div style="position: absolute; top: 1rem; right: 1rem;">
+      <div style="position: absolute; top: 1.5rem; right: 1.5rem;">
         <LanguageSelector />
       </div>
-      <div class="animate-slide-up" style="width: 100%; max-width: 26rem;">
-        <div class="card" style="padding: 2rem;">
+      <div class="animate-slide-up" style="width: 100%; max-width: 28rem;">
+        <div class="card" style="padding: 2.5rem;">
           <div style="margin-bottom: 2rem; display: flex; justify-content: center;">
-            <img 
-              src="/logo.png" 
-              alt="Koro i18n" 
-              style="width: 6rem; height: 6rem; object-fit: contain;"
-            />
+            <div style="
+              padding: 1rem;
+              background: var(--color-bg-elevated);
+              border-radius: var(--radius-xl);
+              box-shadow: var(--shadow-soft);
+              border: var(--border);
+            ">
+              <img 
+                src="/logo.png" 
+                alt="Koro i18n" 
+                style="width: 5rem; height: 5rem; object-fit: contain; display: block;"
+              />
+            </div>
           </div>
           
           <h1 style="
-            font-size: 1.75rem;
-            font-weight: 700;
+            font-size: 1.5rem;
+            font-weight: 600;
             text-align: center;
             margin-bottom: 2rem;
-            color: var(--color-black);
+            color: var(--color-text-primary);
           ">
             {t('login.title')}
           </h1>
           
           <button
             onClick={handleLogin}
-            class="btn primary"
+            class="btn"
             style="
               width: 100%;
-              padding: 0.875rem 1.25rem;
-              background: #24292e;
-              border-color: #24292e;
+              padding: 1rem 1.5rem;
+              background: var(--color-text-primary);
+              border-color: var(--color-text-primary);
+              color: var(--color-bg-surface);
               justify-content: center;
+              border-radius: var(--radius);
             "
           >
             <svg style="width: 1.25rem; height: 1.25rem;" fill="currentColor" viewBox="0 0 24 24">
@@ -84,7 +94,7 @@ export default function LoginPage() {
             <button
               onClick={() => navigate('/')}
               class="btn"
-              style="background: none; border: none; color: var(--color-gray-500);"
+              style="background: none; border: none; color: var(--color-text-secondary); box-shadow: none;"
             >
               {t('login.backToHome')}
             </button>
