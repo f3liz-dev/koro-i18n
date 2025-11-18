@@ -35,6 +35,22 @@
   --color-success: var(--color-mint-soft);
   --color-warning: var(--color-peach-muted);
   --color-info: var(--color-gray-blue);
+  --color-info-dark: #475c75;
+  --color-success-dark: #3d6b54;
+  --color-warning-dark: #8a5a3d;
+  --color-danger: #f87171;
+  --color-danger-light: #fff5f5;
+  --color-danger-dark: #a03838;
+
+  /* OKLCH variants and text-on-<bg> helpers to ensure accessible contrast
+    OKLCH values are approximations chosen to preserve the visual design
+    while increasing perceptual contrast where necessary. They will be used
+    where we want perceptually even color lifts or contrast-aware text. */
+  /* Text-on helpers fallback for browsers without OKLCH support */
+  --text-on-accent-peach: #4a3e33; /* darker text for peach backgrounds */
+  --text-on-success: #1f442f; /* darker text for mint */
+  --text-on-warning: #4a3526; /* darker text for warm warning */
+  --text-on-danger: #5e1414; /* darker text for danger */
   
   /* Layout - More rounded for kawaii feel */
   --radius: 12px;
@@ -69,6 +85,58 @@
   --color-peach-light: #fff0e8;
   --color-lavender: var(--color-lavender-soft);
   --color-lavender-light: #f8f5fc;
+}
+
+/* If the browser understands OKLCH, override existing tokens with perceptual colors.
+   These are tuned to keep the same aesthetic while improving contrast where needed.
+   We leave the non-oklch variables in place as fallbacks. */
+@supports (color: oklch(0.5 0.01 100)) {
+  :root {
+    --color-cream: oklch(0.98 0.01 110);
+    --color-cream-dark: oklch(0.96 0.01 110);
+    --color-peach-soft: oklch(0.95 0.06 33);
+    --color-peach-muted: oklch(0.90 0.06 33);
+    --color-gray-blue: oklch(0.93 0.02 220);
+    --color-gray-blue-dark: oklch(0.86 0.02 216);
+    --color-lavender-soft: oklch(0.96 0.04 280);
+    --color-mint-soft: oklch(0.78 0.08 150);
+
+    --color-text-primary: oklch(0.26 0.02 40);
+    --color-text-secondary: oklch(0.42 0.01 40);
+    --color-text-muted: oklch(0.65 0.01 40);
+
+    --color-bg-primary: oklch(0.99 0.01 110);
+    --color-bg-surface: oklch(1 0 0);
+    --color-bg-elevated: oklch(0.98 0.01 110);
+
+    --color-accent-peach: oklch(0.82 0.09 30);
+    --color-accent-blue: oklch(0.86 0.03 220);
+    --color-accent-lavender: oklch(0.88 0.04 280);
+    --color-accent-mint: oklch(0.79 0.085 145);
+
+    --color-border-light: oklch(0.95 0.01 100);
+    --color-border-medium: oklch(0.90 0.01 100);
+    --color-border-dark: oklch(0.82 0.01 100);
+
+    --color-primary: var(--color-peach-soft);
+    --color-success: var(--color-mint-soft);
+    --color-warning: var(--color-peach-muted);
+    --color-info: var(--color-gray-blue);
+
+    --color-danger: oklch(0.65 0.12 30);
+    --color-danger-light: oklch(0.95 0.03 30);
+
+    /* darker text overrides for text-on-* helpers to maintain readable contrast */
+    --text-on-accent-peach: oklch(0.14 0 0);
+    --text-on-success: oklch(0.12 0 0);
+    --text-on-warning: oklch(0.14 0 0);
+    --text-on-danger: oklch(0.12 0 0);
+
+    /* Info dark */
+    --color-info-dark: oklch(0.30 0.02 220);
+    --color-success-dark: oklch(0.22 0.02 145);
+    --color-warning-dark: oklch(0.34 0.03 30);
+  }
 }
 
 /* Global layout / background */
@@ -182,9 +250,9 @@ select:focus-visible {
 }
 
 .btn.danger {
-  background: #f8d8d8; /* subtle red */
-  color: #8b2b2b;
-  border-color: #f1c6c6;
+  background: var(--color-danger-light); /* subtle red */
+  color: var(--color-danger-dark);
+  border-color: var(--color-danger);
 }
 
 .btn.selected {
@@ -386,27 +454,27 @@ a {
 }
 
 .message.error {
-  background: #fff5f5;
+  background: var(--color-danger-light);
   border-color: #ffc9c9;
-  color: #a03838;
+  color: var(--color-danger-dark);
 }
 
 .message.success {
   background: var(--color-mint-light);
   border-color: var(--color-mint-soft);
-  color: #3d6b54;
+  color: var(--color-success-dark);
 }
 
 .message.info {
   background: var(--color-blue-light);
   border-color: var(--color-gray-blue);
-  color: #475c75;
+  color: var(--color-info-dark);
 }
 
 .message.warning {
   background: var(--color-peach-light);
   border-color: var(--color-peach-muted);
-  color: #8a5a3d;
+  color: var(--color-warning-dark);
 }
 
 /* Page layout */

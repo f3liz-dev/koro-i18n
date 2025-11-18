@@ -188,7 +188,8 @@ export function TranslationList(props: TranslationListProps) {
                       <Show when={translation.currentValue !== translation.sourceValue && translation.currentValue}>
                         <p style="
                           font-size: 0.813rem;
-                          color: var(--color-blue);
+                          /* var(--color-blue) was hard to read against white backgrounds — use a darker info color */
+                          color: var(--color-info-dark);
                           margin-top: 0.25rem;
                           overflow: hidden;
                           text-overflow: ellipsis;

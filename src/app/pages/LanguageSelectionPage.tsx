@@ -119,15 +119,15 @@ export default function LanguageSelectionPage() {
   };
 
   const getPercentageColor = (percentage: number) => {
-    if (percentage >= 90) return 'color: #3d6b54; background: var(--color-mint-light);';
-    if (percentage >= 50) return 'color: #8a5a3d; background: var(--color-peach-light);';
-    return 'color: #a03838; background: #fff5f5;';
+    if (percentage >= 90) return 'color: var(--text-on-success); background: var(--color-mint-light);';
+    if (percentage >= 50) return 'color: var(--text-on-warning); background: var(--color-peach-light);';
+    return 'color: var(--text-on-danger); background: var(--color-danger-light);';
   };
 
   const getProgressBarColor = (percentage: number) => {
     if (percentage >= 90) return 'var(--color-accent-mint)';
     if (percentage >= 50) return 'var(--color-accent-peach)';
-    return '#f87171';
+    return 'var(--color-danger)';
   };
 
   const menuItems: MenuItem[] = [
