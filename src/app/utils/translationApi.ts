@@ -34,8 +34,15 @@ export async function fetchR2File(
       { credentials: 'include' }
     );
     
+    // Handle conditional response (ETag) and standard errors
     if (!metadataResponse.ok) {
       if (metadataResponse.status === 404) return null;
+      if (metadataResponse.status === 304) {
+        // Not modified — caller should reuse cached metadata if available.
+        // We return null to indicate "no change" so callers won't mistakenly treat
+        // this as a missing file.
+        return null;
+      }
       throw new Error('Failed to fetch file metadata');
     }
     
@@ -52,8 +59,11 @@ export async function fetchR2File(
       { credentials: 'include' }
     );
     
+    // Allow callers to handle 304 (not modified) by returning null so they can
+    // reuse cached R2 content if they maintain one.
     if (!response.ok) {
       if (response.status === 404) return null;
+      if (response.status === 304) return null;
       throw new Error('Failed to fetch R2 file');
     }
     
@@ -85,7 +95,14 @@ export async function fetchWebTranslations(
       { credentials: 'include' }
     );
     
-    if (!response.ok) throw new Error('Failed to fetch web translations');
+    // Handle conditional requests (ETag)
+    if (!response.ok) {
+      if (response.status === 304) {
+        // Not modified - return empty array to indicate no new translations.
+        return [];
+      }
+      throw new Error('Failed to fetch web translations');
+    }
     
     const data = await response.json() as { translations?: WebTranslation[] };
     return data.translations || [];
@@ -246,7 +263,13 @@ export async function fetchSuggestions(
     { credentials: 'include', ...(force ? { cache: 'reload' } : {}) }
   );
 
-  if (!response.ok) throw new Error('Failed to fetch suggestions');
+  // Handle ETag 304 responses
+  if (!response.ok) {
+    if (response.status === 304) {
+      return [];
+    }
+    throw new Error('Failed to fetch suggestions');
+  }
 
   const data = await response.json() as { suggestions?: WebTranslation[] };
   return data.suggestions || [];

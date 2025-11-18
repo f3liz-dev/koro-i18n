@@ -30,6 +30,15 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     console.log('[project-files] Rust compute worker not configured, using fallback implementations');
   }
 
+  // Helper: extract bearer token from Authorization header or auth cookie
+  const extractBearerToken = (c: any): string | undefined => {
+    const header = c.req.header('Authorization');
+    if (header?.startsWith('Bearer ')) return header.substring(7);
+    const cookieToken = getCookie(c, 'auth_token');
+    if (cookieToken) return cookieToken;
+    return undefined;
+  };
+
   async function validateUploadAuth(token: string, projectId: string, repository: string, jwtSecret: string) {
     // Try OIDC verification first
     try {
@@ -71,10 +80,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
   // Upload files to R2 (GitHub imports) - supports chunked uploads
   app.post('/:projectName/upload', async (c) => {
-    const token = c.req.header('Authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return c.json({ error: 'Authorization token required' }, 401);
-    }
+    const token = extractBearerToken(c);
+    if (!token) return c.json({ error: 'Authorization token required' }, 401);
 
     const projectName = c.req.param('projectName');
     const body = await c.req.json();
@@ -299,10 +306,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
   // Cleanup orphaned files (separate endpoint)
   app.post('/:projectName/cleanup', async (c) => {
-    const token = c.req.header('Authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return c.json({ error: 'Authorization token required' }, 401);
-    }
+    const token = extractBearerToken(c);
+    if (!token) return c.json({ error: 'Authorization token required' }, 401);
 
     const projectName = c.req.param('projectName');
     const body = await c.req.json();
@@ -363,15 +368,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
   // List files (metadata only from D1) - JWT auth for web UI
   app.get('/:projectName/files/list', async (c) => {
-    let token = c.req.header('Authorization')?.replace('Bearer ', '');
-    if (!token) {
-      const cookieToken = getCookie(c, 'auth_token');
-      if (cookieToken) {
-        token = cookieToken;
-      } else {
-        return c.json({ error: 'Authorization token required' }, 401);
-      }
-    }
+    const token = extractBearerToken(c);
+    if (!token) return c.json({ error: 'Authorization token required' }, 401);
 
     const projectName = c.req.param('projectName');
     const branch = c.req.query('branch') || 'main';
@@ -450,10 +448,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
   // List files (metadata only from D1) - OIDC auth for GitHub Actions
   app.get('/:projectName/files/list-oidc', async (c) => {
-    const token = c.req.header('Authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return c.json({ error: 'Authorization token required' }, 401);
-    }
+    const token = extractBearerToken(c);
+    if (!token) return c.json({ error: 'Authorization token required' }, 401);
 
     const projectName = c.req.param('projectName');
     const branch = c.req.query('branch') || 'main';

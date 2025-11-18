@@ -3,7 +3,7 @@ import { setCookie, deleteCookie } from 'hono/cookie';
 import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { Octokit } from '@octokit/rest';
 import { PrismaClient } from '../generated/prisma/';
-import { createJWT, verifyJWT, extractToken, requireAuth } from '../lib/auth';
+import { createJWT, requireAuth } from '../lib/auth';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 
 interface Env {
@@ -16,25 +16,63 @@ interface Env {
 
 export function createAuthRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
+
   const oauth = createOAuthAppAuth({
     clientType: 'oauth-app',
     clientId: env.GITHUB_CLIENT_ID,
     clientSecret: env.GITHUB_CLIENT_SECRET,
   });
 
+  const setAuthCookie = (c: any, token: string) =>
+    setCookie(c, 'auth_token', token, {
+      httpOnly: true,
+      maxAge: 86400,
+      path: '/',
+      sameSite: 'Lax',
+      secure: env.ENVIRONMENT === 'production',
+    });
+
+  async function upsertUserFromProfile(profile: any) {
+    const email = profile.email || `${profile.id}+${profile.login}@users.noreply.github.com`;
+    const existing = await prisma.user.findUnique({
+      where: { githubId: profile.id },
+      select: { id: true },
+    });
+
+    if (existing) {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { username: profile.login, email, avatarUrl: profile.avatar_url },
+      });
+      return existing.id;
+    }
+
+    const id = crypto.randomUUID();
+    await prisma.user.create({
+      data: {
+        id,
+        githubId: profile.id,
+        username: profile.login,
+        email,
+        avatarUrl: profile.avatar_url,
+      },
+    });
+    return id;
+  }
+
   app.get('/github', async (c) => {
     const state = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    
+
     await prisma.oauthState.create({
       data: { state, timestamp: Date.now(), expiresAt },
     });
-    
+
     const params = new URLSearchParams({
       client_id: env.GITHUB_CLIENT_ID,
       state,
     });
-    
+
     return c.redirect(`https://github.com/login/oauth/authorize?${params}`);
   });
 
@@ -42,17 +80,12 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
     const code = c.req.query('code');
     const state = c.req.query('state');
 
-    if (!code || !state) {
-      return c.json({ error: 'Missing code or state' }, 400);
-    }
+    if (!code || !state) return c.json({ error: 'Missing code or state' }, 400);
 
     const stateData = await prisma.oauthState.findFirst({
       where: { state, expiresAt: { gt: new Date() } },
     });
-    
-    if (!stateData) {
-      return c.json({ error: 'Invalid or expired OAuth state' }, 400);
-    }
+    if (!stateData) return c.json({ error: 'Invalid or expired OAuth state' }, 400);
 
     await prisma.oauthState.delete({ where: { state } });
 
@@ -60,50 +93,19 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
       const auth = await oauth({ type: 'oauth-user', code, state });
       const octokit = new Octokit({ auth: auth.token });
       const { data: profile } = await octokit.rest.users.getAuthenticated();
-      
-      const email = profile.email || `${profile.id}+${profile.login}@users.noreply.github.com`;
-      const existingUser = await prisma.user.findUnique({
-        where: { githubId: profile.id },
-        select: { id: true },
-      });
 
-      let userId: string;
-      if (!existingUser) {
-        userId = crypto.randomUUID();
-        await prisma.user.create({
-          data: {
-            id: userId,
-            githubId: profile.id,
-            username: profile.login,
-            email,
-            avatarUrl: profile.avatar_url,
-          },
-        });
-      } else {
-        userId = existingUser.id;
-        await prisma.user.update({
-          where: { id: userId },
-          data: { username: profile.login, email, avatarUrl: profile.avatar_url },
-        });
-      }
+      const userId = await upsertUserFromProfile(profile);
 
       const token = await createJWT(
         { id: userId, username: profile.login, githubId: profile.id },
         auth.token,
         env.JWT_SECRET
       );
-      
-      setCookie(c, 'auth_token', token, { 
-        httpOnly: true, 
-        maxAge: 86400, 
-        path: '/',
-        sameSite: 'Lax',
-        secure: env.ENVIRONMENT === 'production'
-      });
 
+      setAuthCookie(c, token);
       return c.redirect('/dashboard');
-    } catch (error) {
-      console.error('OAuth error:', error);
+    } catch (err) {
+      console.error('OAuth callback error:', err);
       return c.json({ error: 'OAuth failed' }, 500);
     }
   });
@@ -111,15 +113,13 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
   app.get('/me', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
-    
-    // Cache auth response for 5 minutes to reduce server load
-    // authFetch will clear cache and refetch on 401 errors
-    const response = c.json({ 
-      user: { 
-        id: payload.userId, 
-        username: payload.username, 
-        githubId: payload.githubId 
-      } 
+
+    const response = c.json({
+      user: {
+        id: payload.userId,
+        username: payload.username,
+        githubId: payload.githubId,
+      },
     });
     response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.auth));
     return response;

@@ -13,6 +13,38 @@ interface Env {
 export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
 
+  // Helpers
+  const resolveProjectId = async (projectIdParam?: string) => {
+    if (!projectIdParam) return undefined;
+    const project = await prisma.project.findFirst({
+      where: {
+        OR: [
+          { id: projectIdParam },
+          { repository: projectIdParam },
+        ],
+      },
+      select: { id: true },
+    });
+    return project ? project.id : projectIdParam;
+  };
+
+  const serializeTranslation = (t: any) => ({
+    id: t.id,
+    projectId: t.projectId,
+    language: t.language,
+    filename: t.filename,
+    key: t.key,
+    value: t.value,
+    userId: t.userId,
+    username: t.user?.username,
+    avatarUrl: t.user?.avatarUrl,
+    status: t.status,
+    sourceHash: t.sourceHash,
+    isValid: t.isValid,
+    createdAt: t.createdAt.toISOString(),
+    updatedAt: t.updatedAt.toISOString(),
+  });
+
   // Create web translation
   app.post('/', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
@@ -140,28 +172,13 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
     // Generate ETag
     const timestamps = translations.map(t => t.updatedAt);
     const etag = generateTranslationsETag(timestamps);
-    
+
     if (checkETagMatch(c.req.raw, etag)) {
       return create304Response(etag, buildCacheControl(CACHE_CONFIGS.translations));
     }
 
     const response = c.json({
-      translations: translations.map(t => ({
-        id: t.id,
-        projectId: t.projectId,
-        language: t.language,
-        filename: t.filename,
-        key: t.key,
-        value: t.value,
-        userId: t.userId,
-        username: t.user?.username,
-        avatarUrl: t.user?.avatarUrl,
-        status: t.status,
-        sourceHash: t.sourceHash,
-        isValid: t.isValid,
-        createdAt: t.createdAt.toISOString(),
-        updatedAt: t.updatedAt.toISOString(),
-      })),
+      translations: translations.map(serializeTranslation),
     });
 
     response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translations));
@@ -264,28 +281,13 @@ export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
 
     const timestamps = suggestions.map(s => s.updatedAt);
     const etag = generateTranslationsETag(timestamps);
-    
+
     if (checkETagMatch(c.req.raw, etag)) {
       return create304Response(etag, buildCacheControl(CACHE_CONFIGS.translationSuggestions));
     }
 
     const response = c.json({
-      suggestions: suggestions.map(s => ({
-        id: s.id,
-        projectId: s.projectId,
-        language: s.language,
-        filename: s.filename,
-        key: s.key,
-        value: s.value,
-        userId: s.userId,
-        username: s.user?.username,
-        avatarUrl: s.user?.avatarUrl,
-        status: s.status,
-        sourceHash: s.sourceHash,
-        isValid: s.isValid,
-        createdAt: s.createdAt.toISOString(),
-        updatedAt: s.updatedAt.toISOString(),
-      })),
+      suggestions: suggestions.map(serializeTranslation),
     });
 
     response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translationSuggestions));

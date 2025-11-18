@@ -4,6 +4,7 @@ import { PrismaClient } from '../generated/prisma/';
 import { requireAuth } from '../lib/auth';
 import { getFile, getFileByComponents } from '../lib/r2-storage';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
+import { resolveActualProjectId } from '../lib/database';
 
 interface Env {
   TRANSLATION_BUCKET: R2Bucket;
@@ -12,6 +13,19 @@ interface Env {
 
 export function createR2FileRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
+
+  // Helper: return 304 if client ETag matches, otherwise return server ETag string
+  const maybe304 = (c: any, timestamp: Date) => {
+    const serverETag = `"\${timestamp.getTime()}"`;
+    const clientETag = c.req.header('If-None-Match');
+    if (clientETag === serverETag) {
+      return c.body(null, 304, {
+        'ETag': serverETag,
+        'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles),
+      });
+    }
+    return serverETag;
+  };
 
   // Get specific file from R2 (GitHub import only, no web translations)
   app.get('/:projectId/:lang/:filename', async (c) => {
@@ -24,15 +38,7 @@ export function createR2FileRoutes(prisma: PrismaClient, env: Env) {
     const branch = c.req.query('branch') || 'main';
 
     // Resolve project name to repository ID
-    let actualProjectId = projectIdOrName;
-    const project = await prisma.project.findUnique({
-      where: { name: projectIdOrName },
-      select: { repository: true },
-    });
-    
-    if (project) {
-      actualProjectId = project.repository;
-    }
+    const actualProjectId = await resolveActualProjectId(prisma, projectIdOrName);
 
     // Get file metadata from D1
     const fileIndex = await prisma.r2File.findUnique({
@@ -50,16 +56,10 @@ export function createR2FileRoutes(prisma: PrismaClient, env: Env) {
       return c.json({ error: 'File not found' }, 404);
     }
 
-    // Check ETag
-    const clientETag = c.req.header('If-None-Match');
-    const serverETag = `"${fileIndex.lastUpdated.getTime()}"`;
-    
-    if (clientETag === serverETag) {
-      return c.body(null, 304, {
-        'ETag': serverETag,
-        'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles),
-      });
-    }
+    // ETag handling
+    const etagResult = maybe304(c, fileIndex.lastUpdated);
+    if (etagResult instanceof Response) return etagResult;
+    const serverETag = etagResult as string;
 
     // Get file from R2 (with caching)
     const fileData = await getFile(env.TRANSLATION_BUCKET, fileIndex.r2Key);
@@ -105,6 +105,12 @@ export function createR2FileRoutes(prisma: PrismaClient, env: Env) {
       uploadedAt: fileData.uploadedAt,
     });
 
+    // Set ETag when uploadedAt is available and return cache control
+    if (fileData.uploadedAt) {
+      try {
+        response.headers.set('ETag', `"\${new Date(fileData.uploadedAt).getTime()}"`);
+      } catch {}
+    }
     response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
 
     return response;

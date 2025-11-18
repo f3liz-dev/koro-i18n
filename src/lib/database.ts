@@ -49,6 +49,22 @@ export async function checkProjectAccess(
   return result.length > 0;
 }
 
+/**
+ * Resolve a project identifier (name or id) to the repository ID used as the
+ * internal project identifier stored in R2/D1 indices.
+ *
+ * If `projectIdOrName` matches a Project.name, the project's repository value
+ * is returned. Otherwise the original `projectIdOrName` is returned so callers
+ * can continue to operate with either form.
+ */
+export async function resolveActualProjectId(prisma: PrismaClient, projectIdOrName: string): Promise<string> {
+  const project = await prisma.project.findUnique({
+    where: { name: projectIdOrName },
+    select: { repository: true },
+  });
+  return project ? project.repository : projectIdOrName;
+}
+
 export function flattenObject(obj: any, prefix = ''): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(obj)) {

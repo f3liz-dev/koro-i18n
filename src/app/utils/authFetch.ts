@@ -1,67 +1,66 @@
 /**
- * Authentication-aware fetch wrapper that automatically handles token expiration.
+ * Authentication-aware fetch wrapper that automatically handles token expiration
+ * and provides sensible defaults for API calls to the BFF.
  *
- * This utility intercepts 401 Unauthorized responses and:
- * 1. Logs out the user
- * 2. Redirects to the login page
- *
- * Use this for all API calls that require authentication.
+ * Notes:
+ * - Preserves caller-provided headers (including If-None-Match for ETag checks).
+ * - Adds Accept: application/json by default so Cloudflare worker endpoints return JSON.
+ * - On 401: attempts server-side logout, clears client state by redirecting to /login.
+ * - Network errors are re-thrown so callers can handle them explicitly.
  */
 
-/**
- * Enhanced fetch that handles authentication errors automatically.
- * When a 401 Unauthorized response is received, it triggers logout and redirects to login.
- *
- * @param input - URL or Request object
- * @param init - Fetch options
- * @returns Promise resolving to the Response
- *
- * @example
- * ```typescript
- * const response = await authFetch('/api/projects', { credentials: 'include' });
- * if (response.ok) {
- *   const data = await response.json();
- * }
- * ```
- */
 export async function authFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const response = await fetch(input, init);
+  // Merge headers without clobbering user-provided headers
+  const headers = {
+    Accept: "application/json",
+    ...(init && init.headers ? (init.headers as Record<string, string>) : {}),
+  };
 
-  // Check for 401 Unauthorized - token is invalid or expired
-  if (response.status === 401) {
-    console.log("[AuthFetch] 401 Unauthorized");
+  const fetchInit: RequestInit = {
+    ...init,
+    headers,
+  };
 
-    // If already on public pages, just return the response without redirecting
-    if (
-      window.location.pathname === "/" ||
-      window.location.pathname === "/login"
-    ) {
+  try {
+    const response = await fetch(input, fetchInit);
+
+    // Handle authentication failure
+    if (response.status === 401) {
+      console.log("[AuthFetch] 401 Unauthorized");
+
+      // If already on public pages, return the response so callers can decide
+      if (
+        window.location.pathname === "/" ||
+        window.location.pathname === "/login"
+      ) {
+        return response;
+      }
+
+      // Attempt to clear server-side cookie; ignore errors
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        });
+      } catch (err) {
+        console.error("[AuthFetch] Logout call failed:", err);
+      }
+
+      // Redirect to login to ensure user re-authenticates
+      window.location.href = "/login";
       return response;
     }
 
-    console.log("[AuthFetch] Logging out and redirecting");
-
-    // Clear auth state and redirect to login
-    try {
-      // Try to call logout endpoint to clear server-side cookie
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      });
-    } catch (error) {
-      // Ignore logout errors - cookie may already be invalid
-      console.error("[AuthFetch] Logout call failed:", error);
-    }
-
-    // Redirect to login page
-    window.location.href = "/login";
-
-    // Return the 401 response for any code that might still process it
+    // For 304 Not Modified responses we return the response as-is so callers can
+    // handle conditional requests (ETag / If-None-Match) correctly.
     return response;
+  } catch (err) {
+    console.error("[AuthFetch] Network error:", err);
+    // Re-throw so callers can react (UI error state, retry logic, etc.)
+    throw err;
   }
-
-  return response;
 }
