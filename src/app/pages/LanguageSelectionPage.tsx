@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, createMemo, onMount, For, Show, createResource } from 'solid-js';
 import { user, auth } from '../auth';
-import { projects, fetchFiles } from '../utils/store';
+import { projects, createFetchFilesSummaryQuery } from '../utils/store';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
 
@@ -24,14 +24,16 @@ export default function LanguageSelectionPage() {
 
   const project = () => (projects() || []).find((p: any) => p.id === params.projectName || p.name === params.projectName) || null;
 
+  const fetchFilesSummaryQuery = createFetchFilesSummaryQuery();
+
   const [sourceFiles] = createResource(
     () => project()?.name,
-    async (projectName) => (projectName ? fetchFiles(projectName, 'source-language') : null)
+    async (projectName) => (projectName ? fetchFilesSummaryQuery(projectName, 'source-language') : null)
   );
 
   const [allFiles] = createResource(
     () => project()?.name,
-    async (projectName) => (projectName ? fetchFiles(projectName) : null)
+    async (projectName) => (projectName ? fetchFilesSummaryQuery(projectName) : null)
   );
 
   const sourceFilesData = () => sourceFiles();
