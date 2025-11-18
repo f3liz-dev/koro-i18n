@@ -39,7 +39,7 @@ export default function TranslationSuggestionsPage() {
   const params = useParams();
   const navigate = useNavigate();
 
-  const projectId = () => params.projectName || '';
+  const projectName = () => params.projectName || '';
   const [selectedLanguage, setSelectedLanguage] = createSignal<string>('all');
   const [filterStatus, setFilterStatus] = createSignal<'all' | 'pending' | 'approved'>('pending');
   const [searchQuery, setSearchQuery] = createSignal('');
@@ -49,10 +49,10 @@ export default function TranslationSuggestionsPage() {
   const [suggestionsKey, setSuggestionsKey] = createSignal(0);
   const fetchSuggestionsQuery = createFetchSuggestionsQuery();
   const [suggestions] = createResource(
-    () => ({ projectId: projectId(), language: selectedLanguage() === 'all' ? '' : selectedLanguage(), key: suggestionsKey() }),
-    async ({ projectId, language }) => {
-      if (!projectId) return { suggestions: [] };
-      return fetchSuggestionsQuery(projectId, language);
+    () => ({ projectName: projectName(), language: selectedLanguage() === 'all' ? '' : selectedLanguage(), key: suggestionsKey() }),
+    async ({ projectName, language }) => {
+      if (!projectName) return { suggestions: [] };
+      return fetchSuggestionsQuery(projectName, language);
     }
   );
 
@@ -205,7 +205,7 @@ export default function TranslationSuggestionsPage() {
             <div>
               <h1 class="text-2xl font-bold text-gray-900">Translation Suggestions</h1>
               <p class="text-sm text-gray-600">
-                {projectId()} • Public contributions
+                {projectName()} • Public contributions
               </p>
             </div>
             <button

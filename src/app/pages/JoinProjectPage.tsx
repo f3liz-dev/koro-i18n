@@ -23,21 +23,21 @@ export default function JoinProjectPage() {
 
   const [allProjects] = createResource(async () => fetchAllProjectsQuery());
 
-  const myProjectIds = () => (projects() || []).map(p => p.id);
+  const myProjectNames = () => (projects() || []).map(p => p.name);
 
   const availableProjects = () => (allProjects() || []).filter(p =>
-    !myProjectIds().includes(p.id) && p.userId !== user()?.id
+    !myProjectNames().includes(p.name) && p.userId !== user()?.id
   );
 
-  const handleJoin = async (projectId: string) => {
+  const handleJoin = async (projectName: string) => {
     try {
-      const res = await authFetch(`/api/projects/${projectId}/join`, {
+      const res = await authFetch(`/api/projects/${projectName}/join`, {
         method: 'POST',
         credentials: 'include',
       });
 
       if (res.ok) {
-        setRequestedProjects(prev => new Set([...prev, projectId]));
+  setRequestedProjects(prev => new Set([...prev, projectName]));
       } else {
         const data = await res.json() as { error?: string };
         alert(data.error || 'Failed to join project');
@@ -117,12 +117,12 @@ export default function JoinProjectPage() {
                     ">{project.repository}</code>
                   </div>
                   <button
-                    onClick={() => handleJoin(project.id)}
-                    disabled={requestedProjects().has(project.id) || !!project.membershipStatus}
+                    onClick={() => handleJoin(project.name)}
+                    disabled={requestedProjects().has(project.name) || !!project.membershipStatus}
                     class="btn"
                     style="width: 100%; justify-content: center; border-radius: var(--radius);"
                     classList={{
-                      primary: !requestedProjects().has(project.id) && !(project as any).membershipStatus
+                      primary: !requestedProjects().has(project.name) && !(project as any).membershipStatus
                     }}
                   >
                     {requestedProjects().has(project.id) || (project as any).membershipStatus === 'pending' ? t('joinProject.requestSent') :

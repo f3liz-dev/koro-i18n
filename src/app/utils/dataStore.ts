@@ -159,9 +159,9 @@ async function revalidateAndUpdate<T, E>(
 }
 
 // Helper to clear keyed stores (calls setFn(key, undefined))
-function clearKeyedStore(storeObj: Record<string, unknown>, setFn: (key: string, val: any) => void, projectId?: string) {
-  if (projectId) {
-    const keysToDelete = Object.keys(storeObj).filter(k => k.startsWith(projectId));
+function clearKeyedStore(storeObj: Record<string, unknown>, setFn: (key: string, val: any) => void, projectName?: string) {
+  if (projectName) {
+    const keysToDelete = Object.keys(storeObj).filter(k => k.startsWith(projectName));
     keysToDelete.forEach(key => setFn(key, undefined as any));
   } else {
     Object.keys(storeObj).forEach(key => setFn(key, undefined as any));
@@ -229,7 +229,7 @@ export const projectsCache = {
 };
 
 /**
- * Files store - keyed by projectId and language
+ * Files store - keyed by projectName (slug) and language
  */
 interface FileData {
   filename: string;
@@ -248,10 +248,10 @@ interface FilesState {
 
 export const filesCache = createCacheStore<FilesState, { files: FileData[] }, [string, string?], [string, string?, string?]>({
   initialState: {},
-  makeKey: (projectId: string, language?: string) =>
-    language ? `${projectId}:${language}` : projectId,
-  makeUrl: (projectId: string, language?: string, filename?: string) => {
-    let url = `/api/projects/${projectId}/files`;
+  makeKey: (projectName: string, language?: string) =>
+    language ? `${projectName}:${language}` : projectName,
+  makeUrl: (projectName: string, language?: string, filename?: string) => {
+    let url = `/api/projects/${projectName}/files`;
     const params = new URLSearchParams();
     if (language) params.append('lang', language);
     if (filename) params.append('filename', filename);
@@ -286,10 +286,10 @@ interface FilesSummaryState {
 
 export const filesSummaryCache = createCacheStore<FilesSummaryState, { data: FileSummaryData }, [string, string?], [string, string?]>({
   initialState: {},
-  makeKey: (projectId: string, language?: string) =>
-    language ? `${projectId}:${language}` : projectId,
-  makeUrl: (projectId: string, language?: string) => {
-    let url = `/api/projects/${projectId}/files/summary`;
+  makeKey: (projectName: string, language?: string) =>
+    language ? `${projectName}:${language}` : projectName,
+  makeUrl: (projectName: string, language?: string) => {
+    let url = `/api/projects/${projectName}/files/summary`;
     // Only append lang if it's a valid language code (e.g. "en", "es", "ja", "en-US")
     if (language && /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language)) {
       url += `?lang=${language}`;
@@ -326,10 +326,10 @@ interface TranslationsState {
 
 export const translationsCache = createCacheStore<TranslationsState, { translations: Translation[] }, [string, string, string?], [string, string, string?]>({
   initialState: {},
-  makeKey: (projectId: string, language: string, status?: string) =>
-    `${projectId}:${language}${status ? `:${status}` : ''}`,
-  makeUrl: (projectId: string, language: string, status?: string) => {
-    const params = new URLSearchParams({ projectName: projectId, language });
+  makeKey: (projectName: string, language: string, status?: string) =>
+    `${projectName}:${language}${status ? `:${status}` : ''}`,
+  makeUrl: (projectName: string, language: string, status?: string) => {
+    const params = new URLSearchParams({ projectName, language });
     if (status) params.append('status', status);
     return `/api/translations?${params}`;
   },
@@ -365,10 +365,10 @@ interface SuggestionsState {
 
 export const suggestionsCache = createCacheStore<SuggestionsState, { suggestions: Suggestion[] }, [string, string, string?], [string, string, string?]>({
   initialState: {},
-  makeKey: (projectId: string, language: string, key?: string) =>
-    key ? `${projectId}:${language}:${key}` : `${projectId}:${language}`,
-  makeUrl: (projectId: string, language: string, key?: string) => {
-    const params = new URLSearchParams({ projectName: projectId, language });
+  makeKey: (projectName: string, language: string, key?: string) =>
+    key ? `${projectName}:${language}:${key}` : `${projectName}:${language}`,
+  makeUrl: (projectName: string, language: string, key?: string) => {
+    const params = new URLSearchParams({ projectName, language });
     if (key) params.append('key', key);
     return `/api/translations/suggestions?${params}`;
   },
@@ -391,7 +391,7 @@ interface Member {
 }
 
 interface MembersState {
-  [projectId: string]: {
+  [projectName: string]: {
     members: Member[];
     lastFetch: number;
     etag?: string;
@@ -400,8 +400,8 @@ interface MembersState {
 
 export const membersCache = createCacheStore<MembersState, { members: Member[] }, [string], [string]>({
   initialState: {},
-  makeKey: (projectId: string) => projectId,
-  makeUrl: (projectId: string) => `/api/projects/${projectId}/members`,
+  makeKey: (projectName: string) => projectName,
+  makeUrl: (projectName: string) => `/api/projects/${projectName}/members`,
   extractData: (data: any) => ({ members: data.members }),
   extractEtag: (res: any) => res.etag,
   fetchParams: () => ({ credentials: 'include' }),

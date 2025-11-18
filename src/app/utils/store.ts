@@ -123,8 +123,8 @@ export async function fetchSuggestions(projectName: string, language: string, ke
 }
 
 // Expose "Query" suffixed async functions for existing callers (they no longer rely on @solidjs/router's query primitive)
-export const fetchFilesSummaryQuery = async (projectId: string, language?: string) => {
-  return fetchFilesSummary(projectId, language);
+export const fetchFilesSummaryQuery = async (projectName: string, language?: string) => {
+  return fetchFilesSummary(projectName, language);
 };
 
 export const fetchSuggestionsQuery = async (projectName: string, language: string) => {
@@ -229,8 +229,8 @@ export function createFetchAllProjectsQuery() {
 }
 
 export function createFetchMembersQuery() {
-  return query(async (projectId: string) => {
-    const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/members`, { credentials: 'include' });
+  return query(async (projectName: string) => {
+    const res = await authFetch(`/api/projects/${encodeURIComponent(projectName)}/members`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to fetch members');
     const data = await res.json();
     return data;

@@ -81,23 +81,23 @@ export function prefetchMultiple(urls: string[]): void {
  * This performs actual data fetching when ForesightJS predicts user intent
  * Non-blocking to prevent navigation delays
  * @param route - Current route name
- * @param projectId - Optional project ID
+ * @param projectName - Optional project name (slug)
  * @param language - Optional language code
  */
-export function prefetchForRoute(route: string, projectId?: string, language?: string): void {
+export function prefetchForRoute(route: string, projectName?: string, language?: string): void {
   const prefetchMap: Record<string, string[]> = {
     dashboard: ['/api/projects'],
-    'project-languages': projectId ? [`/api/projects/${projectId}/files/summary`] : [],
-    'project-files': projectId && language && /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language)
-      ? [`/api/projects/${projectId}/files/summary?lang=${language}`]
-      : projectId
-        ? [`/api/projects/${projectId}/files/summary`]
+  'project-languages': projectName ? [`/api/projects/${projectName}/files/summary`] : [],
+    'project-files': projectName && language && /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language)
+  ? [`/api/projects/${projectName}/files/summary?lang=${language}`]
+      : projectName
+  ? [`/api/projects/${projectName}/files/summary`]
         : [],
-  'translation-editor': projectId && language
+  'translation-editor': projectName && language
       ? [
           `/api/projects`,
-          `/api/projects/${projectId}/files?lang=${language}`,
-          `/api/translations?projectName=${projectId}&language=${language}`,
+          `/api/projects/${projectName}/files?lang=${language}`,
+          `/api/translations?projectName=${projectName}&language=${language}`,
         ]
       : [],
   };

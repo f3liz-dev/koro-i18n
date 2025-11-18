@@ -34,8 +34,8 @@ export default function FileSelectionPage() {
   );
 
   const [targetFiles] = createResource(
-    () => ({ projectId: project()?.name, language: language() }),
-    async ({ projectId, language }) => (projectId && language ? fetchFilesSummaryQuery(projectId, language) : null)
+    () => ({ projectName: project()?.name, language: language() }),
+    async ({ projectName, language }) => (projectName && language ? fetchFilesSummaryQuery(projectName, language) : null)
   );
 
   const sourceFilesData = () => sourceFiles();

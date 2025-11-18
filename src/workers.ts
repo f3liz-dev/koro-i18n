@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
-import { initializePrisma } from './lib/database';
+import { initializePrisma, resolveActualProjectId } from './lib/database';
 import { createAuthRoutes } from './routes/auth';
 import { createTranslationRoutes } from './routes/translations';
 import { createProjectRoutes } from './routes/projects';
@@ -48,16 +48,16 @@ export function createWorkerApp(env: Env) {
   app.route('/api/r2', createR2FileRoutes(prisma, env));
 
   app.get('/api/logs/history', async (c) => {
-    const projectId = c.req.query('projectId');
+    const projectName = c.req.query('projectName');
     const language = c.req.query('language');
     const key = c.req.query('key');
-
-    if (!projectId || !language || !key) {
+    if (!projectName || !language || !key) {
       return c.json({ error: 'Missing required parameters' }, 400);
     }
+    const actualProjectId = await resolveActualProjectId(prisma, projectName);
 
     const history = await prisma.webTranslationHistory.findMany({
-      where: { projectId, language, key },
+      where: { projectId: actualProjectId, language, key },
       orderBy: { createdAt: 'desc' },
     });
 

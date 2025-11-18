@@ -20,15 +20,16 @@ export default function ProjectSettingsPage() {
   const params = useParams();
 
   const project = () => (projects() || []).find((p: any) => p.name === params.projectName) || null;
-  const projectId = () => project()?.id || params.projectName || '';
+  // Public identifier (slug) used in routes and APIs
+  const projectName = () => project()?.name || params.projectName || '';
 
   const fetchMembersQuery = createFetchMembersQuery();
   const [membersKey, setMembersKey] = createSignal(0);
   const [members] = createResource(
-    () => ({ projectId: projectId(), key: membersKey() }),
-    async ({ projectId }) => {
-      if (!projectId) return { members: [] };
-      return fetchMembersQuery(projectId);
+  () => ({ projectName: projectName(), key: membersKey() }),
+    async ({ projectName }) => {
+      if (!projectName) return { members: [] };
+      return fetchMembersQuery(projectName);
     }
   );
 
@@ -41,7 +42,7 @@ export default function ProjectSettingsPage() {
 
 
   const handleApprove = async (memberId: string, status: 'approved' | 'rejected') => {
-    const pid = projectId();
+  const pid = projectName();
     if (!pid) return;
 
     setActionInProgress(memberId);
@@ -49,7 +50,7 @@ export default function ProjectSettingsPage() {
     setErrorMessage('');
 
     try {
-      const res = await authFetch(`/api/projects/${pid}/members/${memberId}/approve`, {
+  const res = await authFetch(`/api/projects/${pid}/members/${memberId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -76,7 +77,7 @@ export default function ProjectSettingsPage() {
 
   const handleRemove = async (memberId: string) => {
     if (!confirm('Remove this member?')) return;
-    const pid = projectId();
+  const pid = projectName();
     if (!pid) return;
 
     setActionInProgress(memberId);
@@ -84,7 +85,7 @@ export default function ProjectSettingsPage() {
     setErrorMessage('');
 
     try {
-      const res = await authFetch(`/api/projects/${pid}/members/${memberId}`, {
+  const res = await authFetch(`/api/projects/${pid}/members/${memberId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -108,14 +109,14 @@ export default function ProjectSettingsPage() {
   };
 
   const handleAccessControlChange = async (accessControl: 'whitelist' | 'blacklist') => {
-    const pid = projectId();
+  const pid = projectName();
     if (!pid) return;
 
     setSuccessMessage('');
     setErrorMessage('');
 
     try {
-      const res = await authFetch(`/api/projects/${pid}`, {
+  const res = await authFetch(`/api/projects/${pid}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -139,7 +140,7 @@ export default function ProjectSettingsPage() {
   };
 
   const handleDeleteProject = async () => {
-    const pid = projectId();
+  const pid = projectName();
     if (!pid) return;
     if (!confirm('Delete this project? This cannot be undone.')) return;
 

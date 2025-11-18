@@ -13,8 +13,8 @@ interface HistoryEntry {
   createdAt: string;
 }
 
-async function fetchHistory(projectId: string, language: string, key: string) {
-  const params = new URLSearchParams({ projectId, language, key });
+async function fetchHistory(projectName: string, language: string, key: string) {
+  const params = new URLSearchParams({ projectName, language, key });
   const url = `/api/translations/history?${params}`;
   
   // Always fetch from network (dataStore handles caching)
@@ -27,17 +27,17 @@ async function fetchHistory(projectId: string, language: string, key: string) {
 export default function TranslationHistoryPage() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const [projectId, setProjectId] = createSignal('');
+  const [projectName, setProjectName] = createSignal('');
   const [language, setLanguage] = createSignal('');
   const [key, setKey] = createSignal('');
   const [history, setHistory] = createSignal<HistoryEntry[] | null>(null);
   const [isLoading, setIsLoading] = createSignal(false);
 
   const handleSearch = async () => {
-    if (projectId() && language() && key()) {
+  if (projectName() && language() && key()) {
       try {
         setIsLoading(true);
-        const data = await fetchHistory(projectId(), language(), key());
+  const data = await fetchHistory(projectName(), language(), key());
         setHistory(data);
       } catch (error) {
         console.error('Failed to fetch history:', error);
@@ -93,11 +93,11 @@ export default function TranslationHistoryPage() {
             <label class="block text-sm font-medium mb-2">{t('translationHistory.project')}</label>
             <input
               type="text"
-              value={projectId()}
-              onInput={(e) => setProjectId(e.currentTarget.value)}
+              value={projectName()}
+              onInput={(e) => setProjectName(e.currentTarget.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               class="input"
-              placeholder="owner/repo"
+              placeholder="project-name"
             />
           </div>
           <div>
@@ -125,7 +125,7 @@ export default function TranslationHistoryPage() {
         </div>
           <button
             onClick={handleSearch}
-            disabled={!projectId() || !language() || !key()}
+            disabled={!projectName() || !language() || !key()}
             class="btn primary"
           >
             {t('common.search')}
