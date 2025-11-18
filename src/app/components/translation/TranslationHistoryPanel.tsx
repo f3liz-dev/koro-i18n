@@ -42,17 +42,17 @@ export function TranslationHistoryPanel(props: TranslationHistoryPanelProps) {
   const getActionBadge = (action: string) => {
     switch (action) {
       case 'submitted':
-        return 'bg-blue-100 text-blue-800';
+        return 'badge';
       case 'approved':
-        return 'bg-green-100 text-green-800';
+        return 'badge success';
       case 'committed':
-        return 'bg-purple-100 text-purple-800';
+        return 'badge';
       case 'rejected':
-        return 'bg-red-100 text-red-800';
+        return 'badge danger';
       case 'deleted':
-        return 'bg-gray-100 text-gray-800';
+        return 'badge';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'badge';
     }
   };
 
@@ -75,7 +75,7 @@ export function TranslationHistoryPanel(props: TranslationHistoryPanelProps) {
 
   return (
     <Show when={props.show}>
-      <div class="border-t bg-white">
+      <div class="border-t kawaii-panel">
         <div class="p-3 lg:p-4">
           <h3 class="text-sm font-semibold text-gray-900 mb-3">Translation History</h3>
           
@@ -103,9 +103,9 @@ export function TranslationHistoryPanel(props: TranslationHistoryPanelProps) {
                 {(entry, index) => (
                   <div class={`relative pl-6 pb-3 ${index() < props.history!.length - 1 ? 'border-l-2 border-gray-200' : ''}`}>
                     {/* Timeline dot */}
-                    <div class="absolute left-0 top-0 -translate-x-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white"></div>
+                    <div class="absolute left-0 top-0 -translate-x-1/2 timeline-dot"></div>
                     
-                    <div class="bg-gray-50 rounded-lg p-3 border">
+                    <div class="card sm">
                       {/* Header with User Info */}
                       <div class="flex items-start justify-between mb-2">
                         <div class="flex items-center gap-2 flex-1 min-w-0">
@@ -125,8 +125,8 @@ export function TranslationHistoryPanel(props: TranslationHistoryPanelProps) {
                                   {entry.username}
                                 </span>
                               </Show>
-                              <span class="text-lg flex-shrink-0">{getActionIcon(entry.action)}</span>
-                              <span class={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${getActionBadge(entry.action)}`}>
+                                <span class="kawaii-icon">{getActionIcon(entry.action)}</span>
+                                <span class={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${getActionBadge(entry.action)}`}>
                                 {entry.action}
                               </span>
                             </div>
@@ -139,7 +139,7 @@ export function TranslationHistoryPanel(props: TranslationHistoryPanelProps) {
 
                       {/* Value */}
                       <Show when={entry.action !== 'deleted'}>
-                        <div class="bg-white p-2 rounded border text-sm text-gray-900 mb-2">
+                        <div class="card sm" style="display:inline-block;"> 
                           {entry.value}
                         </div>
                       </Show>

@@ -5,13 +5,7 @@ import { projects, fetchFiles } from '../utils/store';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
 
-interface Project {
-  id: string;
-  name: string;
-  repository: string;
-  userId: string;
-  sourceLanguage: string;
-}
+// Local Project type not required here; use shared Project type from store
 
 interface LanguageStats {
   language: string;
@@ -20,9 +14,7 @@ interface LanguageStats {
   percentage: number;
 }
 
-interface FilesResponse {
-  files: any[];
-}
+// Local types intentionally removed to keep code focused on shared types
 
 export default function LanguageSelectionPage() {
   const navigate = useNavigate();
@@ -30,7 +22,7 @@ export default function LanguageSelectionPage() {
 
   const [isOwner, setIsOwner] = createSignal(false);
 
-  const project = () => (projects() || []).find((p: any) => p.id === params.id || p.name === params.id) || null;
+  const project = () => (projects() || []).find((p: any) => p.id === params.projectName || p.name === params.projectName) || null;
 
   const [sourceFiles] = createResource(
     () => project()?.name,
@@ -139,12 +131,12 @@ export default function LanguageSelectionPage() {
   const menuItems: MenuItem[] = [
     {
       label: 'Settings',
-      onClick: () => navigate(`/projects/${params.id}/settings`),
+  onClick: () => navigate(`/projects/${params.projectName}/settings`),
       show: isOwner(),
     },
     {
       label: 'Suggestions',
-      onClick: () => navigate(`/projects/${params.id}/suggestions`),
+  onClick: () => navigate(`/projects/${params.projectName}/suggestions`),
       variant: 'primary',
     },
     {
@@ -210,7 +202,7 @@ export default function LanguageSelectionPage() {
               {(langStat) => {
                 return (
                   <button
-                    onClick={() => navigate(`/projects/${params.id}/language/${langStat.language}`)}
+                    onClick={() => navigate(`/projects/${params.projectName}/language/${langStat.language}`)}
                     class="card hover-lift transition-all"
                     style="text-align: left; cursor: pointer;"
                   >

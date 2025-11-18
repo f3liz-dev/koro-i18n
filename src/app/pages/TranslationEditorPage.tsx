@@ -1,4 +1,4 @@
-import { createSignal, onMount, createEffect, Show } from 'solid-js';
+import { createSignal, onMount, createEffect } from 'solid-js';
 import { useParams, useNavigate, useSearchParams } from '@solidjs/router';
 import { user } from '../auth';
 import {
@@ -34,7 +34,7 @@ export default function TranslationEditorPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const projectName = () => params.projectId || '';
+  const projectName = () => params.projectName || '';
   const language = () => params.language || 'en';
   const filename = () => params.filename ? decodeURIComponent(params.filename) : 'common.json';
 
@@ -106,7 +106,7 @@ export default function TranslationEditorPage() {
       const targetR2Data = await fetchR2File(proj.name, targetLang, targetFilename);
 
       // Fetch from D1 (web translations - overrides)
-      const webTrans = await fetchWebTranslations(proj.id, targetLang, targetFilename);
+  const webTrans = await fetchWebTranslations(proj.name, targetLang, targetFilename);
 
       // If the BFF returned 304 / "no change" for the source R2 file, translationApi
       // returns null. In that case we should avoid wiping the current UI state —
@@ -141,7 +141,7 @@ export default function TranslationEditorPage() {
     if (!proj || !key) return;
 
     try {
-      const suggs = await fetchSuggestions(proj.id, language(), filename(), key, force);
+  const suggs = await fetchSuggestions(proj.name, language(), filename(), key, force);
       setSuggestions(suggs);
     } catch (error) {
       console.error('Failed to load suggestions:', error);
@@ -262,7 +262,7 @@ export default function TranslationEditorPage() {
     setIsSaving(true);
     try {
       await submitTranslation(
-        proj.id,
+        proj.name,
         language(),
         filename(),
         key,

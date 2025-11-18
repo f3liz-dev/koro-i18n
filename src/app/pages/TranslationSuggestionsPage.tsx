@@ -1,8 +1,8 @@
-import { createSignal, For, Show, onMount, createEffect, createResource } from 'solid-js';
+import { createSignal, For, Show, createEffect, createResource } from 'solid-js';
 import { useParams, useNavigate } from '@solidjs/router';
 import { user } from '../auth';
 import { SkeletonListItem } from '../components';
-import { projects, createFetchSuggestionsQuery } from '../utils/store';
+import { createFetchSuggestionsQuery } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface TranslationSuggestion {
@@ -39,12 +39,12 @@ export default function TranslationSuggestionsPage() {
   const params = useParams();
   const navigate = useNavigate();
 
-  const projectId = () => params.projectId || '';
+  const projectId = () => params.projectName || '';
   const [selectedLanguage, setSelectedLanguage] = createSignal<string>('all');
   const [filterStatus, setFilterStatus] = createSignal<'all' | 'pending' | 'approved'>('pending');
   const [searchQuery, setSearchQuery] = createSignal('');
   const [viewMode, setViewMode] = createSignal<'grouped' | 'flat'>('grouped');
-  const [error, setError] = createSignal<boolean>(false);
+  const [error, _setError] = createSignal<boolean>(false);
 
   const [suggestionsKey, setSuggestionsKey] = createSignal(0);
   const fetchSuggestionsQuery = createFetchSuggestionsQuery();
@@ -151,15 +151,15 @@ export default function TranslationSuggestionsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'badge warning';
       case 'approved':
-        return 'bg-green-100 text-green-800';
+        return 'badge success';
       case 'committed':
-        return 'bg-purple-100 text-purple-800';
+        return 'badge';
       case 'rejected':
-        return 'bg-red-100 text-red-800';
+        return 'badge danger';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'badge';
     }
   };
 
@@ -197,9 +197,9 @@ export default function TranslationSuggestionsPage() {
   };
 
   return (
-    <div class="min-h-screen bg-gray-50">
+    <div class="page min-h-screen">
       {/* Header */}
-      <div class="bg-white border-b sticky top-0 z-30">
+  <div class="kawaii-header border-b sticky top-0 z-30">
         <div class="max-w-7xl mx-auto px-4 py-4">
           <div class="flex items-center justify-between mb-4">
             <div>
@@ -209,9 +209,8 @@ export default function TranslationSuggestionsPage() {
               </p>
             </div>
             <button
-
               onClick={() => navigate('/dashboard')}
-              class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded"
+              class="kawaii-ghost"
             >
               Back to Dashboard
             </button>
@@ -224,13 +223,13 @@ export default function TranslationSuggestionsPage() {
               placeholder="Search by key, value, or username..."
               value={searchQuery()}
               onInput={(e) => setSearchQuery(e.currentTarget.value)}
-              class="flex-1 min-w-[200px] px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="input"
             />
 
             <select
               value={selectedLanguage()}
               onChange={(e) => setSelectedLanguage(e.currentTarget.value)}
-              class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="input"
             >
               <option value="all">All Languages</option>
               <For each={availableLanguages()}>
@@ -241,7 +240,7 @@ export default function TranslationSuggestionsPage() {
             <select
               value={filterStatus()}
               onChange={(e) => setFilterStatus(e.currentTarget.value as any)}
-              class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="input"
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
@@ -251,7 +250,7 @@ export default function TranslationSuggestionsPage() {
             <select
               value={viewMode()}
               onChange={(e) => setViewMode(e.currentTarget.value as any)}
-              class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="input"
             >
               <option value="grouped">Grouped by Key</option>
               <option value="flat">Flat List</option>
@@ -263,7 +262,7 @@ export default function TranslationSuggestionsPage() {
       {/* Content */}
       <div class="max-w-7xl mx-auto px-4 py-6">
         <Show when={isLoading()}>
-          <div class="bg-white rounded-lg shadow divide-y">
+          <div class="card">
             <SkeletonListItem />
             <SkeletonListItem />
             <SkeletonListItem />
@@ -279,7 +278,7 @@ export default function TranslationSuggestionsPage() {
         </Show>
 
         <Show when={!isLoading() && !error()}>
-          <div class="bg-white rounded-lg shadow">
+          <div class="card">
             <div class="p-4 border-b">
               <h2 class="text-lg font-semibold">
                 {totalSuggestions()} Suggestion{totalSuggestions() !== 1 ? 's' : ''}
@@ -306,12 +305,12 @@ export default function TranslationSuggestionsPage() {
                   {(group: GroupedSuggestion) => (
                     <div class="p-4">
                       {/* Key header */}
-                      <div class="mb-3 pb-2 border-b">
+                        <div class="mb-3 pb-2 border-b">
                         <div class="flex items-center gap-2 mb-1">
-                          <span class="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 font-medium">
+                          <span class="badge info">
                             {group.language.toUpperCase()}
                           </span>
-                          <code class="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-1 rounded">
+                          <code class="text-sm font-mono text-gray-700 code-chip">
                             {group.key}
                           </code>
                         </div>
@@ -321,7 +320,7 @@ export default function TranslationSuggestionsPage() {
                       </div>
 
                       {/* All suggestions for this key */}
-                      <div class="space-y-3">
+                        <div class="space-y-3">
                         <For each={group.suggestions}>
                           {(suggestion: TranslationSuggestion, index) => (
                             <div class={`pl-4 border-l-2 ${index() === 0 ? 'border-blue-400' : 'border-gray-200'}`}>
@@ -349,7 +348,7 @@ export default function TranslationSuggestionsPage() {
                                   </div>
 
                                   {/* Translation value */}
-                                  <div class="bg-gray-50 p-2 rounded border text-sm">
+                                  <div class="card sm">
                                     <p class="text-gray-900 break-words">{suggestion.value}</p>
                                   </div>
                                 </div>
@@ -358,7 +357,7 @@ export default function TranslationSuggestionsPage() {
                                 <Show when={user()?.id === suggestion.userId && suggestion.status === 'pending'}>
                                   <button
                                     onClick={() => handleDelete(suggestion.id)}
-                                    class="px-2 py-1 text-sm text-red-600 hover:bg-red-50 rounded border border-red-200 transition flex-shrink-0"
+                                    class="btn danger"
                                     title="Delete your suggestion"
                                   >
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -392,7 +391,7 @@ export default function TranslationSuggestionsPage() {
               <div class="divide-y">
                 <For each={flatSuggestions()}>
                   {(suggestion: TranslationSuggestion) => (
-                    <div class="p-4 hover:bg-gray-50 active:bg-gray-100 transition">
+                    <div class="p-4 hover-lift transition-all">
                       <div class="flex items-start justify-between gap-4">
                         <div class="flex-1 min-w-0">
                           {/* Header with user info and status */}
@@ -408,7 +407,7 @@ export default function TranslationSuggestionsPage() {
                                 <span class={`text-xs px-2 py-1 rounded ${getStatusBadge(suggestion.status)}`}>
                                   {suggestion.status}
                                 </span>
-                                <span class="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800">
+                                <span class="badge info">
                                   {suggestion.language.toUpperCase()}
                                 </span>
                               </div>
@@ -420,13 +419,13 @@ export default function TranslationSuggestionsPage() {
 
                           {/* Translation key */}
                           <div class="mb-2">
-                            <code class="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-1 rounded">
+                            <code class="text-sm font-mono text-gray-700 code-chip">
                               {suggestion.key}
                             </code>
                           </div>
 
                           {/* Translation value */}
-                          <div class="bg-gray-50 p-3 rounded border">
+                          <div class="card sm">
                             <p class="text-gray-900 break-words">{suggestion.value}</p>
                           </div>
                         </div>

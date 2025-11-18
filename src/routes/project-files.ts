@@ -85,7 +85,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const projectName = c.req.param('projectName');
     const body = await c.req.json();
-    const { branch, commitSha, sourceLanguage, files, chunked, allSourceFiles } = body;
+  const { branch, commitSha, sourceLanguage, files, chunked, allSourceFiles: _allSourceFiles } = body;
 
     if (!files || !Array.isArray(files)) {
       return c.json({ error: 'Missing required field: files' }, 400);
@@ -160,7 +160,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       }
 
       // Use Rust worker for upload if available
-      let uploadedFiles: string[] = [];
+  let _uploadedFiles: string[] = [];
       let r2Keys: string[] = [];
       
       if (rustWorker) {
@@ -180,7 +180,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
             })),
           });
           
-          uploadedFiles = uploadResult.uploaded_files;
+          _uploadedFiles = uploadResult.uploaded_files;
           r2Keys = uploadResult.r2_keys;
           console.log(`[upload] Rust worker completed upload of ${files.length} files`);
         } catch (error) {
@@ -523,26 +523,26 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
   });
 
   // Get files summary (metadata from D1)
-  app.get('/:projectId/files/summary', async (c) => {
+  app.get('/:projectName/files/summary', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const projectIdOrName = c.req.param('projectId');
+  const projectName = c.req.param('projectName');
     const branch = c.req.query('branch') || 'main';
     let lang = c.req.query('lang');
     const filename = c.req.query('filename');
 
-    console.log(`[summary] Request: projectId=${projectIdOrName}, lang=${lang}, filename=${filename}`);
+  console.log(`[summary] Request: projectName=${projectName}, lang=${lang}, filename=${filename}`);
 
-    let actualProjectId = projectIdOrName;
+    let actualProjectId = projectName;
     const project = await prisma.project.findUnique({
-      where: { name: projectIdOrName },
+      where: { name: projectName },
       select: { repository: true, sourceLanguage: true, id: true },
     });
     
     if (project) {
       actualProjectId = project.repository;
-      console.log(`[summary] Project found: ${project.repository}, sourceLanguage: ${project.sourceLanguage}`);
+  console.log(`[summary] Project found: ${project.repository}, sourceLanguage: ${project.sourceLanguage}`);
       
       // Handle special 'source-language' query parameter
       if (lang === 'source-language') {
@@ -550,7 +550,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         console.log(`[summary] Resolved source-language to: ${lang}`);
       }
     } else {
-      console.log(`[summary] Project not found, using projectId as-is: ${actualProjectId}`);
+    console.log(`[summary] Project not found, using projectName as-is: ${actualProjectId}`);
     }
 
     // Get files from D1
@@ -627,18 +627,18 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
   });
 
   // Get files (metadata only - use /api/r2/* for actual content)
-  app.get('/:projectId/files', async (c) => {
+  app.get('/:projectName/files', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const projectIdOrName = c.req.param('projectId');
+  const projectName = c.req.param('projectName');
     const branch = c.req.query('branch') || 'main';
     let lang = c.req.query('lang');
     const filename = c.req.query('filename');
 
-    let actualProjectId = projectIdOrName;
+    let actualProjectId = projectName;
     const project = await prisma.project.findUnique({
-      where: { name: projectIdOrName },
+      where: { name: projectName },
       select: { repository: true, sourceLanguage: true },
     });
     
@@ -689,7 +689,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         totalKeys: f.totalKeys,
         uploadedAt: f.uploadedAt,
       })),
-      note: 'Use /api/r2/:projectId/:lang/:filename to get actual file contents'
+  note: 'Use /api/r2/:projectName/:lang/:filename to get actual file contents'
     });
 
     response.headers.set('ETag', serverETag);

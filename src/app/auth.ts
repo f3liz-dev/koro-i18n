@@ -1,4 +1,4 @@
-import { createSignal, onMount, createResource } from 'solid-js';
+import { createSignal, createResource } from 'solid-js';
 import { authFetch } from './utils/authFetch';
 
 interface User {
@@ -13,7 +13,7 @@ const API = '/api';
 const [userSignal, setUser] = createSignal<User | null>(null);
 const [error, setError] = createSignal<string | null>(null);
 
-const fetchUser = async (bypassCache = false) => {
+const _fetchUser = async (bypassCache = false) => {
   try {
     const fetchOptions: RequestInit = { 
       credentials: 'include',
@@ -49,7 +49,7 @@ export async function fetchUserQuery(bypassCache = false) {
 }
 
 const [userRefreshKey, setUserRefreshKey] = createSignal(0);
-const [initialUser, { refetch: refetchInitialUser }] = createResource(userRefreshKey, () => fetchUserQuery());
+const [initialUser, { refetch: _refetchInitialUser }] = createResource(userRefreshKey, () => fetchUserQuery());
 
 // Export user signal for components
 export const user = () => userSignal() || initialUser();
@@ -69,7 +69,7 @@ export const auth = {
       await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' });
       setUser(null);
       window.location.href = '/';
-    } catch (err) {
+    } catch {
       setError('Logout failed');
     }
   },

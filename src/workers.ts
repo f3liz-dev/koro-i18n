@@ -122,7 +122,7 @@ export default {
         status: 503,
         headers: { 'Content-Type': 'text/plain' },
       });
-    } catch (error) {
+    } catch {
       return new Response(JSON.stringify({ error: 'Internal error' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },

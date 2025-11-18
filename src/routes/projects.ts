@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { PrismaClient } from '../generated/prisma/';
-import { requireAuth, verifyJWT } from '../lib/auth';
-import { checkProjectAccess, flattenObject } from '../lib/database';
+import { requireAuth } from '../lib/auth';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 import { generateProjectsETag, checkETagMatch, create304Response } from '../lib/etag-db';
 
@@ -15,11 +14,11 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
 
   // Helpers
-  const resolveProject = async (idOrName: string) => {
-    const project = await prisma.project.findFirst({
-      where: {
-        OR: [{ id: idOrName }, { name: idOrName }],
-      },
+  const resolveProject = async (projectName: string) => {
+    // Only resolve by project name (slug). This repo intentionally breaks
+    // backward compatibility and enforces projectName as the public identifier.
+    const project = await prisma.project.findUnique({
+      where: { name: projectName },
       select: {
         id: true,
         name: true,
@@ -33,13 +32,8 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return project;
   };
 
-  const sendETagOrProceed = (c: any, etag: string, cacheConfig: any) => {
-    const cacheControl = buildCacheControl(cacheConfig);
-    if (checkETagMatch(c.req.raw, etag)) {
-      return create304Response(etag, cacheControl);
-    }
-    return null;
-  };
+  // ETag helpers available from lib/etag-db; `sendETagOrProceed` removed because
+  // existing route handlers call the ETag helpers inline to keep logic explicit.
 
   app.post('/', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
@@ -252,24 +246,24 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return response;
   });
 
-  app.delete('/:id', async (c) => {
+  app.delete('/:projectName', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const id = c.req.param('id');
-    const project = await resolveProject(id);
+  const projectName = c.req.param('projectName');
+  const project = await resolveProject(projectName);
     if (!project) return c.json({ error: 'Project not found' }, 404);
     if (project.userId !== payload.userId) return c.json({ error: 'Forbidden' }, 403);
 
-    await prisma.project.delete({ where: { id } });
+  await prisma.project.delete({ where: { id: project.id } });
     return c.json({ success: true });
   });
 
-  app.patch('/:id', async (c) => {
+  app.patch('/:projectName', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const id = c.req.param('id');
+  const projectName = c.req.param('projectName');
     const body = await c.req.json();
     const { accessControl } = body;
 
@@ -277,29 +271,29 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       return c.json({ error: 'Invalid accessControl value' }, 400);
     }
 
-    const project = await resolveProject(id);
+  const project = await resolveProject(projectName);
     if (!project) return c.json({ error: 'Project not found' }, 404);
     if (project.userId !== payload.userId) return c.json({ error: 'Forbidden' }, 403);
 
     await prisma.project.update({
-      where: { id },
+      where: { id: project.id },
       data: { accessControl },
     });
 
     return c.json({ success: true });
   });
 
-  app.post('/:id/join', async (c) => {
+  app.post('/:projectName/join', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const projectId = c.req.param('id');
-    const project = await resolveProject(projectId);
+  const projectName = c.req.param('projectName');
+  const project = await resolveProject(projectName);
     if (!project) return c.json({ error: 'Project not found' }, 404);
 
     const existing = await prisma.projectMember.findUnique({
       where: {
-        projectId_userId: { projectId, userId: payload.userId },
+        projectId_userId: { projectId: project.id, userId: payload.userId },
       },
       select: { id: true, status: true },
     });
@@ -310,25 +304,25 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
 
     const memberId = crypto.randomUUID();
     await prisma.projectMember.create({
-      data: { id: memberId, projectId, userId: payload.userId, status: 'pending', role: 'member' },
+      data: { id: memberId, projectId: project.id, userId: payload.userId, status: 'pending', role: 'member' },
     });
 
     return c.json({ success: true, status: 'pending' });
   });
 
-  app.get('/:id/members', async (c) => {
+  app.get('/:projectName/members', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const projectId = c.req.param('id');
-    const project = await resolveProject(projectId);
+  const projectName = c.req.param('projectName');
+  const project = await resolveProject(projectName);
     if (!project) return c.json({ error: 'Project not found' }, 404);
     if (project.userId !== payload.userId) {
       return c.json({ error: 'Forbidden' }, 403);
     }
 
     const members = await prisma.projectMember.findMany({
-      where: { projectId },
+      where: { projectId: project.id },
       include: {
         user: { select: { username: true, avatarUrl: true } },
       },
@@ -363,11 +357,11 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return response;
   });
 
-  app.post('/:id/members/:memberId/approve', async (c) => {
+  app.post('/:projectName/members/:memberId/approve', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const projectId = c.req.param('id');
+  const projectName = c.req.param('projectName');
     const memberId = c.req.param('memberId');
     const body = await c.req.json();
     const { status } = body;
@@ -376,7 +370,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       return c.json({ error: 'Invalid status' }, 400);
     }
 
-    const project = await resolveProject(projectId);
+  const project = await resolveProject(projectName);
     if (!project) return c.json({ error: 'Project not found' }, 404);
     if (project.userId !== payload.userId) return c.json({ error: 'Forbidden' }, 403);
 
@@ -388,13 +382,13 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return c.json({ success: true });
   });
 
-  app.delete('/:id/members/:memberId', async (c) => {
+  app.delete('/:projectName/members/:memberId', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const projectId = c.req.param('id');
+  const projectName = c.req.param('projectName');
     const memberId = c.req.param('memberId');
-    const project = await resolveProject(projectId);
+  const project = await resolveProject(projectName);
     if (!project) return c.json({ error: 'Project not found' }, 404);
     if (project.userId !== payload.userId) return c.json({ error: 'Forbidden' }, 403);
 

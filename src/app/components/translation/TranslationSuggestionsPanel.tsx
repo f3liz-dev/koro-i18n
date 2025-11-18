@@ -47,17 +47,17 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'badge warning';
       case 'approved':
-        return 'bg-green-100 text-green-800';
+        return 'badge success';
       case 'committed':
-        return 'bg-purple-100 text-purple-800';
+        return 'badge';
       case 'rejected':
-        return 'bg-red-100 text-red-800';
+        return 'badge danger';
       case 'deleted':
-        return 'bg-gray-100 text-gray-800';
+        return 'badge';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'badge';
     }
   };
 
@@ -80,7 +80,7 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
 
   return (
     <Show when={props.show}>
-      <div class="border-t bg-white">
+      <div class="border-t kawaii-panel">
         <div class="p-3 lg:p-4">
           <h3 class="text-sm font-semibold text-gray-900 mb-3">Translation Suggestions</h3>
           
@@ -110,14 +110,14 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
                     {/* Timeline dot */}
                     <div class="absolute left-0 top-0 -translate-x-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white"></div>
                     
-                    <div class="bg-gray-50 rounded-lg p-3 border">
+                    <div class="card sm">
                       {/* Main horizontal layout */}
                       <div class="flex items-start gap-3">
                         {/* Left side: vertical layout with value and user info */}
                         <div class="flex flex-col gap-2 flex-1 min-w-0">
                           {/* Value */}
                           <Show when={entry.status !== 'deleted'}>
-                            <div class="bg-white p-2 rounded border text-sm text-gray-900">
+                            <div class="card sm" style="display:inline-block;">
                               {entry.value}
                             </div>
                           </Show>
@@ -146,7 +146,7 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
                             </span>
                             
                             {/* Status icon and badge */}
-                            <span class="text-lg flex-shrink-0">{getStatusIcon(entry.status)}</span>
+                            <span class="kawaii-icon">{getStatusIcon(entry.status)}</span>
                             <span class={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${getStatusBadge(entry.status)}`}>
                               {entry.status}
                             </span>
@@ -155,16 +155,16 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
 
                         {/* Right side: Action buttons for pending suggestions */}
                         <Show when={entry.status === 'pending' && props.onApprove && props.onReject}>
-                          <div class="flex gap-2 flex-shrink-0">
+                            <div class="flex gap-2 flex-shrink-0">
                             <button
                               onClick={() => props.onApprove?.(entry.id)}
-                              class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 active:bg-green-800 rounded transition whitespace-nowrap"
+                              class="btn success"
                             >
                               ✓ Approve
                             </button>
                             <button
                               onClick={() => props.onReject?.(entry.id)}
-                              class="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded transition whitespace-nowrap"
+                              class="btn danger"
                             >
                               ✗ Reject
                             </button>

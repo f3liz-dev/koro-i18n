@@ -520,7 +520,7 @@ isFirstLoad() // Returns true on page reload, false on SPA navigation
 - Show translation progress per language
 - Navigate to file selection
 
-**Routes**: `/projects/:id`
+**Routes**: `/projects/:projectName`
 
 **Data Sources**:
 - `filesSummaryCache` - file summaries per language
@@ -536,7 +536,7 @@ isFirstLoad() // Returns true on page reload, false on SPA navigation
 - Show translation progress per file
 - Navigate to translation editor
 
-**Routes**: `/projects/:id/language/:language`
+**Routes**: `/projects/:projectName/language/:language`
 
 **Data Sources**:
 - `filesSummaryCache` - file summaries with progress
@@ -558,8 +558,8 @@ isFirstLoad() // Returns true on page reload, false on SPA navigation
 - Auto-save draft translations
 
 **Routes**: 
-- `/projects/:projectId/translate/:language/:filename`
-- `/projects/:projectId/translate/:language?`
+- `/projects/:projectName/translate/:language/:filename`
+- `/projects/:projectName/translate/:language?`
 
 **Data Sources**:
 - R2 API: Source file (git imports)
@@ -604,7 +604,7 @@ isFirstLoad() // Returns true on page reload, false on SPA navigation
 - Whitelist/blacklist configuration
 - Delete project
 
-**Routes**: `/projects/:id/settings`
+**Routes**: `/projects/:projectName/settings`
 
 **Authorization**: Project owner only
 
@@ -652,7 +652,7 @@ isFirstLoad() // Returns true on page reload, false on SPA navigation
 - View suggestion details
 - Navigate to editor
 
-**Routes**: `/projects/:projectId/suggestions`
+**Routes**: `/projects/:projectName/suggestions`
 
 **Data Sources**:
 - `suggestionsCache`
@@ -1094,8 +1094,8 @@ if (response.status === 401) {
   <Route path="/projects/:id/language/:language" component={FileSelectionPage} />
   <Route path="/projects/:id/settings" component={ProjectSettingsPage} />
   
-  <Route path="/projects/:projectId/translate/:language/:filename" component={TranslationEditorPage} />
-  <Route path="/projects/:projectId/suggestions" component={TranslationSuggestionsPage} />
+  <Route path="/projects/:projectName/translate/:language/:filename" component={TranslationEditorPage} />
+  <Route path="/projects/:projectName/suggestions" component={TranslationSuggestionsPage} />
   
   <Route path="/history" component={TranslationHistoryPage} />
   <Route path="*" component={NotFoundPage} />

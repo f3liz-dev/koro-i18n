@@ -5,14 +5,6 @@ import { projects, createFetchFilesSummaryQuery } from '../utils/store';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
 
-interface Project {
-  id: string;
-  name: string;
-  repository: string;
-  userId: string;
-  sourceLanguage: string;
-}
-
 interface FileStats {
   filename: string;
   displayFilename: string; // Filename with {lang} placeholder for display
@@ -22,17 +14,16 @@ interface FileStats {
   percentage: number;
 }
 
-interface FilesResponse {
-  files: any[];
-}
+// Local types are not required; using shared types via store and API responses
 
+// Types moved to shared types; local declarations removed to avoid unused warnings.
 export default function FileSelectionPage() {
   const navigate = useNavigate();
   const params = useParams();
 
   const [isOwner, setIsOwner] = createSignal(false);
 
-  const project = () => (projects() || []).find((p: any) => p.id === params.id || p.name === params.id) || null;
+  const project = () => (projects() || []).find((p: any) => p.id === params.projectName || p.name === params.projectName) || null;
   const language = () => params.language || '';
 
   const fetchFilesSummaryQuery = createFetchFilesSummaryQuery();
@@ -154,12 +145,12 @@ export default function FileSelectionPage() {
   const menuItems: MenuItem[] = [
     {
       label: 'Settings',
-      onClick: () => navigate(`/projects/${params.id}/settings`),
+  onClick: () => navigate(`/projects/${params.projectName}/settings`),
       show: isOwner(),
     },
     {
       label: 'Suggestions',
-      onClick: () => navigate(`/projects/${params.id}/suggestions`),
+  onClick: () => navigate(`/projects/${params.projectName}/suggestions`),
       variant: 'primary',
     },
     {
@@ -177,8 +168,8 @@ export default function FileSelectionPage() {
           <span style="font-size: 0.75rem; color: var(--color-text-muted);">•</span>
           <span style="font-size: 0.75rem; font-weight: 600; color: var(--color-accent-peach);">${language().toUpperCase()}</span>
         `}
-        backButton={{
-          onClick: () => navigate(`/projects/${params.id}`),
+            backButton={{
+          onClick: () => navigate(`/projects/${params.projectName}`),
         }}
         menuItems={menuItems}
       />
@@ -229,7 +220,7 @@ export default function FileSelectionPage() {
               {(fileStat) => {
                 return (
                   <button
-                    onClick={() => navigate(`/projects/${params.id}/translate/${language()}/${encodeURIComponent(fileStat.targetFilename)}`)}
+                    onClick={() => navigate(`/projects/${params.projectName}/translate/${language()}/${encodeURIComponent(fileStat.targetFilename)}`)}
                     class="card hover-lift transition-all"
                     style="text-align: left; cursor: pointer;"
                   >

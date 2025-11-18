@@ -1,6 +1,5 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show, createResource } from 'solid-js';
-import { user } from '../auth';
 import { projects, createFetchMembersQuery, refreshProjects } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
@@ -14,20 +13,14 @@ interface Member {
   createdAt: string;
 }
 
-interface Project {
-  id: string;
-  name: string;
-  repository: string;
-  userId: string;
-  accessControl: 'whitelist' | 'blacklist';
-}
+// Project type is available via store's Project interface; this local type removed
 
 export default function ProjectSettingsPage() {
   const navigate = useNavigate();
   const params = useParams();
 
-  const project = () => (projects() || []).find((p: any) => p.name === params.id) || null;
-  const projectId = () => project()?.id || params.id || '';
+  const project = () => (projects() || []).find((p: any) => p.name === params.projectName) || null;
+  const projectId = () => project()?.id || params.projectName || '';
 
   const fetchMembersQuery = createFetchMembersQuery();
   const [membersKey, setMembersKey] = createSignal(0);
@@ -175,15 +168,16 @@ export default function ProjectSettingsPage() {
   const filteredMembers = () => (membersList() as Member[]).filter(m => m.status === activeTab());
 
   return (
-    <div class="min-h-screen bg-gray-50">
+    <div class="page min-h-screen">
       {/* Header */}
-      <div class="bg-white border-b">
+  <div class="kawaii-header border-b">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div class="flex items-center gap-3">
+
             <button
 
-              onClick={() => navigate(`/projects/${params.id}`)}
-              class="text-gray-400 hover:text-gray-600 active:text-gray-700 transition"
+              onClick={() => navigate(`/projects/${params.projectName}`)}
+              class="kawaii-ghost"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -201,43 +195,31 @@ export default function ProjectSettingsPage() {
       <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Show when={project()}>
           <Show when={successMessage()}>
-            <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 flex items-center gap-2">
-              <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-              </svg>
-              <span>{successMessage()}</span>
+            <div class="mb-6">
+              <div class="message success">{successMessage()}</div>
             </div>
           </Show>
 
           <Show when={errorMessage()}>
-            <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
-              <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-              </svg>
-              <span>{errorMessage()}</span>
+            <div class="mb-6">
+              <div class="message error">{errorMessage()}</div>
             </div>
           </Show>
 
           {/* Access Control */}
-          <div class="bg-white rounded-lg border p-6 mb-6">
+          <div class="card mb-6">
             <h2 class="text-lg font-semibold mb-4">Access Control</h2>
             <div class="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => handleAccessControlChange('whitelist')}
-                class={`px-4 py-2.5 text-sm rounded-lg border transition ${project()!.accessControl === 'whitelist'
-                  ? 'bg-gray-900 text-white border-gray-900'
-                  : 'bg-white hover:bg-gray-50 active:bg-gray-100 border-gray-300'
-                  }`}
+                class={`btn ${project()!.accessControl === 'whitelist' ? 'selected' : 'kawaii-ghost'}`}
               >
                 <div class="font-medium">Whitelist</div>
                 <div class="text-xs opacity-80">Approve users to join</div>
               </button>
               <button
                 onClick={() => handleAccessControlChange('blacklist')}
-                class={`px-4 py-2.5 text-sm rounded-lg border transition ${project()!.accessControl === 'blacklist'
-                  ? 'bg-gray-900 text-white border-gray-900'
-                  : 'bg-white hover:bg-gray-50 active:bg-gray-100 border-gray-300'
-                  }`}
+                class={`btn ${project()!.accessControl === 'blacklist' ? 'selected' : 'kawaii-ghost'}`}
               >
                 <div class="font-medium">Blacklist</div>
                 <div class="text-xs opacity-80">Block specific users</div>
@@ -251,7 +233,7 @@ export default function ProjectSettingsPage() {
           </div>
 
           {/* Members */}
-          <div class="bg-white rounded-lg border p-6 mb-6">
+          <div class="card mb-6">
             <h2 class="text-lg font-semibold mb-4">Members</h2>
 
             <div class="flex gap-2 mb-4 border-b">
@@ -287,7 +269,7 @@ export default function ProjectSettingsPage() {
             <div class="space-y-2">
               <For each={filteredMembers()}>
                 {(member) => (
-                  <div class="rounded-lg border p-4 flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition">
+                  <div class="card sm flex items-center justify-between hover-lift">
                     <div class="flex items-center gap-3">
                       <img src={member.avatarUrl} alt={member.username} class="w-10 h-10 rounded-full" />
                       <div>
@@ -300,14 +282,14 @@ export default function ProjectSettingsPage() {
                         <button
                           onClick={() => handleApprove(member.id, 'approved')}
                           disabled={actionInProgress() !== null}
-                          class="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          class="btn success"
                         >
                           {actionInProgress() === member.id ? 'Processing...' : 'Approve'}
                         </button>
                         <button
                           onClick={() => handleApprove(member.id, 'rejected')}
                           disabled={actionInProgress() !== null}
-                          class="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          class="btn kawaii-ghost"
                         >
                           {actionInProgress() === member.id ? 'Processing...' : 'Reject'}
                         </button>
@@ -316,7 +298,7 @@ export default function ProjectSettingsPage() {
                         <button
                           onClick={() => handleRemove(member.id)}
                           disabled={actionInProgress() !== null}
-                          class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 active:bg-red-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          class="btn danger"
                         >
                           {actionInProgress() === member.id ? 'Removing...' : 'Remove'}
                         </button>
@@ -325,14 +307,14 @@ export default function ProjectSettingsPage() {
                         <button
                           onClick={() => handleApprove(member.id, 'approved')}
                           disabled={actionInProgress() !== null}
-                          class="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          class="btn kawaii-ghost"
                         >
                           {actionInProgress() === member.id ? 'Processing...' : 'Approve'}
                         </button>
                         <button
                           onClick={() => handleRemove(member.id)}
                           disabled={actionInProgress() !== null}
-                          class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 active:bg-red-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          class="btn danger"
                         >
                           {actionInProgress() === member.id ? 'Removing...' : 'Remove'}
                         </button>
@@ -350,7 +332,7 @@ export default function ProjectSettingsPage() {
           </div>
 
           {/* Danger Zone */}
-          <div class="bg-white rounded-lg border border-red-200 p-6">
+          <div class="card">
             <h2 class="text-lg font-semibold text-red-600 mb-4">Danger Zone</h2>
             <div class="flex items-center justify-between">
               <div>
@@ -359,7 +341,7 @@ export default function ProjectSettingsPage() {
               </div>
               <button
                 onClick={handleDeleteProject}
-                class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 active:bg-red-800 transition"
+                class="btn danger"
               >
                 Delete Project
               </button>

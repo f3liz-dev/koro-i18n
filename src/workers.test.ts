@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createWorkerApp } from './workers';
 import { createJWT } from './lib/auth';
 
 // Mock environment for testing
 const createMockEnv = (environment = 'test') => {
   const db = {
-    prepare: (query: string) => ({
-      bind: (...params: any[]) => ({
+  prepare: (_query: string) => ({
+  bind: (..._params: any[]) => ({
         first: async () => null,
         all: async () => ({ results: [] }),
         run: async () => ({ success: true }),
@@ -16,6 +16,7 @@ const createMockEnv = (environment = 'test') => {
 
   return {
     DB: db as unknown as D1Database,
+      TRANSLATION_BUCKET: {} as unknown as R2Bucket,
     GITHUB_CLIENT_ID: 'test-client-id',
     GITHUB_CLIENT_SECRET: 'test-client-secret',
     JWT_SECRET: 'test-jwt-secret',
@@ -29,7 +30,7 @@ describe('API Endpoints', () => {
       const env = createMockEnv();
       const app = createWorkerApp(env);
 
-      const req = new Request('http://localhost/api/projects/test-project/upload-json', {
+  const req = new Request('http://localhost/api/projects/test-project/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -45,7 +46,7 @@ describe('API Endpoints', () => {
       });
 
       const res = await app.fetch(req, env, {} as ExecutionContext);
-      const data = await res.json();
+  const data = await res.json() as any;
 
       expect(res.status).toBe(401);
       expect(data).toHaveProperty('error');
@@ -55,7 +56,7 @@ describe('API Endpoints', () => {
       const env = createMockEnv();
       const app = createWorkerApp(env);
 
-      const req = new Request('http://localhost/api/projects/test-project/upload-json', {
+  const req = new Request('http://localhost/api/projects/test-project/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -69,7 +70,7 @@ describe('API Endpoints', () => {
       });
 
       const res = await app.fetch(req, env, {} as ExecutionContext);
-      const data = await res.json();
+  const data = await res.json() as any;
 
       expect(res.status).toBe(400);
       expect(data.error).toContain('files');
@@ -79,12 +80,12 @@ describe('API Endpoints', () => {
       const env = createMockEnv();
       const app = createWorkerApp(env);
 
-      const files: Record<string, any> = {};
+      const files: any[] = [];
       for (let i = 0; i < 501; i++) {
-        files[`file${i}.json`] = { key: 'value' };
+        files.push({ filename: `file${i}.json`, lang: 'en', packedData: 'e30=' });
       }
 
-      const req = new Request('http://localhost/api/projects/test-project/upload-json', {
+  const req = new Request('http://localhost/api/projects/test-project/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -99,7 +100,7 @@ describe('API Endpoints', () => {
       });
 
       const res = await app.fetch(req, env, {} as ExecutionContext);
-      const data = await res.json();
+  const data = await res.json() as any;
 
       expect(res.status).toBe(400);
       expect(data.error).toContain('Too many files');
@@ -111,7 +112,7 @@ describe('API Endpoints', () => {
       const env = createMockEnv();
       const app = createWorkerApp(env);
 
-      const req = new Request('http://localhost/api/projects/test-project/download?branch=main', {
+  const req = new Request('http://localhost/api/projects/test-project/files/list?branch=main', {
         method: 'GET',
       });
 
@@ -251,7 +252,7 @@ describe('API Endpoints', () => {
     });
   });
 
-  describe('GET /api/projects/:projectId/files/summary', () => {
+  describe('GET /api/projects/:projectName/files/summary', () => {
     it('should return translation status instead of full contents', () => {
       // This test documents the expected behavior of the summary endpoint
       // The endpoint should:

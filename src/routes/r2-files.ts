@@ -2,7 +2,7 @@
 import { Hono } from 'hono';
 import { PrismaClient } from '../generated/prisma/';
 import { requireAuth } from '../lib/auth';
-import { getFile, getFileByComponents } from '../lib/r2-storage';
+import { getFile } from '../lib/r2-storage';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 import { resolveActualProjectId } from '../lib/database';
 
@@ -15,8 +15,8 @@ export function createR2FileRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
 
   // Helper: return 304 if client ETag matches, otherwise return server ETag string
-  const maybe304 = (c: any, timestamp: Date) => {
-    const serverETag = `"\${timestamp.getTime()}"`;
+    const maybe304 = (c: any, timestamp: Date) => {
+      const serverETag = `"${timestamp.getTime()}"`;
     const clientETag = c.req.header('If-None-Match');
     if (clientETag === serverETag) {
       return c.body(null, 304, {
@@ -28,11 +28,11 @@ export function createR2FileRoutes(prisma: PrismaClient, env: Env) {
   };
 
   // Get specific file from R2 (GitHub import only, no web translations)
-  app.get('/:projectId/:lang/:filename', async (c) => {
+  app.get('/:projectName/:lang/:filename', async (c) => {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-    const projectIdOrName = c.req.param('projectId');
+  const projectIdOrName = c.req.param('projectName');
     const lang = c.req.param('lang');
     const filename = c.req.param('filename');
     const branch = c.req.query('branch') || 'main';
@@ -108,7 +108,7 @@ export function createR2FileRoutes(prisma: PrismaClient, env: Env) {
     // Set ETag when uploadedAt is available and return cache control
     if (fileData.uploadedAt) {
       try {
-        response.headers.set('ETag', `"\${new Date(fileData.uploadedAt).getTime()}"`);
+          response.headers.set('ETag', `"${new Date(fileData.uploadedAt).getTime()}"`);
       } catch {}
     }
     response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));

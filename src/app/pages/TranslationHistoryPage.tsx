@@ -50,11 +50,11 @@ export default function TranslationHistoryPage() {
 
   const getActionColor = (action: string) => {
     switch (action) {
-      case 'submitted': return 'text-blue-600';
-      case 'approved': return 'text-green-600';
-      case 'committed': return 'text-purple-600';
-      case 'rejected': return 'text-red-600';
-      case 'deleted': return 'text-gray-600';
+      case 'submitted': return 'action-submitted';
+      case 'approved': return 'action-approved';
+      case 'committed': return 'action-committed';
+      case 'rejected': return 'action-rejected';
+      case 'deleted': return 'action-deleted';
       default: return 'text-gray-800';
     }
   };
@@ -71,12 +71,12 @@ export default function TranslationHistoryPage() {
   };
 
   return (
-    <div class="min-h-screen bg-white">
+    <div class="page min-h-screen">
       <div class="border-b">
         <div class="max-w-5xl mx-auto px-8 py-5 flex items-center gap-3">
           <button
             onClick={() => navigate('/dashboard')}
-            class="text-gray-400 hover:text-gray-600"
+            class="kawaii-ghost p-2 rounded transition"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -87,7 +87,7 @@ export default function TranslationHistoryPage() {
       </div>
 
       <div class="max-w-5xl mx-auto px-8 py-8">
-        <div class="border rounded-lg p-6 mb-6">
+  <div class="card mb-6">
         <div class="grid grid-cols-3 gap-4 mb-4">
           <div>
             <label class="block text-sm font-medium mb-2">{t('translationHistory.project')}</label>
@@ -96,7 +96,7 @@ export default function TranslationHistoryPage() {
               value={projectId()}
               onInput={(e) => setProjectId(e.currentTarget.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              class="w-full px-3 py-2 border rounded"
+              class="input"
               placeholder="owner/repo"
             />
           </div>
@@ -107,7 +107,7 @@ export default function TranslationHistoryPage() {
               value={language()}
               onInput={(e) => setLanguage(e.currentTarget.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              class="w-full px-3 py-2 border rounded"
+              class="input"
               placeholder="ja"
             />
           </div>
@@ -118,7 +118,7 @@ export default function TranslationHistoryPage() {
               value={key()}
               onInput={(e) => setKey(e.currentTarget.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              class="w-full px-3 py-2 border rounded"
+              class="input"
               placeholder="mainpage.title"
             />
           </div>
@@ -126,13 +126,13 @@ export default function TranslationHistoryPage() {
           <button
             onClick={handleSearch}
             disabled={!projectId() || !language() || !key()}
-            class="px-4 py-2 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="btn primary"
           >
             {t('common.search')}
           </button>
         </div>
 
-        <div class="border rounded-lg">
+        <div class="card">
           <Show when={!isLoading()} fallback={
             <div class="divide-y">
               <SkeletonListItem />
@@ -145,17 +145,16 @@ export default function TranslationHistoryPage() {
                 <div class="divide-y">
                   <For each={history()}>
                     {(entry) => (
-                      <div class="p-4 hover:bg-gray-50 active:bg-gray-100 transition">
+                      <div class="p-4 hover-lift transition-all">
                         <div class="flex items-center gap-3 mb-2">
                           <span class="text-sm font-medium">{entry.username}</span>
-                          <span class={`text-xs ${getActionColor(entry.action)}`}>
-                            {entry.action}
-                          </span>
+                          <span class="kawaii-icon">{getActionIcon(entry.action)}</span>
+                          <span class={`text-xs ${getActionColor(entry.action)}`}>{entry.action}</span>
                           <span class="text-xs text-gray-400">
                             {new Date(entry.createdAt).toLocaleString()}
                           </span>
                         </div>
-                        <div class="text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded mb-2">
+                        <div class="card sm" style="display:inline-block;">
                           {entry.value}
                         </div>
                         <Show when={entry.commitSha}>

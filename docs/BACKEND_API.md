@@ -655,7 +655,7 @@ Same as `/files/list` but uses OIDC token authentication.
 
 ---
 
-#### `GET /api/projects/:projectId/files/summary`
+#### `GET /api/projects/:projectName/files/summary`
 
 Get file summary with translation progress.
 
@@ -690,7 +690,7 @@ Get file summary with translation progress.
 
 ---
 
-#### `GET /api/projects/:projectId/files`
+#### `GET /api/projects/:projectName/files`
 
 Get file metadata (lightweight version without progress info).
 
@@ -716,7 +716,7 @@ Get file metadata (lightweight version without progress info).
       "uploadedAt": "2024-01-01T00:00:00.000Z"
     }
   ],
-  "note": "Use /api/r2/:projectId/:lang/:filename to get actual file contents"
+  "note": "Use /api/r2/:projectName/:lang/:filename to get actual file contents"
 }
 ```
 
@@ -728,7 +728,7 @@ Get file metadata (lightweight version without progress info).
 
 Base path: `/api/r2`
 
-#### `GET /api/r2/:projectId/:lang/:filename`
+#### `GET /api/r2/:projectName/:lang/:filename`
 
 Get file contents from R2 (GitHub import only, no web translations).
 

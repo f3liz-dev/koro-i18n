@@ -109,16 +109,16 @@ Endpoints (concise, accurate)
   - Returns file metadata from D1. Supports ETag: server uses latest `lastUpdated` timestamp as ETag (`"<timestamp>"`). If client `If-None-Match` equals server ETag, returns 304.
   - Note: use `list-oidc` variant for OIDC token access (CI).
 
-- GET /api/projects/:projectId/files/summary
+  - GET /api/projects/:projectName/files/summary
   - Auth: JWT. Query: `branch`, `lang` (supports `source-language`), `filename`.
   - Returns per-file translation progress: `translatedKeys` is 0 for source files, equal to `totalKeys` for target files imported from GitHub.
   - Uses ETag based on file timestamps.
 
-- GET /api/projects/:projectId/files
+  - GET /api/projects/:projectName/files
   - Auth: JWT. Lightweight metadata. Note: actual file content is retrieved from R2 endpoints.
 
 4) R2 file retrieval
-- GET /api/r2/:projectId/:lang/:filename
+  - GET /api/r2/:projectName/:lang/:filename
   - Auth: JWT. Query `branch` optional.
   - Resolves project name to repository id when necessary.
   - Reads D1 index to find r2Key and lastUpdated; returns 404 if not indexed.
@@ -189,7 +189,7 @@ Common behavior & integrations
 Integration tips for frontend
 - Use `GET /api/auth/me` to verify session and fetch user info.
 - For CI/Actions imports use OIDC tokens to call `/api/projects/:projectName/upload` and `/api/projects/:projectName/cleanup`.
-- For web UI: use JWT (cookie or Authorization header) and `GET /api/projects`, `GET /api/projects/:projectName/files/list`, `GET /api/r2/:projectId/:lang/:filename`, and translation CRUD endpoints.
+- For web UI: use JWT (cookie or Authorization header) and `GET /api/projects`, `GET /api/projects/:projectName/files/list`, `GET /api/r2/:projectName/:lang/:filename`, and translation CRUD endpoints.
 - Prefer ETag-aware requests to reduce bandwidth and avoid unnecessary re-fetches.
 
 This file is a compact, implementation-accurate reference for frontend engineers. See `src/routes/*` and `docs/BACKEND_API.md` for full flows and developer-focused details.

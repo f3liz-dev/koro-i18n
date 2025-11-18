@@ -35,13 +35,13 @@ export default function App() {
           <Route path="/dashboard" component={DashboardPage} />
           <Route path="/projects/create" component={CreateProjectPage} />
           <Route path="/projects/join" component={JoinProjectPage} />
-          <Route path="/projects/:id" component={LanguageSelectionPage} />
-          <Route path="/projects/:id/language/:language" component={FileSelectionPage} />
-          <Route path="/projects/:id/settings" component={ProjectSettingsPage} />
-          <Route path="/projects/:id/manage" component={ProjectSettingsPage} />
-          <Route path="/projects/:projectId/translate/:language/:filename" component={TranslationEditorPage} />
-          <Route path="/projects/:projectId/translate/:language?" component={TranslationEditorPage} />
-          <Route path="/projects/:projectId/suggestions" component={TranslationSuggestionsPage} />
+          <Route path="/projects/:projectName" component={LanguageSelectionPage} />
+          <Route path="/projects/:projectName/language/:language" component={FileSelectionPage} />
+          <Route path="/projects/:projectName/settings" component={ProjectSettingsPage} />
+          <Route path="/projects/:projectName/manage" component={ProjectSettingsPage} />
+          <Route path="/projects/:projectName/translate/:language/:filename" component={TranslationEditorPage} />
+          <Route path="/projects/:projectName/translate/:language?" component={TranslationEditorPage} />
+          <Route path="/projects/:projectName/suggestions" component={TranslationSuggestionsPage} />
           <Route path="/history" component={TranslationHistoryPage} />
           <Route path="*" component={NotFoundPage} />
         </Router>

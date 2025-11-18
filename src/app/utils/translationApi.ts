@@ -18,7 +18,7 @@ export type { R2FileData, GitBlameInfo, CharRange };
  * This avoids issues with nested filenames in URL paths
  */
 export async function fetchR2File(
-  projectId: string,
+  projectName: string,
   lang: string,
   filename: string
 ): Promise<R2FileData | null> {
@@ -30,7 +30,7 @@ export async function fetchR2File(
     });
     
     const metadataResponse = await authFetch(
-      `/api/projects/${encodeURIComponent(projectId)}/files?${params}`,
+      `/api/projects/${encodeURIComponent(projectName)}/files?${params}`,
       { credentials: 'include' }
     );
     
@@ -78,13 +78,13 @@ export async function fetchR2File(
  * Fetch web translations from D1
  */
 export async function fetchWebTranslations(
-  projectId: string,
+  projectName: string,
   language: string,
   filename: string
 ): Promise<WebTranslation[]> {
   try {
     const params = new URLSearchParams({
-      projectId,
+      projectName,
       language,
       filename,
       status: 'approved',
@@ -202,7 +202,7 @@ export function mergeTranslationsWithSource(
  * Submit web translation
  */
 export async function submitTranslation(
-  projectId: string,
+  projectName: string,
   language: string,
   filename: string,
   key: string,
@@ -212,7 +212,7 @@ export async function submitTranslation(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ projectId, language, filename, key, value }),
+    body: JSON.stringify({ projectName, language, filename, key, value }),
   });
 
   if (!response.ok) throw new Error('Failed to submit translation');
@@ -246,14 +246,14 @@ export async function rejectSuggestion(id: string): Promise<void> {
  * Fetch suggestions for a key
  */
 export async function fetchSuggestions(
-  projectId: string,
+  projectName: string,
   language: string,
   filename: string,
   key?: string,
   // If true, bypass browser cache and force revalidation
   force = false
 ): Promise<WebTranslation[]> {
-  const params = new URLSearchParams({ projectId, language, filename });
+  const params = new URLSearchParams({ projectName, language, filename });
   if (key) params.append('key', key);
 
   const response = await authFetch(

@@ -22,11 +22,11 @@ export default function DashboardPage() {
     await auth.logout();
   };
 
-  const handleDeleteProject = async (projectId: string) => {
+  const _handleDeleteProject = async (projectName: string) => {
     if (!confirm(t('dashboard.deleteConfirm'))) return;
 
     try {
-      const res = await authFetch(`/api/projects/${projectId}`, {
+  const res = await authFetch(`/api/projects/${projectName}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -124,7 +124,7 @@ export default function DashboardPage() {
                 return (
                   <div class="card hover-lift transition-all" style="cursor: pointer;">
                     <button
-                      onClick={() => navigate(`/projects/${project.id}`)}
+                      onClick={() => navigate(`/projects/${project.name}`)}
                       style="
                         width: 100%;
                         text-align: left;
@@ -174,7 +174,7 @@ export default function DashboardPage() {
                     </button>
                     <Show when={isOwner()}>
                       <button
-                        onClick={() => navigate(`/projects/${project.id}/settings`)}
+                        onClick={() => navigate(`/projects/${project.name}/settings`)}
                         class="btn"
                         style="width: 100%; justify-content: center; border-radius: var(--radius);"
                       >

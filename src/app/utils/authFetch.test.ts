@@ -50,9 +50,13 @@ describe('authFetch', () => {
     );
 
     await authFetch('/test');
-    
-    // authFetch doesn't add credentials itself, it just passes through
-    // The actual credentials are set by the caller
-    expect(global.fetch).toHaveBeenCalledWith('/test', undefined);
+
+    // authFetch adds an Accept header by default; it doesn't add credentials
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/test',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Accept: 'application/json' }),
+      })
+    );
   });
 });
