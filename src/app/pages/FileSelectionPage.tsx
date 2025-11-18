@@ -32,18 +32,18 @@ export default function FileSelectionPage() {
 
   const [isOwner, setIsOwner] = createSignal(false);
 
-  const project = () => (projects() || []).find((p: any) => p.id === params.id) || null;
+  const project = () => (projects() || []).find((p: any) => p.id === params.id || p.name === params.id) || null;
   const language = () => params.language || '';
 
   const fetchFilesSummaryQuery = createFetchFilesSummaryQuery();
 
   const [sourceFiles] = createResource(
-    () => params.id,
+    () => project()?.id,
     async (projectId) => (projectId ? fetchFilesSummaryQuery(projectId, 'source-language') : null)
   );
 
   const [targetFiles] = createResource(
-    () => ({ projectId: params.id, language: language() }),
+    () => ({ projectId: project()?.id, language: language() }),
     async ({ projectId, language }) => (projectId && language ? fetchFilesSummaryQuery(projectId, language) : null)
   );
 

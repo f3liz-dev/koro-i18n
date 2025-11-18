@@ -78,7 +78,7 @@ export async function fetchFiles(projectId: string, language?: string, filename?
 
 export async function fetchFilesSummary(projectId: string, language?: string) {
   let url = `/api/projects/${projectId}/files/summary`;
-  if (language && /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language)) {
+  if (language && (language === 'source-language' || /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language))) {
     url += `?lang=${language}`;
   }
 
@@ -185,7 +185,7 @@ export function createProjectsQuery() {
 export function createFetchFilesSummaryQuery() {
   return query(async (projectId: string, language?: string) => {
     let url = `/api/projects/${projectId}/files/summary`;
-    if (language && /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language)) {
+    if (language && (language === 'source-language' || /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language))) {
       url += `?lang=${language}`;
     }
     const res = await authFetch(url, { credentials: 'include' });
