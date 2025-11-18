@@ -49,30 +49,40 @@ export default function JoinProjectPage() {
   };
 
   return (
-    <div class="kawaii-page" style="min-height: 100vh;">
-      <div class="kawaii-card" style="position: sticky; top: 0; z-index: 50; border-radius: 0; border-left: none; border-right: none; border-top: none; padding: 16px 24px; margin: 0;">
-        <div class="kawaii-container" style="display: flex; align-items: center; gap: 12px; padding: 0;">
+    <div class="page" style="min-height: 100vh;">
+      <div class="card" style="
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-top: none;
+        padding: 1rem 1.5rem;
+        margin: 0;
+      ">
+        <div class="container" style="display: flex; align-items: center; gap: 0.75rem; padding: 0;">
           <button
             onClick={() => navigate('/dashboard')}
-            class="kawaii-ghost"
-            style="padding: 8px; margin-left: -8px; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+            class="btn"
+            style="padding: 0.5rem; margin-left: -0.5rem; background: none; border: none;"
           >
-            <svg style="width: 20px; height: 20px; color: var(--kawaii-muted);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg style="width: 1.25rem; height: 1.25rem; color: var(--color-gray-600);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </button>
-          <h1 style="font-size: 20px; font-weight: 700; color: var(--kawaii-ink); margin: 0;">{t('joinProject.title')}</h1>
+          <h1 style="font-size: 1.25rem; font-weight: 600; color: var(--color-black); margin: 0;">{t('joinProject.title')}</h1>
         </div>
       </div>
 
-      <div class="kawaii-container animate-fade-in" style="max-width: 960px; padding-top: 48px;">
-        <div style="margin-bottom: 32px;">
-          <h2 style="font-size: 32px; font-weight: 800; color: var(--kawaii-ink); margin-bottom: 8px;">{t('joinProject.heading')}</h2>
-          <p style="color: var(--kawaii-muted); font-size: 14px;">{t('joinProject.description')}</p>
+      <div class="container animate-fade-in" style="max-width: 60rem; padding-top: 3rem;">
+        <div style="margin-bottom: 2rem;">
+          <h2 style="font-size: 2rem; font-weight: 700; color: var(--color-black); margin-bottom: 0.5rem;">{t('joinProject.heading')}</h2>
+          <p style="color: var(--color-gray-600); font-size: 0.875rem;">{t('joinProject.description')}</p>
         </div>
 
         <Show when={!allProjects.loading && availableProjects().length === 0}>
-          <div class="kawaii-card kawaii-empty-state">
+          <div class="card empty-state">
             <div class="icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
@@ -83,23 +93,35 @@ export default function JoinProjectPage() {
           </div>
         </Show>
 
-        <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
           <For each={availableProjects()}>
             {(project) => (
-              <div class="kawaii-card hover-lift transition-all">
-                <div style="display: flex; flex-direction: column; gap: 16px; align-items: flex-start; justify-content: space-between;">
+              <div class="card hover-lift transition-all">
+                <div style="display: flex; flex-direction: column; gap: 1rem; align-items: flex-start; justify-content: space-between;">
                   <div style="flex: 1; width: 100%;">
-                    <h3 style="font-size: 18px; font-weight: 700; color: var(--kawaii-ink); margin-bottom: 8px; transition: var(--kawaii-transition);" class="project-title">{project.name}</h3>
-                    <code style="font-size: 11px; color: var(--kawaii-muted); background: var(--kawaii-surface); padding: 4px 8px; border-radius: 6px; display: inline-block;">{project.repository}</code>
+                    <h3 class="project-title" style="
+                      font-size: 1.125rem;
+                      font-weight: 600;
+                      color: var(--color-black);
+                      margin-bottom: 0.5rem;
+                      transition: var(--transition);
+                    ">{project.name}</h3>
+                    <code style="
+                      font-size: 0.75rem;
+                      color: var(--color-gray-500);
+                      background: var(--color-gray-50);
+                      padding: 0.25rem 0.5rem;
+                      border-radius: 0.375rem;
+                      display: inline-block;
+                    ">{project.repository}</code>
                   </div>
                   <button
                     onClick={() => handleJoin(project.id)}
                     disabled={requestedProjects().has(project.id) || !!project.membershipStatus}
-                    class="kawaii-btn"
+                    class="btn"
                     style="width: 100%; justify-content: center;"
                     classList={{
-                      primary: !requestedProjects().has(project.id) && !(project as any).membershipStatus,
-                      secondary: requestedProjects().has(project.id) || !!(project as any).membershipStatus
+                      primary: !requestedProjects().has(project.id) && !(project as any).membershipStatus
                     }}
                   >
                     {requestedProjects().has(project.id) || (project as any).membershipStatus === 'pending' ? t('joinProject.requestSent') :
@@ -116,7 +138,7 @@ export default function JoinProjectPage() {
       
       <style>{`
         .project-title {
-          transition: var(--kawaii-transition);
+          transition: var(--transition);
         }
         .kawaii-card:hover .project-title {
           color: var(--kawaii-pink);

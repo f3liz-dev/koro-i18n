@@ -353,7 +353,7 @@ export default function TranslationEditorPage() {
   };
 
   return (
-    <div class="min-h-screen bg-gray-50">
+    <div style="min-height: 100vh; background: var(--color-white);">
       <TranslationEditorHeader
         projectId={projectName()}
         language={language()}
@@ -379,30 +379,58 @@ export default function TranslationEditorPage() {
         onSortMethodChange={handleSortMethodChange}
       />
 
-      <div class="max-w-7xl mx-auto px-4 h-[calc(100vh-80px)] lg:h-auto lg:py-6">
-        <div class="flex flex-col lg:grid lg:grid-cols-[400px_1fr] gap-3 lg:gap-6 h-full lg:h-auto">
-          <TranslationEditorPanel
-            selectedKey={selectedKey()}
-            translations={translations()}
-            language={language()}
-            sourceLanguage={project()?.sourceLanguage || 'en'}
-            translationValue={translationValue()}
-            showSuggestions={showSuggestions()}
-            suggestions={suggestions()}
-            currentIndex={getCurrentIndex()}
-            totalCount={filteredTranslations().length}
-            isSaving={isSaving()}
-            isLoading={isLoading()}
-            onTranslationChange={setTranslationValue}
-            onSave={handleSave}
-            onToggleSuggestions={() => setShowSuggestions(!showSuggestions())}
-            onApproveSuggestion={handleApproveSuggestion}
-            onRejectSuggestion={handleRejectSuggestion}
-            onPrevious={handlePrevious}
-            onNext={handleNext}
-          />
+      <div style="
+        max-width: 90rem;
+        margin: 0 auto;
+        padding: 1rem;
+        height: calc(100vh - 80px);
+      ">
+        <div style="
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          height: 100%;
+        ">
+          <style>{`
+            @media (min-width: 1024px) {
+              .editor-layout {
+                display: grid;
+                grid-template-columns: 400px 1fr;
+                gap: 1rem;
+              }
+            }
+          `}</style>
+          <div class="editor-layout">
+            <TranslationEditorPanel
+              selectedKey={selectedKey()}
+              translations={translations()}
+              language={language()}
+              sourceLanguage={project()?.sourceLanguage || 'en'}
+              translationValue={translationValue()}
+              showSuggestions={showSuggestions()}
+              suggestions={suggestions()}
+              currentIndex={getCurrentIndex()}
+              totalCount={filteredTranslations().length}
+              isSaving={isSaving()}
+              isLoading={isLoading()}
+              onTranslationChange={setTranslationValue}
+              onSave={handleSave}
+              onToggleSuggestions={() => setShowSuggestions(!showSuggestions())}
+              onApproveSuggestion={handleApproveSuggestion}
+              onRejectSuggestion={handleRejectSuggestion}
+              onPrevious={handlePrevious}
+              onNext={handleNext}
+            />
 
-          <div class="hidden lg:block order-2 lg:order-1">
+            <div style="display: none;">
+              <style>{`
+                @media (min-width: 1024px) {
+                  .editor-layout > div:last-child {
+                    display: block;
+                  }
+                }
+              `}</style>
+            </div>
             <TranslationList
               translationStrings={filteredTranslations()}
               selectedKey={selectedKey()}

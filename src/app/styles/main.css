@@ -1,24 +1,43 @@
 :root {
-  /* Simple kawaii palette - flat colors only */
-  --kawaii-bg: #fffafc;
-  --kawaii-surface: #ffffff;
-  --kawaii-pink: #ffb3d9;
-  --kawaii-pink-light: #ffe6f2;
-  --kawaii-peach: #ffd4a3;
-  --kawaii-mint: #b3f0d9;
-  --kawaii-blue: #b3d9ff;
-  --kawaii-lavender: #d9b3ff;
-  --kawaii-ink: #2b2b2b;
-  --kawaii-muted: #6b6b6b;
-  --kawaii-border-color: #ffe6f2;
-  --kawaii-radius: 12px;
-  --kawaii-radius-lg: 16px;
-  --kawaii-soft-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  --kawaii-border: 2px solid var(--kawaii-border-color);
-  --kawaii-focus: rgba(255, 179, 217, 0.3);
-  --kawaii-space: 12px;
-  --kawaii-font-sans: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --kawaii-transition: all 0.15s ease;
+  /* Base Colors: Black & White */
+  --color-black: #000000;
+  --color-white: #ffffff;
+  --color-gray-50: #fafafa;
+  --color-gray-100: #f5f5f5;
+  --color-gray-200: #e5e5e5;
+  --color-gray-300: #d4d4d4;
+  --color-gray-400: #a3a3a3;
+  --color-gray-500: #737373;
+  --color-gray-600: #525252;
+  --color-gray-700: #404040;
+  --color-gray-800: #262626;
+  --color-gray-900: #171717;
+  
+  /* Pastel Point Colors */
+  --color-pink: #ffc9e0;
+  --color-pink-light: #ffe6f2;
+  --color-blue: #c9e0ff;
+  --color-blue-light: #e6f0ff;
+  --color-mint: #c9ffe0;
+  --color-mint-light: #e6fff2;
+  --color-peach: #ffe0c9;
+  --color-peach-light: #fff2e6;
+  --color-lavender: #e0c9ff;
+  --color-lavender-light: #f2e6ff;
+  
+  /* Semantic Colors */
+  --color-primary: var(--color-pink);
+  --color-success: var(--color-mint);
+  --color-warning: var(--color-peach);
+  --color-info: var(--color-blue);
+  
+  /* Layout */
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --border: 1px solid var(--color-gray-200);
+  --transition: all 0.15s ease;
 }
 
 /* Global layout / background */
@@ -26,182 +45,161 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: var(--kawaii-bg);
-  color: var(--kawaii-ink);
+  background: var(--color-white);
+  color: var(--color-black);
 }
 
 body {
-  font-family: var(--kawaii-font-sans);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: transparent;
-  line-height: 1.45;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
 }
 
-/* Soft, friendly focus states */
+/* Focus states */
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 6px var(--kawaii-focus);
-  border-radius: calc(var(--kawaii-radius) - 4px);
+  outline: 2px solid var(--color-black);
+  outline-offset: 2px;
 }
 
-/* Simple card */
-.kawaii-card {
-  background: var(--kawaii-surface);
-  border-radius: var(--kawaii-radius);
-  border: var(--kawaii-border);
-  box-shadow: var(--kawaii-soft-shadow);
-  padding: calc(var(--kawaii-space) * 1.5);
+/* Card */
+.card {
+  background: var(--color-white);
+  border-radius: var(--radius);
+  border: var(--border);
+  padding: 1.5rem;
 }
 
-/* Simple buttons */
-.kawaii-btn {
+/* Button */
+.btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  background: var(--kawaii-pink-light);
-  color: var(--kawaii-ink);
-  border-radius: 999px;
-  border: 2px solid var(--kawaii-pink);
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: var(--color-white);
+  color: var(--color-black);
+  border-radius: var(--radius);
+  border: var(--border);
   cursor: pointer;
-  transition: var(--kawaii-transition);
-  font-weight: 600;
-  font-size: 14px;
+  transition: var(--transition);
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
-.kawaii-btn:hover {
-  background: var(--kawaii-pink);
-  transform: scale(1.02);
+.btn:hover {
+  background: var(--color-gray-50);
+  border-color: var(--color-gray-300);
 }
 
-.kawaii-btn:active {
+.btn:active {
   transform: scale(0.98);
 }
 
-.kawaii-btn.secondary {
-  background: #fff;
-  border-color: var(--kawaii-border-color);
+.btn.primary {
+  background: var(--color-black);
+  color: var(--color-white);
+  border-color: var(--color-black);
 }
 
-.kawaii-btn.secondary:hover {
-  background: var(--kawaii-pink-light);
-  border-color: var(--kawaii-pink);
+.btn.primary:hover {
+  background: var(--color-gray-800);
+  border-color: var(--color-gray-800);
 }
 
-.kawaii-btn.primary {
-  background: var(--kawaii-pink);
-  color: white;
-  border-color: var(--kawaii-pink);
+.btn.accent {
+  background: var(--color-primary);
+  color: var(--color-black);
+  border-color: var(--color-primary);
 }
 
-.kawaii-btn.primary:hover {
+.btn.accent:hover {
   opacity: 0.9;
 }
 
-.kawaii-btn:disabled {
-  opacity: 0.4;
+.btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
   transform: none;
 }
 
-.kawaii-btn:disabled:hover {
+.btn:disabled:hover {
   transform: none;
-  background: var(--kawaii-pink-light);
 }
 
-/* Simple inputs */
-.kawaii-input {
-  background: #fff;
-  border: 2px solid var(--kawaii-border-color);
-  padding: 12px 16px;
-  border-radius: var(--kawaii-radius);
-  transition: var(--kawaii-transition);
-  font-size: 14px;
+/* Input */
+.input {
+  background: var(--color-white);
+  border: var(--border);
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--radius);
+  transition: var(--transition);
+  font-size: 0.875rem;
   font-family: inherit;
   width: 100%;
+  color: var(--color-black);
 }
 
-.kawaii-input:hover {
-  border-color: var(--kawaii-pink);
+.input:hover {
+  border-color: var(--color-gray-300);
 }
 
-.kawaii-input:focus {
-  border-color: var(--kawaii-pink);
-  box-shadow: 0 0 0 3px var(--kawaii-focus);
+.input:focus {
+  border-color: var(--color-black);
   outline: none;
 }
 
-.kawaii-input::placeholder {
-  color: var(--kawaii-muted);
-  opacity: 0.6;
+.input::placeholder {
+  color: var(--color-gray-400);
 }
 
-/* Header styles */
-.page-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
+/* Label */
+.label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-black);
+  margin-bottom: 0.5rem;
 }
 
-.page-header .title {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--kawaii-ink);
-}
-
-.page-header .subtitle {
-  font-size: 13px;
-  color: var(--kawaii-muted);
-}
-
-/* Simple badge */
-.kawaii-badge {
+/* Badge */
+.badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
   border-radius: 999px;
-  background: var(--kawaii-pink-light);
-  border: 2px solid var(--kawaii-pink);
-  color: var(--kawaii-ink);
-  font-size: 12px;
-  font-weight: 700;
+  background: var(--color-gray-100);
+  border: var(--border);
+  color: var(--color-black);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
-/* Simple panel */
-.kawaii-panel {
-  background: var(--kawaii-surface);
-  border-radius: var(--kawaii-radius);
-  padding: 12px;
-  border: var(--kawaii-border);
+.badge.primary {
+  background: var(--color-pink-light);
+  border-color: var(--color-pink);
 }
 
-/* Small helpers */
-.kawaii-soft {
-  border-radius: 8px;
-  padding: 8px;
-  background: var(--kawaii-pink-light);
-  border: 2px solid var(--kawaii-pink);
+.badge.success {
+  background: var(--color-mint-light);
+  border-color: var(--color-mint);
 }
 
-.kawaii-ghost {
-  background: transparent;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  padding: 8px;
-  transition: var(--kawaii-transition);
+.badge.warning {
+  background: var(--color-peach-light);
+  border-color: var(--color-peach);
 }
 
-.kawaii-ghost:hover {
-  background: var(--kawaii-pink-light);
-  border-color: var(--kawaii-pink);
+.badge.info {
+  background: var(--color-blue-light);
+  border-color: var(--color-blue);
 }
 
 /* Keep existing accessibility helpers intact */
@@ -219,34 +217,10 @@ a {
   touch-action: manipulation;
 }
 
-button,
-[role="button"],
-.cursor-pointer {
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
-button,
-[role="button"],
-a {
-  touch-action: manipulation;
-}
-
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  outline: 2px solid #f38b33;
-  outline-offset: 2px;
-}
-
 @keyframes fadeIn {
   from {
     opacity: 0;
   }
-
   to {
     opacity: 1;
   }
@@ -257,7 +231,6 @@ select:focus-visible {
     opacity: 0;
     transform: translateY(10px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
@@ -269,7 +242,6 @@ select:focus-visible {
     opacity: 0;
     transform: translateY(-10px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
@@ -288,113 +260,98 @@ select:focus-visible {
   animation: slideDown 0.3s ease-out;
 }
 
-/* Additional kawaii helpers */
-.kawaii-bg {
-  background: var(--kawaii-bg);
-}
-
-.kawaii-text-pink {
-  color: var(--kawaii-pink);
-}
-
-.kawaii-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--kawaii-ink);
-  margin-bottom: 8px;
-}
-
-.kawaii-hint {
-  font-size: 12px;
-  color: var(--kawaii-muted);
-  margin-top: 6px;
-}
-
-.kawaii-error {
-  background: #fff0f0;
-  border: 2px solid #ffb3b3;
-  padding: 12px 16px;
-  border-radius: var(--kawaii-radius);
-  color: #cc0000;
-  font-size: 13px;
-  animation: slideDown 0.3s ease-out;
-}
-
-.kawaii-success {
-  background: #f0fff8;
-  border: 2px solid var(--kawaii-mint);
-  padding: 12px 16px;
-  border-radius: var(--kawaii-radius);
-  color: #006644;
-  font-size: 13px;
-  animation: slideDown 0.3s ease-out;
-}
-
-.kawaii-empty-state {
+/* Empty state */
+.empty-state {
   text-align: center;
-  padding: 48px 24px;
+  padding: 3rem 1.5rem;
 }
 
-.kawaii-empty-state .icon {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 16px;
-  background: var(--kawaii-pink-light);
-  border: 3px solid var(--kawaii-pink);
+.empty-state .icon {
+  width: 4rem;
+  height: 4rem;
+  margin: 0 auto 1rem;
+  background: var(--color-gray-100);
+  border: var(--border);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.kawaii-empty-state .icon svg {
-  width: 32px;
-  height: 32px;
-  color: var(--kawaii-pink);
+.empty-state .icon svg {
+  width: 2rem;
+  height: 2rem;
+  color: var(--color-gray-400);
 }
 
-.kawaii-empty-state .title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--kawaii-ink);
-  margin-bottom: 8px;
+.empty-state .title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-black);
+  margin-bottom: 0.5rem;
 }
 
-.kawaii-empty-state .description {
-  font-size: 14px;
-  color: var(--kawaii-muted);
-  margin-bottom: 24px;
+.empty-state .description {
+  font-size: 0.875rem;
+  color: var(--color-gray-500);
+  margin-bottom: 1.5rem;
+}
+
+/* Message boxes */
+.message {
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  border: var(--border);
+}
+
+.message.error {
+  background: #fff5f5;
+  border-color: #feb2b2;
+  color: #c53030;
+}
+
+.message.success {
+  background: var(--color-mint-light);
+  border-color: var(--color-mint);
+  color: #22543d;
+}
+
+.message.info {
+  background: var(--color-blue-light);
+  border-color: var(--color-blue);
+  color: #2c5282;
+}
+
+.message.warning {
+  background: var(--color-peach-light);
+  border-color: var(--color-peach);
+  color: #7c2d12;
+}
+
+/* Page layout */
+.page {
+  min-height: 100vh;
+  background: var(--color-white);
+}
+
+.container {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 1.5rem;
 }
 
 /* Utility transitions */
 .transition-all {
-  transition: var(--kawaii-transition);
+  transition: var(--transition);
 }
 
 /* Hover lift effect */
 .hover-lift:hover {
   transform: translateY(-2px);
-  box-shadow: var(--kawaii-soft-shadow);
+  box-shadow: var(--shadow-lg);
 }
 
 .hover-lift:active {
   transform: translateY(0);
-}
-
-/* Page layout */
-.kawaii-page {
-  min-height: 100vh;
-  background: var(--kawaii-bg);
-}
-
-.kawaii-container {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 24px;
-}
-
-/* Form groups */
-.kawaii-form-group {
-  margin-bottom: 20px;
 }

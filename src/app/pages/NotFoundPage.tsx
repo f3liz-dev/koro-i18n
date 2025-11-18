@@ -6,28 +6,37 @@ export default function NotFoundPage() {
   const { t } = useI18n();
 
   return (
-    <div class="kawaii-page flex items-center justify-center px-6">
-      <div class="text-center max-w-md animate-slide-up">
-        <div style="margin-bottom: 32px; display: flex; justify-content: center;">
-          <div style="width: 128px; height: 128px; background: var(--kawaii-pink-light); border: 4px solid var(--kawaii-pink); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-            <span class="kawaii-text-pink" style="font-size: 56px; font-weight: 900;">404</span>
+    <div class="page" style="display: flex; align-items: center; justify-content: center; padding: 1.5rem;">
+      <div class="animate-slide-up" style="text-align: center; max-width: 28rem;">
+        <div style="margin-bottom: 2rem; display: flex; justify-content: center;">
+          <div style="
+            width: 8rem;
+            height: 8rem;
+            background: var(--color-gray-100);
+            border: 2px solid var(--color-gray-300);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          ">
+            <span style="font-size: 3.5rem; font-weight: 800; color: var(--color-gray-600);">404</span>
           </div>
         </div>
-        <h2 style="font-size: 28px; font-weight: 800; color: var(--kawaii-ink); margin-bottom: 12px;">{t('notFound.title')}</h2>
-        <p style="color: var(--kawaii-muted); margin-bottom: 32px; font-size: 14px;">
+        <h2 style="font-size: 1.75rem; font-weight: 700; color: var(--color-black); margin-bottom: 0.75rem;">{t('notFound.title')}</h2>
+        <p style="color: var(--color-gray-600); margin-bottom: 2rem; font-size: 0.875rem;">
           {t('notFound.description')}
         </p>
-        <div style="display: flex; flex-direction: column; gap: 12px; justify-content: center;">
+        <div style="display: flex; flex-direction: column; gap: 0.75rem; justify-content: center;">
           <button
             onClick={() => navigate('/')}
-            class="kawaii-btn primary"
+            class="btn primary"
             style="justify-content: center;"
           >
             {t('common.goHome')}
           </button>
           <button
             onClick={() => window.history.back()}
-            class="kawaii-btn secondary"
+            class="btn"
             style="justify-content: center;"
           >
             {t('common.goBack')}

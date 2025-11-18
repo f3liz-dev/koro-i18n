@@ -8,39 +8,50 @@ export default function HomePage() {
   const { t } = useI18n();
 
   return (
-    <div class="kawaii-page flex items-center justify-center px-6">
-      <div style="position: absolute; top: 16px; right: 16px;">
+    <div class="page" style="display: flex; align-items: center; justify-content: center; padding: 1.5rem;">
+      <div style="position: absolute; top: 1rem; right: 1rem;">
         <LanguageSelector />
       </div>
-      <div class="text-center max-w-2xl mx-auto animate-slide-up">
-        <div style="margin-bottom: 48px; display: flex; justify-content: center;">
+      <div class="animate-slide-up" style="text-align: center; max-width: 42rem; margin: 0 auto;">
+        <div style="margin-bottom: 3rem; display: flex; justify-content: center;">
           <img 
             src="/logo.png" 
-            alt="Koro i18n - Kawaii hermit crab mascot" 
-            style="width: 160px; height: 160px; object-fit: contain;"
+            alt="Koro i18n" 
+            style="width: 10rem; height: 10rem; object-fit: contain;"
           />
         </div>
         
-        <h1 class="kawaii-text-pink" style="font-size: 56px; font-weight: 800; margin-bottom: 16px; letter-spacing: -0.02em;">
+        <h1 style="
+          font-size: 3.5rem;
+          font-weight: 700;
+          margin-bottom: 1rem;
+          letter-spacing: -0.02em;
+          color: var(--color-black);
+        ">
           {t('home.title')}
         </h1>
-        <p style="font-size: 20px; color: var(--kawaii-muted); margin-bottom: 48px; font-weight: 500;">
+        <p style="
+          font-size: 1.25rem;
+          color: var(--color-gray-600);
+          margin-bottom: 3rem;
+          font-weight: 400;
+        ">
           {t('home.subtitle')}
         </p>
         
         {user() ? (
           <button
             onClick={() => navigate('/dashboard')}
-            class="kawaii-btn primary"
-            style="padding: 14px 32px; font-size: 16px;"
+            class="btn primary"
+            style="padding: 1rem 2rem; font-size: 1rem;"
           >
             {t('home.goToDashboard')}
           </button>
         ) : (
           <button
             onClick={() => navigate('/login')}
-            class="kawaii-btn primary"
-            style="padding: 14px 32px; font-size: 16px;"
+            class="btn primary"
+            style="padding: 1rem 2rem; font-size: 1rem;"
           >
             {t('home.signInWithGitHub')}
           </button>

@@ -125,14 +125,14 @@ export default function LanguageSelectionPage() {
   };
 
   const getPercentageColor = (percentage: number) => {
-    if (percentage >= 90) return 'color: #16a34a; background: #dcfce7;';
-    if (percentage >= 50) return 'color: #d97706; background: #fef3c7;';
+    if (percentage >= 90) return 'color: #16a34a; background: var(--color-mint-light);';
+    if (percentage >= 50) return 'color: #d97706; background: var(--color-peach-light);';
     return 'color: #dc2626; background: #fee2e2;';
   };
 
   const getProgressBarColor = (percentage: number) => {
-    if (percentage >= 90) return '#16a34a';
-    if (percentage >= 50) return '#d97706';
+    if (percentage >= 90) return 'var(--color-mint)';
+    if (percentage >= 50) return 'var(--color-peach)';
     return '#dc2626';
   };
 
@@ -154,35 +154,45 @@ export default function LanguageSelectionPage() {
   ];
 
   return (
-    <div class="kawaii-page" style="min-height: 100vh;">
+    <div class="page" style="min-height: 100vh;">
       <PageHeader
         title={project()?.name || ''}
-        subtitle={`<code style="font-size: 11px; color: var(--kawaii-muted);">${project()?.repository || ''}</code>`}
+        subtitle={`<code style="font-size: 0.75rem; color: var(--color-gray-500);">${project()?.repository || ''}</code>`}
         backButton={{
           onClick: () => navigate('/dashboard'),
         }}
         menuItems={menuItems}
       />
 
-      <div class="kawaii-container animate-fade-in">
-        <div style="margin-bottom: 32px;">
-          <h2 style="font-size: 32px; font-weight: 800; color: var(--kawaii-ink); margin-bottom: 8px;">Select Language</h2>
-          <p style="color: var(--kawaii-muted); font-size: 14px;">Choose a language to view and translate files</p>
+      <div class="container animate-fade-in">
+        <div style="margin-bottom: 2rem;">
+          <h2 style="font-size: 2rem; font-weight: 700; color: var(--color-black); margin-bottom: 0.5rem;">Select Language</h2>
+          <p style="color: var(--color-gray-600); font-size: 0.875rem;">Choose a language to view and translate files</p>
         </div>
 
         <Show when={isLoading()}>
-          <div style="text-align: center; padding: 64px 0;">
-            <div style="width: 64px; height: 64px; background: var(--kawaii-pink-light); border: 3px solid var(--kawaii-pink); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
-              <svg style="width: 32px; height: 32px; color: var(--kawaii-pink); animation: spin 1s linear infinite;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div style="text-align: center; padding: 4rem 0;">
+            <div style="
+              width: 4rem;
+              height: 4rem;
+              background: var(--color-gray-100);
+              border: 2px solid var(--color-gray-300);
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin: 0 auto 1rem;
+            ">
+              <svg style="width: 2rem; height: 2rem; color: var(--color-gray-600); animation: spin 1s linear infinite;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </div>
-            <div style="color: var(--kawaii-muted); font-weight: 600; font-size: 14px;">Loading languages...</div>
+            <div style="color: var(--color-gray-600); font-weight: 500; font-size: 0.875rem;">Loading languages...</div>
           </div>
         </Show>
 
         <Show when={!isLoading() && languageStats().length === 0}>
-          <div class="kawaii-card kawaii-empty-state">
+          <div class="card empty-state">
             <div class="icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
@@ -194,30 +204,55 @@ export default function LanguageSelectionPage() {
         </Show>
 
         <Show when={!isLoading() && languageStats().length > 0}>
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr)); gap: 1.25rem;">
             <For each={languageStats()}>
               {(langStat) => {
                 return (
                   <button
                     onClick={() => navigate(`/projects/${params.id}/language/${langStat.language}`)}
-                    class="kawaii-card hover-lift transition-all"
+                    class="card hover-lift transition-all"
                     style="text-align: left; cursor: pointer;"
                   >
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
-                      <h3 style="font-size: 24px; font-weight: 800; color: var(--kawaii-ink); transition: var(--kawaii-transition);" class="lang-title">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+                      <h3 class="lang-title" style="
+                        font-size: 1.5rem;
+                        font-weight: 700;
+                        color: var(--color-black);
+                        transition: var(--transition);
+                      ">
                         {langStat.language.toUpperCase()}
                       </h3>
-                      <div style={`padding: 8px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; box-shadow: var(--kawaii-soft-shadow); ${getPercentageColor(langStat.percentage)}`}>
+                      <div style={`
+                        padding: 0.5rem 0.75rem;
+                        border-radius: 999px;
+                        font-size: 0.813rem;
+                        font-weight: 600;
+                        box-shadow: var(--shadow);
+                        ${getPercentageColor(langStat.percentage)}
+                      `}>
                         {langStat.percentage}%
                       </div>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 12px;">
-                      <div style="font-size: 13px; color: var(--kawaii-muted); font-weight: 600;">
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                      <div style="font-size: 0.813rem; color: var(--color-gray-600); font-weight: 500;">
                         {langStat.translatedKeys} / {langStat.totalKeys} keys translated
                       </div>
-                      <div style="width: 100%; background: #f5f5f5; border-radius: 999px; height: 12px; overflow: hidden; border: 2px solid var(--kawaii-border-color);">
+                      <div style="
+                        width: 100%;
+                        background: var(--color-gray-100);
+                        border-radius: 999px;
+                        height: 0.5rem;
+                        overflow: hidden;
+                        border: var(--border);
+                      ">
                         <div
-                          style={`height: 12px; border-radius: 999px; background: ${getProgressBarColor(langStat.percentage)}; transition: var(--kawaii-transition); width: ${langStat.percentage}%;`}
+                          style={`
+                            height: 0.5rem;
+                            border-radius: 999px;
+                            background: ${getProgressBarColor(langStat.percentage)};
+                            transition: var(--transition);
+                            width: ${langStat.percentage}%;
+                          `}
                         />
                       </div>
                     </div>
@@ -233,15 +268,11 @@ export default function LanguageSelectionPage() {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.6; }
-        }
         .lang-title {
-          transition: var(--kawaii-transition);
+          transition: var(--transition);
         }
-        .kawaii-card:hover .lang-title {
-          color: var(--kawaii-pink);
+        .card:hover .lang-title {
+          color: var(--color-primary);
         }
       `}</style>
     </div>

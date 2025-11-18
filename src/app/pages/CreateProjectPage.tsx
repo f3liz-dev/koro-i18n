@@ -53,32 +53,42 @@ export default function CreateProjectPage() {
   };
 
   return (
-    <div class="kawaii-page" style="min-height: 100vh;">
-      <div class="kawaii-card" style="position: sticky; top: 0; z-index: 50; border-radius: 0; border-left: none; border-right: none; border-top: none; padding: 16px 24px; margin: 0;">
-        <div class="kawaii-container" style="display: flex; align-items: center; gap: 12px; padding: 0;">
+    <div class="page" style="min-height: 100vh;">
+      <div class="card" style="
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-top: none;
+        padding: 1rem 1.5rem;
+        margin: 0;
+      ">
+        <div class="container" style="display: flex; align-items: center; gap: 0.75rem; padding: 0;">
           <button
             onClick={() => navigate('/dashboard')}
-            class="kawaii-ghost"
-            style="padding: 8px; margin-left: -8px; cursor: pointer; display: flex; align-items: center; justify-content: center;"
+            class="btn"
+            style="padding: 0.5rem; margin-left: -0.5rem; background: none; border: none;"
           >
-            <svg style="width: 20px; height: 20px; color: var(--kawaii-muted);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg style="width: 1.25rem; height: 1.25rem; color: var(--color-gray-600);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </button>
-          <h1 style="font-size: 20px; font-weight: 700; color: var(--kawaii-ink); margin: 0;">{t('createProject.title')}</h1>
+          <h1 style="font-size: 1.25rem; font-weight: 600; color: var(--color-black); margin: 0;">{t('createProject.title')}</h1>
         </div>
       </div>
 
-      <div style="max-width: 640px; margin: 0 auto; padding: 48px 24px;" class="animate-slide-up">
-        <div class="kawaii-card">
-          <div style="margin-bottom: 32px;">
-            <h2 style="font-size: 24px; font-weight: 800; color: var(--kawaii-ink); margin-bottom: 8px;">{t('createProject.heading')}</h2>
-            <p style="color: var(--kawaii-muted); font-size: 14px;">{t('createProject.description')}</p>
+      <div class="animate-slide-up" style="max-width: 40rem; margin: 0 auto; padding: 3rem 1.5rem;">
+        <div class="card">
+          <div style="margin-bottom: 2rem;">
+            <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--color-black); margin-bottom: 0.5rem;">{t('createProject.heading')}</h2>
+            <p style="color: var(--color-gray-600); font-size: 0.875rem;">{t('createProject.description')}</p>
           </div>
           
           <form onSubmit={handleCreateProject}>
-            <div class="kawaii-form-group">
-              <label class="kawaii-label">
+            <div style="margin-bottom: 1.25rem;">
+              <label class="label">
                 {t('createProject.githubRepository')}
               </label>
               <input
@@ -87,15 +97,15 @@ export default function CreateProjectPage() {
                 onInput={(e) => setProjectRepo(e.currentTarget.value)}
                 placeholder={t('createProject.repositoryPlaceholder')}
                 required
-                class="kawaii-input"
+                class="input"
               />
-              <p class="kawaii-hint">
+              <p style="font-size: 0.75rem; color: var(--color-gray-500); margin-top: 0.375rem;">
                 {t('createProject.repositoryHelp')}
               </p>
             </div>
 
-            <div class="kawaii-form-group">
-              <label class="kawaii-label">
+            <div style="margin-bottom: 1.25rem;">
+              <label class="label">
                 {t('createProject.projectName')}
               </label>
               <input
@@ -104,24 +114,24 @@ export default function CreateProjectPage() {
                 onInput={(e) => setProjectName(e.currentTarget.value)}
                 placeholder={t('createProject.projectNamePlaceholder')}
                 required
-                class="kawaii-input"
+                class="input"
               />
-              <p class="kawaii-hint">
+              <p style="font-size: 0.75rem; color: var(--color-gray-500); margin-top: 0.375rem;">
                 {t('createProject.projectNameHelp')}
               </p>
             </div>
 
             <Show when={error()}>
-              <div class="kawaii-error">
+              <div class="message error">
                 {error()}
               </div>
             </Show>
 
-            <div style="display: flex; gap: 12px; padding-top: 16px;">
+            <div style="display: flex; gap: 0.75rem; padding-top: 1rem;">
               <button
                 type="submit"
                 disabled={!projectRepo() || !projectName() || isSubmitting()}
-                class="kawaii-btn primary"
+                class="btn primary"
                 style="flex: 1; justify-content: center;"
               >
                 {isSubmitting() ? t('createProject.creating') : t('createProject.createProject')}
@@ -129,8 +139,7 @@ export default function CreateProjectPage() {
               <button
                 type="button"
                 onClick={() => navigate('/dashboard')}
-                class="kawaii-btn secondary"
-                style="justify-content: center;"
+                class="btn"
               >
                 {t('common.cancel')}
               </button>

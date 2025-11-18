@@ -22,44 +22,51 @@ export function PageHeader(props: PageHeaderProps) {
 
   return (
     <header style="position: sticky; top: 0; z-index: 50;">
-      <div class="kawaii-card" style="border-radius: 0; border-left: none; border-right: none; border-top: none; padding: 16px 0; margin: 0;">
-        <div class="kawaii-container" style="display: flex; align-items: center; justify-content: space-between;">
-          <div style="display: flex; align-items: center; gap: 16px;">
+      <div class="card" style="
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-top: none;
+        padding: 1rem 0;
+        margin: 0;
+      ">
+        <div class="container" style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 1rem;">
             <Show when={props.backButton}>
               <button
                 ref={props.backButton?.ref}
                 onClick={props.backButton?.onClick}
-                class="kawaii-ghost"
-                style="padding: 8px; margin-left: -8px; border-radius: 8px;"
+                class="btn"
+                style="padding: 0.5rem; margin-left: -0.5rem; border-radius: 0.5rem; background: none; border: none;"
                 aria-label="Go back"
               >
-                <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
               </button>
             </Show>
 
             <Show when={props.logo}>
-              <div class="kawaii-badge">
-                <span style="font-weight: 700;" aria-hidden>koro</span>
+              <div class="badge primary">
+                <span style="font-weight: 600;" aria-hidden>koro</span>
               </div>
             </Show>
 
             <div>
-              <div style="font-size: 20px; font-weight: 700; color: var(--kawaii-ink);" innerHTML={props.title}></div>
+              <div style="font-size: 1.25rem; font-weight: 600; color: var(--color-black);" innerHTML={props.title}></div>
               <Show when={props.subtitle}>
-                <div style="font-size: 13px; color: var(--kawaii-muted); margin-top: 2px;" innerHTML={props.subtitle!}></div>
+                <div style="font-size: 0.813rem; color: var(--color-gray-500); margin-top: 0.125rem;" innerHTML={props.subtitle!}></div>
               </Show>
             </div>
           </div>
 
-          <nav class="hidden md:flex" style="align-items: center; gap: 8px;">
+          <nav class="hidden md:flex" style="align-items: center; gap: 0.5rem;">
             <For each={props.menuItems}>{(item) => (
               <Show when={item.show ?? true}>
                 <button
                   ref={item.ref}
                   onClick={item.onClick}
-                  class={`kawaii-btn transition-all ${item.variant === 'primary' ? 'primary' : 'secondary'}`}>
+                  class={`btn transition-all ${item.variant === 'primary' ? 'primary' : ''}`}>
                   {item.label}
                 </button>
               </Show>
@@ -69,11 +76,11 @@ export function PageHeader(props: PageHeaderProps) {
           <div class="md:hidden">
             <button
               onClick={() => setMobileOpen(!mobileOpen())}
-              class="kawaii-ghost"
-              style="padding: 8px; border-radius: 8px;"
+              class="btn"
+              style="padding: 0.5rem; border-radius: 0.5rem; background: none; border: none;"
               aria-label="Toggle menu"
             >
-              <svg style="width: 20px; height: 20px; color: var(--kawaii-ink);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg style="width: 1.25rem; height: 1.25rem; color: var(--color-black);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
@@ -82,14 +89,14 @@ export function PageHeader(props: PageHeaderProps) {
       </div>
 
       <Show when={mobileOpen()}>
-        <div class="md:hidden kawaii-panel animate-slide-down" style="margin: 0; border-radius: 0;">
-          <div class="kawaii-container" style="display: flex; flex-direction: column; gap: 8px;">
+        <div class="md:hidden card animate-slide-down" style="margin: 0; border-radius: 0; border-top: var(--border);">
+          <div class="container" style="display: flex; flex-direction: column; gap: 0.5rem;">
             <For each={props.menuItems}>{(item) => (
               <Show when={item.show ?? true}>
                 <button
                   ref={item.ref}
                   onClick={(e) => { item.onClick(); setMobileOpen(false); }}
-                  class={`kawaii-btn ${item.variant === 'primary' ? 'primary' : 'secondary'}`}
+                  class={`btn ${item.variant === 'primary' ? 'primary' : ''}`}
                   style="width: 100%; justify-content: center;">
                   {item.label}
                 </button>

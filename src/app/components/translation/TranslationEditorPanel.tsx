@@ -28,125 +28,165 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
     props.translations.find((t) => t.key === props.selectedKey);
 
   return (
-    <div class="order-1 lg:order-2 bg-white rounded-lg shadow flex-shrink-0 flex flex-col overflow-hidden max-h-[calc(100vh-100px)]">
+    <div style="
+      order: 1;
+      background: var(--color-white);
+      border-radius: var(--radius);
+      border: var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      max-height: calc(100vh - 100px);
+    ">
       <Show
         when={props.selectedKey && translation()}
         fallback={
-          <div class="p-8 text-center text-gray-500 flex-1 flex items-center justify-center">
+          <div class="empty-state" style="flex: 1; display: flex; align-items: center; justify-center;">
             <div>
-              <svg
-                class="w-12 h-12 lg:w-16 lg:h-16 mx-auto mb-2 lg:mb-4 text-gray-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                />
-              </svg>
-              <p class="text-base lg:text-lg">Select a translation string to edit</p>
-              <p class="text-xs lg:text-sm text-gray-400 mt-1 lg:mt-2 lg:hidden">
-                Tap the menu to select
+              <div class="icon" style="margin-bottom: 1rem;">
+                <svg
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
+                </svg>
+              </div>
+              <p style="font-size: 1rem; color: var(--color-gray-600);">Select a translation to edit</p>
+              <p style="font-size: 0.875rem; color: var(--color-gray-400); margin-top: 0.5rem; display: none;">
+                Tap menu to select
               </p>
             </div>
           </div>
         }
       >
-        <div class="flex flex-col h-full overflow-hidden">
+        <div style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
           {/* Header */}
-          <div class="p-2 lg:p-4 border-b flex-shrink-0">
-            <code class="text-xs lg:text-sm font-mono text-gray-700 block mb-2 lg:mb-3 break-all">
+          <div style="
+            padding: 1rem;
+            border-bottom: var(--border);
+            flex-shrink: 0;
+            background: var(--color-gray-50);
+          ">
+            <code style="
+              font-size: 0.813rem;
+              font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+              color: var(--color-black);
+              display: block;
+              margin-bottom: 0.75rem;
+              word-break: break-all;
+              font-weight: 500;
+            ">
               {translation()!.key}
             </code>
-            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 lg:gap-3">
-              <button
-                onClick={props.onToggleSuggestions}
-                class="text-xs lg:text-sm text-blue-600 hover:text-blue-800 active:text-blue-900 transition"
-              >
-                {props.showSuggestions ? "Hide" : "Show"} Suggestions
-              </button>
-              <div class="flex items-center gap-2">
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
                 <button
-                  onClick={props.onPrevious}
-                  disabled={props.currentIndex === 1}
-                  class="px-4 py-2.5 lg:py-2 border rounded hover:bg-gray-50 active:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition"
-                  title="Previous (Alt+←)"
+                  onClick={props.onToggleSuggestions}
+                  class="btn"
+                  style="font-size: 0.813rem;"
                 >
-                  <svg
-                    class="w-5 h-5 lg:w-4 lg:h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M15 19l-7-7 7-7"
-                    />
-                  </svg>
-                  <span class="hidden sm:inline text-sm">Prev</span>
+                  {props.showSuggestions ? "Hide" : "Show"} Suggestions
                 </button>
-                <span class="text-sm text-gray-600 px-2">
-                  {props.currentIndex} / {props.totalCount}
-                </span>
-                <button
-                  onClick={props.onNext}
-                  disabled={props.currentIndex === props.totalCount}
-                  class="px-4 py-2.5 lg:py-2 border rounded hover:bg-gray-50 active:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition"
-                  title="Next (Alt+→)"
-                >
-                  <span class="hidden sm:inline text-sm">Next</span>
-                  <svg
-                    class="w-5 h-5 lg:w-4 lg:h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <button
+                    onClick={props.onPrevious}
+                    disabled={props.currentIndex === 1}
+                    class="btn"
+                    title="Previous (Alt+←)"
                   >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </button>
+                    <svg
+                      style="width: 1rem; height: 1rem;"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M15 19l-7-7 7-7"
+                      />
+                    </svg>
+                  </button>
+                  <span style="font-size: 0.875rem; color: var(--color-gray-600); padding: 0 0.5rem;">
+                    {props.currentIndex} / {props.totalCount}
+                  </span>
+                  <button
+                    onClick={props.onNext}
+                    disabled={props.currentIndex === props.totalCount}
+                    class="btn"
+                    title="Next (Alt+→)"
+                  >
+                    <svg
+                      style="width: 1rem; height: 1rem;"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Content */}
-          <div class="p-2 lg:p-4 space-y-2 lg:space-y-4 flex-shrink-0 overflow-y-auto">
+          <div style="
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            flex-shrink: 0;
+            overflow-y: auto;
+          ">
             {/* Source Text */}
             <div>
-              <div class="flex items-center justify-between mb-2">
-                <label class="text-sm font-medium text-gray-700">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                <label class="label">
                   Source ({props.sourceLanguage.toUpperCase()})
                 </label>
                 <Show when={translation()?.gitBlame}>
-                  <span class="text-xs px-2 py-1 rounded text-gray-600 bg-gray-100">
-                    imported from GitHub
+                  <span class="badge">
+                    GitHub
                   </span>
                 </Show>
               </div>
-              <div class="p-3 bg-gray-50 rounded border text-gray-900 text-base">
+              <div style="
+                padding: 0.875rem;
+                background: var(--color-gray-50);
+                border-radius: var(--radius);
+                border: var(--border);
+                color: var(--color-black);
+                font-size: 0.938rem;
+                line-height: 1.5;
+              ">
                 {translation()!.sourceValue}
               </div>
-              <div class="text-xs text-gray-500 mt-1">
-                {translation()!.sourceValue.length} chars
+              <div style="font-size: 0.75rem; color: var(--color-gray-500); margin-top: 0.25rem;">
+                {translation()!.sourceValue.length} characters
               </div>
               
               {/* Git Blame Info */}
               <Show when={translation()?.gitBlame}>
                 {(blame) => (
-                  <div class="mt-2 p-2 bg-blue-50 rounded text-xs text-gray-600">
-                    <div class="font-medium text-blue-900 mb-1">Git Info:</div>
-                    <div>Commit: <code class="text-blue-700">{blame().commit.substring(0, 7)}</code></div>
-                    <div>Author: {blame().author}</div>
-                    <div>Date: {new Date(blame().date).toLocaleDateString()}</div>
+                  <div class="message info" style="margin-top: 0.5rem;">
+                    <div style="font-weight: 500; margin-bottom: 0.25rem;">Git Info</div>
+                    <div style="font-size: 0.75rem;">Commit: <code>{blame().commit.substring(0, 7)}</code></div>
+                    <div style="font-size: 0.75rem;">Author: {blame().author}</div>
+                    <div style="font-size: 0.75rem;">Date: {new Date(blame().date).toLocaleDateString()}</div>
                   </div>
                 )}
               </Show>
@@ -154,33 +194,39 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
 
             {/* Translation Input */}
             <div>
-              <div class="flex items-center justify-between mb-2">
-                <label class="block text-sm font-medium text-gray-700">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                <label class="label">
                   Translation ({props.language.toUpperCase()})
                 </label>
                 <Show when={!translation()?.isValid}>
-                  <span class="text-xs px-2 py-1 rounded text-orange-700 bg-orange-100">
-                    ⚠️ Source changed
+                  <span class="badge warning">
+                    ⚠ Source changed
                   </span>
                 </Show>
               </div>
               <textarea
                 value={props.translationValue}
                 onInput={(e) => props.onTranslationChange(e.currentTarget.value)}
-                class="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px] lg:min-h-[120px] text-base resize-none"
+                class="input"
+                style="
+                  min-height: 120px;
+                  resize: vertical;
+                  font-size: 0.938rem;
+                  line-height: 1.5;
+                "
                 placeholder="Enter translation..."
               />
-              <div class="space-y-2 mt-2">
-                <div class="flex items-center justify-between gap-3">
-                  <div class="text-xs text-gray-500">
-                    {props.translationValue.length} chars
+              <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                  <div style="font-size: 0.75rem; color: var(--color-gray-500);">
+                    {props.translationValue.length} characters
                     <Show
                       when={
                         props.translationValue.length >
                         translation()!.sourceValue.length * 1.5
                       }
                     >
-                      <span class="text-orange-600 ml-2">⚠️</span>
+                      <span style="color: var(--color-peach); margin-left: 0.5rem;">⚠ Length warning</span>
                     </Show>
                   </div>
                   <button
@@ -190,12 +236,13 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
                       !props.translationValue.trim() ||
                       props.translationValue === translation()!.currentValue
                     }
-                    class="px-6 py-3 text-base font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    class="btn primary"
+                    style="padding: 0.75rem 1.5rem; font-size: 0.938rem;"
                   >
                     {props.isSaving ? 'Saving...' : 'Save'}
                   </button>
                 </div>
-                <div class="text-xs text-gray-400 hidden lg:block">
+                <div style="font-size: 0.75rem; color: var(--color-gray-400);">
                   💡 Shortcuts: Alt+← / Alt+→ to navigate, Ctrl+S to save
                 </div>
               </div>
