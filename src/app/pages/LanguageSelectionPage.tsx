@@ -33,13 +33,13 @@ export default function LanguageSelectionPage() {
   const project = () => (projects() || []).find((p: any) => p.id === params.id || p.name === params.id) || null;
 
   const [sourceFiles] = createResource(
-    () => project()?.id,
-    async (projectId) => (projectId ? fetchFiles(projectId, 'source-language') : null)
+    () => project()?.repository,
+    async (projectRepository) => (projectRepository ? fetchFiles(projectRepository, 'source-language') : null)
   );
 
   const [allFiles] = createResource(
-    () => project()?.id,
-    async (projectId) => (projectId ? fetchFiles(projectId) : null)
+    () => project()?.repository,
+    async (projectRepository) => (projectRepository ? fetchFiles(projectRepository) : null)
   );
 
   const sourceFilesData = () => sourceFiles();
