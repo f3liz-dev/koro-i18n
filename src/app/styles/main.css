@@ -302,6 +302,26 @@ select:focus-visible {
   color: var(--color-text-muted);
 }
 
+/* Mobile-friendly adjustments */
+@media (max-width: 1023px) {
+  textarea.input {
+    min-height: 220px; /* make editing easier on phones */
+    padding: 1rem; /* larger touch target */
+    font-size: 1rem;
+  }
+
+  /* Larger list item hit areas on mobile */
+  .translation-list-item {
+    padding: 1rem !important;
+    font-size: 1rem;
+  }
+
+  /* Minor style tweak for overlay width on very small screens */
+  .lg\:hidden.w-\[95\%\] {
+    width: 95% !important;
+  }
+}
+
 /* Label */
 .label {
   display: block;

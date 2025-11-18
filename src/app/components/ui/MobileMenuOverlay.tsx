@@ -34,7 +34,7 @@ export function MobileMenuOverlay(props: MobileMenuOverlayProps) {
       />
 
       {/* Slide-in Menu */}
-      <div class="lg:hidden fixed top-0 left-0 bottom-0 w-[85%] max-w-sm z-50 flex flex-col kawaii-panel">
+  <div class="lg:hidden fixed top-0 left-0 bottom-0 w-[95%] max-w-sm z-50 flex flex-col kawaii-panel" style="backdrop-filter: blur(4px);">
         {/* Header */}
         <div class="flex items-center justify-between p-4 border-b border-transparent">
           <h2 class="text-lg font-semibold">翻訳文字列</h2>

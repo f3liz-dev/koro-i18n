@@ -59,7 +59,7 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
                 </svg>
               </div>
               <p style="font-size: 1rem; color: var(--color-gray-600);">Select a translation to edit</p>
-              <p style="font-size: 0.875rem; color: var(--color-gray-400); margin-top: 0.5rem; display: none;">
+              <p class="lg:hidden" style="font-size: 0.875rem; color: var(--color-gray-400); margin-top: 0.5rem;">
                 Tap menu to select
               </p>
             </div>
@@ -208,12 +208,12 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
                 value={props.translationValue}
                 onInput={(e) => props.onTranslationChange(e.currentTarget.value)}
                 class="input"
-                style="
+                style={`
                   min-height: 120px;
                   resize: vertical;
                   font-size: 0.938rem;
                   line-height: 1.5;
-                "
+                `}
                 placeholder="Enter translation..."
               />
               <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
@@ -242,7 +242,7 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
                     {props.isSaving ? 'Saving...' : 'Save'}
                   </button>
                 </div>
-                <div style="font-size: 0.75rem; color: var(--color-gray-400);">
+                <div class="shortcuts lg:block" style="font-size: 0.75rem; color: var(--color-gray-400);">
                   💡 Shortcuts: Alt+← / Alt+→ to navigate, Ctrl+S to save
                 </div>
               </div>
@@ -257,6 +257,55 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
             onApprove={props.onApproveSuggestion}
             onReject={props.onRejectSuggestion}
           />
+          {/* Mobile-only sticky footer with larger touch targets for small screens */}
+          <div class="lg:hidden" style="position: sticky; bottom: 0; padding: 0.75rem; background: linear-gradient(180deg, transparent, rgba(255,255,255,0.98)); z-index: 10;">
+            <div style="display: flex; gap: 0.5rem; align-items: center; justify-content: space-between;">
+              <div style="display:flex; gap:0.5rem; align-items:center;">
+                <button
+                  onClick={props.onPrevious}
+                  disabled={props.currentIndex === 1}
+                  class="btn"
+                  aria-label="Previous"
+                  style="padding: 0.75rem; min-width: 48px;"
+                >
+                  ←
+                </button>
+                <button
+                  onClick={props.onNext}
+                  disabled={props.currentIndex === props.totalCount}
+                  class="btn"
+                  aria-label="Next"
+                  style="padding: 0.75rem; min-width: 48px;"
+                >
+                  →
+                </button>
+                <button
+                  onClick={props.onToggleSuggestions}
+                  class="btn"
+                  aria-label="Toggle suggestions"
+                  style="padding: 0.75rem;"
+                >
+                  {props.showSuggestions ? 'Hide' : 'Show'}
+                </button>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:0.5rem;">
+                <div style="font-size: 0.875rem; color: var(--color-gray-600);">{props.translationValue.length} chars</div>
+                <button
+                  onClick={props.onSave}
+                  disabled={
+                    props.isSaving ||
+                    !props.translationValue.trim() ||
+                    props.translationValue === translation()!.currentValue
+                  }
+                  class="btn primary"
+                  style="padding: 0.75rem 1rem; font-size: 1rem;"
+                >
+                  {props.isSaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </Show>
     </div>

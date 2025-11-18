@@ -141,6 +141,7 @@ export function TranslationList(props: TranslationListProps) {
               {(translation) => (
                 <button
                   onClick={() => props.onSelectKey(translation.key)}
+                  class="translation-list-item"
                   style={`
                     width: 100%;
                     text-align: left;
