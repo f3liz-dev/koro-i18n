@@ -136,13 +136,13 @@ export default function DashboardPage() {
                         <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                           <For each={(project.languages || []).slice(0, 4)}>
                             {(lang) => (
-                              <span style="padding: 6px 12px; font-size: 11px; font-weight: 700; background: linear-gradient(135deg, var(--kawaii-pink), var(--kawaii-peach)); color: var(--kawaii-ink); border-radius: 999px;">
+                              <span style="padding: 6px 12px; font-size: 11px; font-weight: 700; background: var(--kawaii-pink-light); border: 2px solid var(--kawaii-pink); color: var(--kawaii-ink); border-radius: 999px;">
                                 {lang.toUpperCase()}
                               </span>
                             )}
                           </For>
                           <Show when={(project.languages || []).length > 4}>
-                            <span style="padding: 6px 12px; font-size: 11px; font-weight: 700; color: var(--kawaii-muted); background: var(--kawaii-surface); border-radius: 999px;">
+                            <span style="padding: 6px 12px; font-size: 11px; font-weight: 700; color: var(--kawaii-muted); background: #fff; border: 2px solid var(--kawaii-border-color); border-radius: 999px;">
                               +{(project.languages || []).length - 4}
                             </span>
                           </Show>
@@ -171,7 +171,7 @@ export default function DashboardPage() {
           transition: var(--kawaii-transition);
         }
         .kawaii-card:hover .project-title {
-          color: var(--kawaii-accent);
+          color: var(--kawaii-pink);
         }
       `}</style>
     </div>
