@@ -63,7 +63,13 @@
     "projectIdPlaceholder": "プロジェクトIDを入力",
     "projectIdHelp": "プロジェクトオーナーからIDを取得してください",
     "joining": "参加中...",
-    "joinProject": "プロジェクトに参加"
+    "joinProject": "プロジェクトに参加",
+    "noProjectsAvailable": "利用可能なプロジェクトがありません",
+    "noProjectsDescription": "すべてのプロジェクトに参加済みか、公開プロジェクトがありません",
+    "requestToJoin": "参加をリクエスト",
+    "requestSent": "✓ リクエスト送信済み",
+    "alreadyMember": "✓ 参加済み",
+    "requestRejected": "✗ リクエスト却下済み"
   },
   "languageSelection": {
     "title": "言語を選択",
@@ -142,7 +148,8 @@
     "file": "ファイル",
     "key": "キー",
     "value": "値",
-    "date": "日時"
+    "date": "日時",
+    "enterSearch": "検索条件を入力して検索をクリック"
   },
   "translationSuggestions": {
     "title": "翻訳提案",

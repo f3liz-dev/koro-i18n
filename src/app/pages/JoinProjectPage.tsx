@@ -3,6 +3,7 @@ import { createSignal, onMount, For, Show, createResource } from 'solid-js';
 import { user } from '../auth';
 import { projects, createFetchAllProjectsQuery } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
+import { useI18n } from '../utils/i18n';
 
 interface Project {
   id: string;
@@ -15,6 +16,7 @@ interface Project {
 
 export default function JoinProjectPage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [requestedProjects, setRequestedProjects] = createSignal<Set<string>>(new Set());
 
   const fetchAllProjectsQuery = createFetchAllProjectsQuery();
@@ -59,15 +61,15 @@ export default function JoinProjectPage() {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </button>
-            <h1 class="text-xl font-bold text-gray-900">Join a Project</h1>
+            <h1 class="text-xl font-bold text-gray-900">{t('joinProject.title')}</h1>
           </div>
         </div>
       </div>
 
       <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-fade-in">
         <div class="mb-8">
-          <h2 class="text-3xl font-bold text-gray-900 mb-2">Available Projects</h2>
-          <p class="text-gray-600">Request to join a project to start contributing translations</p>
+          <h2 class="text-3xl font-bold text-gray-900 mb-2">{t('joinProject.heading')}</h2>
+          <p class="text-gray-600">{t('joinProject.description')}</p>
         </div>
 
         <Show when={!allProjects.loading && availableProjects().length === 0}>
@@ -77,8 +79,8 @@ export default function JoinProjectPage() {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
             </div>
-            <div class="text-xl font-semibold text-gray-900 mb-2">No projects available</div>
-            <div class="text-gray-500">All projects have been joined or there are no public projects</div>
+            <div class="text-xl font-semibold text-gray-900 mb-2">{t('joinProject.noProjectsAvailable')}</div>
+            <div class="text-gray-500">{t('joinProject.noProjectsDescription')}</div>
           </div>
         </Show>
 
@@ -96,10 +98,10 @@ export default function JoinProjectPage() {
                     disabled={requestedProjects().has(project.id) || !!project.membershipStatus}
                     class="px-6 py-3 text-sm font-semibold border-2 border-gray-200 rounded-xl hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-50 disabled:hover:border-gray-200 disabled:hover:text-gray-700 transition-all whitespace-nowrap"
                   >
-                    {requestedProjects().has(project.id) || (project as any).membershipStatus === 'pending' ? '✓ Request Sent' :
-                      (project as any).membershipStatus === 'approved' ? '✓ Already Member' :
-                        (project as any).membershipStatus === 'rejected' ? '✗ Request Rejected' :
-                          'Request to Join'}
+                    {requestedProjects().has(project.id) || (project as any).membershipStatus === 'pending' ? t('joinProject.requestSent') :
+                      (project as any).membershipStatus === 'approved' ? t('joinProject.alreadyMember') :
+                        (project as any).membershipStatus === 'rejected' ? t('joinProject.requestRejected') :
+                          t('joinProject.requestToJoin')}
                   </button>
                 </div>
               </div>

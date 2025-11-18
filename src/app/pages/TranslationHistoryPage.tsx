@@ -2,6 +2,7 @@ import { createSignal, For, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { SkeletonListItem } from '../components';
 import { authFetch } from '../utils/authFetch';
+import { useI18n } from '../utils/i18n';
 
 interface HistoryEntry {
   id: string;
@@ -25,6 +26,7 @@ async function fetchHistory(projectId: string, language: string, key: string) {
 
 export default function TranslationHistoryPage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [projectId, setProjectId] = createSignal('');
   const [language, setLanguage] = createSignal('');
   const [key, setKey] = createSignal('');
@@ -80,7 +82,7 @@ export default function TranslationHistoryPage() {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </button>
-          <h1 class="text-lg font-semibold">Translation History</h1>
+          <h1 class="text-lg font-semibold">{t('translationHistory.title')}</h1>
         </div>
       </div>
 
@@ -88,7 +90,7 @@ export default function TranslationHistoryPage() {
         <div class="border rounded-lg p-6 mb-6">
         <div class="grid grid-cols-3 gap-4 mb-4">
           <div>
-            <label class="block text-sm font-medium mb-2">Project ID</label>
+            <label class="block text-sm font-medium mb-2">{t('translationHistory.project')}</label>
             <input
               type="text"
               value={projectId()}
@@ -99,7 +101,7 @@ export default function TranslationHistoryPage() {
             />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-2">Language</label>
+            <label class="block text-sm font-medium mb-2">{t('translationHistory.language')}</label>
             <input
               type="text"
               value={language()}
@@ -110,7 +112,7 @@ export default function TranslationHistoryPage() {
             />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-2">Translation Key</label>
+            <label class="block text-sm font-medium mb-2">{t('translationHistory.key')}</label>
             <input
               type="text"
               value={key()}
@@ -126,7 +128,7 @@ export default function TranslationHistoryPage() {
             disabled={!projectId() || !language() || !key()}
             class="px-4 py-2 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Search
+            {t('common.search')}
           </button>
         </div>
 
@@ -138,8 +140,8 @@ export default function TranslationHistoryPage() {
               <SkeletonListItem />
             </div>
           }>
-            <Show when={history()} fallback={<div class="p-8 text-center text-sm text-gray-400">Enter search criteria and click Search</div>}>
-              <Show when={history()?.length} fallback={<div class="p-8 text-center text-sm text-gray-400">No history found</div>}>
+            <Show when={history()} fallback={<div class="p-8 text-center text-sm text-gray-400">{t('translationHistory.enterSearch')}</div>}>
+              <Show when={history()?.length} fallback={<div class="p-8 text-center text-sm text-gray-400">{t('translationHistory.noHistory')}</div>}>
                 <div class="divide-y">
                   <For each={history()}>
                     {(entry) => (

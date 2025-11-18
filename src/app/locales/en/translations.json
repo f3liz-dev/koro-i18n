@@ -63,7 +63,13 @@
     "projectIdPlaceholder": "Enter project ID",
     "projectIdHelp": "Get the project ID from the project owner",
     "joining": "Joining...",
-    "joinProject": "Join Project"
+    "joinProject": "Join Project",
+    "noProjectsAvailable": "No projects available",
+    "noProjectsDescription": "All projects have been joined or there are no public projects",
+    "requestToJoin": "Request to Join",
+    "requestSent": "✓ Request Sent",
+    "alreadyMember": "✓ Already Member",
+    "requestRejected": "✗ Request Rejected"
   },
   "languageSelection": {
     "title": "Select Language",
@@ -142,7 +148,8 @@
     "file": "File",
     "key": "Key",
     "value": "Value",
-    "date": "Date"
+    "date": "Date",
+    "enterSearch": "Enter search criteria and click Search"
   },
   "translationSuggestions": {
     "title": "Translation Suggestions",
