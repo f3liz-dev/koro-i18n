@@ -4,6 +4,7 @@ use sha2::{Sha256, Digest};
 use hex;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use uuid::Uuid;
+use rmp_serde;
 
 #[derive(Serialize, Deserialize)]
 pub struct HashRequest {
@@ -101,6 +102,36 @@ pub fn hash_value(value: &str) -> String {
     let hex_string = hex::encode(result);
     // Return first 16 characters to match TypeScript implementation
     hex_string[..16].to_string()
+}
+
+// Helper: Count keys and bytes for a given FileToUpload
+fn count_keys_and_bytes(file: &FileToUpload) -> Result<(usize, usize), String> {
+    // Keys count
+    let mut keys: usize = 0;
+    let mut bytes: usize = 0;
+
+    if let Some(ref packed) = file.packed_data {
+        let decoded = BASE64.decode(packed).map_err(|e| format!("Failed to decode base64: {}", e))?;
+        bytes = decoded.len();
+
+        let v: serde_json::Value = rmp_serde::from_slice(&decoded)
+            .map_err(|e| format!("Failed to decode msgpack: {}", e))?;
+
+        if let Some(raw) = v.get("raw") {
+            if let Some(obj) = raw.as_object() {
+                keys = obj.len();
+            }
+        } else if let Some(obj) = v.as_object() {
+            keys = obj.len();
+        }
+    } else {
+        if let Some(obj) = file.contents.as_object() {
+            keys = obj.len();
+            bytes = serde_json::to_vec(&file.contents).map(|b| b.len()).unwrap_or(0);
+        }
+    }
+
+    Ok((keys, bytes))
 }
 
 /// Batch compute hashes for multiple values
@@ -216,6 +247,44 @@ async fn handle_upload(
     let mut uploaded_files = Vec::new();
     let mut r2_keys = Vec::new();
     let now = chrono::Utc::now().to_rfc3339();
+
+    // Validate per-file counts and sizes before doing heavy work
+    const MAX_KEYS_PER_FILE: usize = 10_000;
+    const MAX_TOTAL_KEYS: usize = 200_000;
+    const MAX_BYTES_PER_FILE: usize = 5 * 1024 * 1024; // 5 MiB
+    const MAX_TOTAL_BYTES: usize = 50 * 1024 * 1024; // 50 MiB
+
+    // Calculate totals using helper
+    let mut total_keys: usize = 0;
+    let mut total_bytes: usize = 0;
+
+    for file in &upload_req.files {
+        match count_keys_and_bytes(file) {
+            Ok((keys, bytes)) => {
+                if keys > MAX_KEYS_PER_FILE {
+                    return Response::error(&format!("File {} has too many keys: {}. Max {}", file.filename, keys, MAX_KEYS_PER_FILE), 413);
+                }
+
+                if bytes > MAX_BYTES_PER_FILE {
+                    return Response::error(&format!("File {} is too large ({} bytes). Max {}", file.filename, bytes, MAX_BYTES_PER_FILE), 413);
+                }
+
+                total_keys += keys;
+                total_bytes += bytes;
+            }
+            Err(err) => {
+                return Response::error(&format!("Invalid packed data for {}: {}", file.filename, err), 400);
+            }
+        }
+    }
+
+    if total_keys > MAX_TOTAL_KEYS {
+        return Response::error(&format!("Total key count exceeds limit: {}. Max {}", total_keys, MAX_TOTAL_KEYS), 413);
+    }
+
+    if total_bytes > MAX_TOTAL_BYTES {
+        return Response::error(&format!("Total upload size too large: {} bytes. Max {}", total_bytes, MAX_TOTAL_BYTES), 413);
+    }
     
     // Upload each file to R2
     for file in &upload_req.files {
@@ -474,5 +543,61 @@ mod tests {
         assert_eq!(items[0]["age"], 7);
         assert_eq!(items[1]["age"], 5);
         assert_eq!(items[2]["age"], 3);
+    }
+
+    #[test]
+    fn test_count_keys_and_bytes_contents() {
+        let file = FileToUpload {
+            lang: "en".to_string(),
+            filename: "common.json".to_string(),
+            contents: serde_json::json!({"a": "A", "b": "B"}),
+            metadata: "".to_string(),
+            source_hash: "".to_string(),
+            packed_data: None,
+        };
+
+        let (keys, bytes) = count_keys_and_bytes(&file).expect("should parse contents");
+        assert_eq!(keys, 2);
+        assert!(bytes > 0);
+    }
+
+    #[test]
+    fn test_count_keys_and_bytes_packed() {
+        let payload = serde_json::json!({ "raw": {"k1": "v1", "k2": "v2"} });
+        let packed = rmp_serde::to_vec(&payload).unwrap();
+        let packed_b64 = BASE64.encode(&packed);
+
+        let file = FileToUpload {
+            lang: "en".to_string(),
+            filename: "common.json".to_string(),
+            contents: serde_json::json!({}),
+            metadata: "".to_string(),
+            source_hash: "".to_string(),
+            packed_data: Some(packed_b64),
+        };
+
+        let (keys, bytes) = count_keys_and_bytes(&file).expect("should parse packed data");
+        assert_eq!(keys, 2);
+        assert_eq!(bytes, packed.len());
+    }
+
+    #[test]
+    fn test_count_keys_large() {
+        let mut obj = serde_json::Map::new();
+        for i in 0..10001 {
+            obj.insert(i.to_string(), serde_json::Value::String("x".to_string()));
+        }
+
+        let file = FileToUpload {
+            lang: "en".to_string(),
+            filename: "big.json".to_string(),
+            contents: serde_json::Value::Object(obj),
+            metadata: "".to_string(),
+            source_hash: "".to_string(),
+            packed_data: None,
+        };
+
+        let (keys, _) = count_keys_and_bytes(&file).expect("should parse big file");
+        assert_eq!(keys, 10001);
     }
 }

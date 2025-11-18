@@ -5,7 +5,7 @@ import { PrismaClient } from '../generated/prisma/';
 import { verifyJWT, requireAuth } from '../lib/auth';
 import { checkProjectAccess } from '../lib/database';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
-import { storeFile, generateR2Key } from '../lib/r2-storage';
+// Rust-based worker handles R2 key generation and D1 updates; keep TS code minimal.
 import { invalidateOutdatedTranslations } from '../lib/translation-validation';
 import { createRustWorker } from '../lib/rust-worker-client';
 
@@ -94,6 +94,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     if (files.length > MAX_FILES) {
       return c.json({ error: `Too many files. Max ${MAX_FILES} files per chunk` }, 400);
     }
+
+    // Size and key-count checks are handled by the Rust compute worker when available.
 
     const project = await prisma.project.findUnique({
       where: { name: projectName },
@@ -190,56 +192,11 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         }
       }
       
-      // Fallback: TypeScript upload (if Rust worker not available or failed)
+      // The Rust compute worker should handle all R2/D1 uploads. If the worker is not configured
+      // or it failed during the upload call above, reject the request — do not run a TypeScript fallback.
       if (!rustWorker) {
-        // Store each file to R2 (ultra-fast, zero CPU if pre-packed)
-        for (const file of files) {
-          const r2Key = await storeFile(
-            env.TRANSLATION_BUCKET,
-            projectId,
-            file.lang,
-            file.filename,
-            commitHash,
-            file.contents,
-            file.metadata,
-            file.sourceHash,
-            file.packedData // Pre-packed data from client (optional)
-          );
-
-          r2Keys.push(r2Key);
-          console.log(`[upload] Stored ${file.lang}/${file.filename} -> ${r2Key}`);
-        }
-
-        console.log(`[upload] Chunk files stored to R2`);
-
-        // Update D1 index using batched raw SQL for maximum performance
-        // Single transaction is much faster than individual queries
-        const now = new Date().toISOString();
-        
-        // Build VALUES for batch insert
-        const values = files.map(file => {
-          const id = crypto.randomUUID();
-          const r2Key = generateR2Key(projectId, file.lang, file.filename);
-          const totalKeys = Object.keys(file.contents).length;
-          return `('${id}', '${projectId}', '${branchName}', '${commitHash}', '${file.lang}', '${file.filename}', '${r2Key}', '${file.sourceHash}', ${totalKeys}, '${now}', '${now}')`;
-        }).join(',');
-        
-        // Single batch INSERT OR REPLACE - much faster than individual queries
-        await prisma.$executeRawUnsafe(`
-          INSERT INTO R2File (
-            id, projectId, branch, commitSha, lang, filename, 
-            r2Key, sourceHash, totalKeys, uploadedAt, lastUpdated
-          ) VALUES ${values}
-          ON CONFLICT(projectId, branch, lang, filename) 
-          DO UPDATE SET
-            commitSha = excluded.commitSha,
-            r2Key = excluded.r2Key,
-            sourceHash = excluded.sourceHash,
-            totalKeys = excluded.totalKeys,
-            lastUpdated = excluded.lastUpdated
-        `);
-
-        console.log(`[upload] D1 index updated for ${files.length} files in single batch`);
+        console.error('[upload] Rust compute worker not configured or failed; upload must be handled by Rust worker');
+        return c.json({ error: 'Rust compute worker not configured; upload cannot be processed' }, 503);
       }
 
       // Only process invalidations on the last chunk (or non-chunked upload)
