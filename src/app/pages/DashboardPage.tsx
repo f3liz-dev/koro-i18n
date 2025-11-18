@@ -72,16 +72,17 @@ export default function DashboardPage() {
       />
 
       <div class="container animate-fade-in">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2.5rem; flex-wrap: wrap; gap: 1rem;">
           <div>
-            <h2 style="font-size: 2rem; font-weight: 700; color: var(--color-black); margin-bottom: 0.25rem;">{t('dashboard.title')}</h2>
-            <p style="color: var(--color-gray-600); font-size: 0.875rem;">{t('dashboard.subtitle')}</p>
+            <h2 style="font-size: 1.875rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.375rem;">{t('dashboard.title')}</h2>
+            <p style="color: var(--color-text-secondary); font-size: 0.875rem; line-height: 1.6;">{t('dashboard.subtitle')}</p>
           </div>
           <div style="display: flex; align-items: center; gap: 0.75rem;">
             <LanguageSelector />
             <button
               onClick={() => navigate('/projects/create')}
               class="btn primary"
+              style="border-radius: var(--radius);"
             >
               {t('dashboard.newProject')}
             </button>
@@ -115,7 +116,7 @@ export default function DashboardPage() {
         </Show>
 
         <Show when={!projects.loading && (projects() || []).length > 0}>
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); gap: 1.25rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); gap: 1.5rem;">
             <For each={projects()}>
               {(project) => {
                 const isOwner = () => project.userId === user()?.id;
@@ -138,21 +139,22 @@ export default function DashboardPage() {
                         <h3 class="project-title" style="
                           font-size: 1.125rem;
                           font-weight: 600;
-                          color: var(--color-black);
-                          margin-bottom: 0.5rem;
+                          color: var(--color-text-primary);
+                          margin-bottom: 0.625rem;
                           transition: var(--transition);
                         ">{project.name}</h3>
                         <code style="
                           font-size: 0.75rem;
-                          color: var(--color-gray-500);
-                          background: var(--color-gray-50);
-                          padding: 0.25rem 0.5rem;
-                          border-radius: 0.375rem;
+                          color: var(--color-text-secondary);
+                          background: var(--color-cream);
+                          padding: 0.375rem 0.625rem;
+                          border-radius: var(--radius);
                           display: inline-block;
+                          border: var(--border);
                         ">{project.repository}</code>
                       </div>
                       <Show when={(project.languages || []).length > 0} fallback={
-                        <div style="font-size: 0.813rem; color: var(--color-gray-500); font-style: italic; padding: 0.5rem 0;">{t('dashboard.noFilesUploaded')}</div>
+                        <div style="font-size: 0.813rem; color: var(--color-text-muted); font-style: italic; padding: 0.5rem 0;">{t('dashboard.noFilesUploaded')}</div>
                       }>
                         <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                           <For each={(project.languages || []).slice(0, 4)}>
@@ -174,7 +176,7 @@ export default function DashboardPage() {
                       <button
                         onClick={() => navigate(`/projects/${project.id}/settings`)}
                         class="btn"
-                        style="width: 100%; justify-content: center;"
+                        style="width: 100%; justify-content: center; border-radius: var(--radius);"
                       >
                         {t('dashboard.manageProject')}
                       </button>
@@ -192,7 +194,7 @@ export default function DashboardPage() {
           transition: var(--transition);
         }
         .card:hover .project-title {
-          color: var(--color-primary);
+          color: var(--color-accent-peach);
         }
       `}</style>
     </div>

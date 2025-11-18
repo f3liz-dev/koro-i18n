@@ -140,15 +140,15 @@ export default function FileSelectionPage() {
   };
 
   const getPercentageColor = (percentage: number) => {
-    if (percentage >= 90) return 'color: #16a34a; background: #dcfce7;';
-    if (percentage >= 50) return 'color: #d97706; background: #fef3c7;';
-    return 'color: #dc2626; background: #fee2e2;';
+    if (percentage >= 90) return 'color: #3d6b54; background: var(--color-mint-light);';
+    if (percentage >= 50) return 'color: #8a5a3d; background: var(--color-peach-light);';
+    return 'color: #a03838; background: #fff5f5;';
   };
 
   const getProgressBarColor = (percentage: number) => {
-    if (percentage >= 90) return '#16a34a';
-    if (percentage >= 50) return '#d97706';
-    return '#dc2626';
+    if (percentage >= 90) return 'var(--color-accent-mint)';
+    if (percentage >= 50) return 'var(--color-accent-peach)';
+    return '#f87171';
   };
 
   const menuItems: MenuItem[] = [
@@ -169,13 +169,13 @@ export default function FileSelectionPage() {
   ];
 
   return (
-    <div class="kawaii-page" style="min-height: 100vh;">
+    <div class="page" style="min-height: 100vh;">
       <PageHeader
         title={project()?.name || ''}
         subtitle={`
-          <code class="text-xs text-gray-500">${project()?.repository || ''}</code>
-          <span class="text-xs text-gray-400">•</span>
-          <span class="text-xs font-bold text-primary-600">${language().toUpperCase()}</span>
+          <code style="font-size: 0.75rem; color: var(--color-text-secondary);">${project()?.repository || ''}</code>
+          <span style="font-size: 0.75rem; color: var(--color-text-muted);">•</span>
+          <span style="font-size: 0.75rem; font-weight: 600; color: var(--color-accent-peach);">${language().toUpperCase()}</span>
         `}
         backButton={{
           onClick: () => navigate(`/projects/${params.id}`),
@@ -183,25 +183,36 @@ export default function FileSelectionPage() {
         menuItems={menuItems}
       />
 
-      <div class="kawaii-container animate-fade-in">
-        <div class="mb-8">
-          <h2 style="font-size: 32px; font-weight: 800; color: var(--kawaii-ink); margin-bottom: 8px;">Select File</h2>
-          <p style="color: var(--kawaii-muted); font-size: 14px;">Choose a file to translate for {language().toUpperCase()}</p>
+      <div class="container animate-fade-in">
+        <div style="margin-bottom: 2.5rem;">
+          <h2 style="font-size: 1.875rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.625rem;">Select File</h2>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem; line-height: 1.6;">Choose a file to translate for {language().toUpperCase()}</p>
         </div>
 
         <Show when={isLoading()}>
-          <div style="text-align: center; padding: 64px 0;">
-            <div style="width: 64px; height: 64px; background: var(--kawaii-pink-light); border: 3px solid var(--kawaii-pink); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
-              <svg style="width: 32px; height: 32px; color: var(--kawaii-pink); animation: spin 1s linear infinite;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div style="text-align: center; padding: 4rem 0;">
+            <div style="
+              width: 5rem;
+              height: 5rem;
+              background: linear-gradient(135deg, var(--color-peach-soft) 0%, var(--color-lavender-soft) 100%);
+              border: var(--border);
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin: 0 auto 1rem;
+              box-shadow: var(--shadow-soft);
+            ">
+              <svg style="width: 2.5rem; height: 2.5rem; color: var(--color-text-secondary); animation: spin 1s linear infinite;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </div>
-            <div style="color: var(--kawaii-muted); font-weight: 600; font-size: 14px;">Loading files...</div>
+            <div style="color: var(--color-text-secondary); font-weight: 500; font-size: 0.875rem;">Loading files...</div>
           </div>
         </Show>
 
         <Show when={!isLoading() && fileStats().length === 0}>
-          <div class="kawaii-card kawaii-empty-state">
+          <div class="card empty-state">
             <div class="icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -213,31 +224,31 @@ export default function FileSelectionPage() {
         </Show>
 
         <Show when={!isLoading() && fileStats().length > 0}>
-          <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div style="display: flex; flex-direction: column; gap: 1.25rem;">
             <For each={fileStats()}>
               {(fileStat) => {
                 return (
                   <button
                     onClick={() => navigate(`/projects/${params.id}/translate/${language()}/${encodeURIComponent(fileStat.targetFilename)}`)}
-                    class="kawaii-card hover-lift transition-all"
+                    class="card hover-lift transition-all"
                     style="text-align: left; cursor: pointer;"
                   >
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
                       <div style="flex: 1;">
-                        <h3 style="font-size: 18px; font-weight: 700; color: var(--kawaii-ink); margin-bottom: 8px; transition: var(--kawaii-transition);" class="file-title">
+                        <h3 style="font-size: 1.125rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.625rem; transition: var(--transition);" class="file-title">
                           {fileStat.displayFilename}
                         </h3>
-                        <div style="font-size: 13px; color: var(--kawaii-muted); font-weight: 600;">
+                        <div style="font-size: 0.813rem; color: var(--color-text-secondary); font-weight: 500;">
                           {fileStat.translatedKeys} / {fileStat.totalKeys} keys translated
                         </div>
                       </div>
-                      <div style={`padding: 8px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; ${getPercentageColor(fileStat.percentage)}`}>
+                      <div style={`padding: 0.5rem 0.875rem; border-radius: var(--radius-xl); font-size: 0.813rem; font-weight: 600; border: var(--border); box-shadow: var(--shadow-soft); ${getPercentageColor(fileStat.percentage)}`}>
                         {fileStat.percentage}%
                       </div>
                     </div>
-                    <div style="width: 100%; background: #f5f5f5; border-radius: 999px; height: 12px; overflow: hidden; border: 2px solid var(--kawaii-border-color);">
+                    <div style="width: 100%; background: var(--color-cream); border-radius: var(--radius-xl); height: 0.75rem; overflow: hidden; border: var(--border);">
                       <div
-                        style={`height: 12px; border-radius: 999px; background: ${getProgressBarColor(fileStat.percentage)}; transition: var(--kawaii-transition); width: ${fileStat.percentage}%;`}
+                        style={`height: 0.75rem; border-radius: var(--radius-xl); background: ${getProgressBarColor(fileStat.percentage)}; transition: var(--transition); width: ${fileStat.percentage}%;`}
                       />
                     </div>
                   </button>
@@ -253,10 +264,10 @@ export default function FileSelectionPage() {
           to { transform: rotate(360deg); }
         }
         .file-title {
-          transition: var(--kawaii-transition);
+          transition: var(--transition);
         }
-        .kawaii-card:hover .file-title {
-          color: var(--kawaii-pink);
+        .card:hover .file-title {
+          color: var(--color-accent-peach);
         }
       `}</style>
     </div>
