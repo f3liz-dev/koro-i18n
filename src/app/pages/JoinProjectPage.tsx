@@ -49,54 +49,60 @@ export default function JoinProjectPage() {
   };
 
   return (
-    <div class="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50/30">
-      <div class="bg-white border-b border-gray-200 backdrop-blur-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div class="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/dashboard')}
-              class="text-gray-400 hover:text-primary-600 transition-colors p-2 -ml-2 rounded-lg hover:bg-primary-50"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </button>
-            <h1 class="text-xl font-bold text-gray-900">{t('joinProject.title')}</h1>
-          </div>
+    <div class="kawaii-page" style="min-height: 100vh;">
+      <div class="kawaii-card" style="position: sticky; top: 0; z-index: 50; border-radius: 0; border-left: none; border-right: none; border-top: none; padding: 16px 24px; margin: 0;">
+        <div class="kawaii-container" style="display: flex; align-items: center; gap: 12px; padding: 0;">
+          <button
+            onClick={() => navigate('/dashboard')}
+            class="kawaii-ghost"
+            style="padding: 8px; margin-left: -8px; border-radius: 8px; background: transparent; border: 1px dashed transparent; cursor: pointer; transition: var(--kawaii-transition); display: flex; align-items: center; justify-content: center;"
+            onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--kawaii-accent)'}
+            onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
+          >
+            <svg style="width: 20px; height: 20px; color: var(--kawaii-muted);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
+          <h1 style="font-size: 20px; font-weight: 700; color: var(--kawaii-ink); margin: 0;">{t('joinProject.title')}</h1>
         </div>
       </div>
 
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-fade-in">
-        <div class="mb-8">
-          <h2 class="text-3xl font-bold text-gray-900 mb-2">{t('joinProject.heading')}</h2>
-          <p class="text-gray-600">{t('joinProject.description')}</p>
+      <div class="kawaii-container animate-fade-in" style="max-width: 960px; padding-top: 48px;">
+        <div style="margin-bottom: 32px;">
+          <h2 style="font-size: 32px; font-weight: 800; color: var(--kawaii-ink); margin-bottom: 8px;">{t('joinProject.heading')}</h2>
+          <p style="color: var(--kawaii-muted); font-size: 14px;">{t('joinProject.description')}</p>
         </div>
 
         <Show when={!allProjects.loading && availableProjects().length === 0}>
-          <div class="bg-white rounded-2xl border border-gray-200 p-16 text-center shadow-sm">
-            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="kawaii-card kawaii-empty-state">
+            <div class="icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
             </div>
-            <div class="text-xl font-semibold text-gray-900 mb-2">{t('joinProject.noProjectsAvailable')}</div>
-            <div class="text-gray-500">{t('joinProject.noProjectsDescription')}</div>
+            <div class="title">{t('joinProject.noProjectsAvailable')}</div>
+            <div class="description">{t('joinProject.noProjectsDescription')}</div>
           </div>
         </Show>
 
-        <div class="space-y-4">
+        <div style="display: flex; flex-direction: column; gap: 16px;">
           <For each={availableProjects()}>
             {(project) => (
-              <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-lg transition-all group">
-                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div class="flex-1">
-                    <h3 class="text-lg font-bold text-gray-900 mb-2 group-hover:text-primary-600 transition-colors">{project.name}</h3>
-                    <code class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">{project.repository}</code>
+              <div class="kawaii-card hover-lift transition-all">
+                <div style="display: flex; flex-direction: column; gap: 16px; align-items: flex-start; justify-content: space-between;">
+                  <div style="flex: 1; width: 100%;">
+                    <h3 style="font-size: 18px; font-weight: 700; color: var(--kawaii-ink); margin-bottom: 8px; transition: var(--kawaii-transition);" class="project-title">{project.name}</h3>
+                    <code style="font-size: 11px; color: var(--kawaii-muted); background: var(--kawaii-surface); padding: 4px 8px; border-radius: 6px; display: inline-block;">{project.repository}</code>
                   </div>
                   <button
                     onClick={() => handleJoin(project.id)}
                     disabled={requestedProjects().has(project.id) || !!project.membershipStatus}
-                    class="px-6 py-3 text-sm font-semibold border-2 border-gray-200 rounded-xl hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-50 disabled:hover:border-gray-200 disabled:hover:text-gray-700 transition-all whitespace-nowrap"
+                    class="kawaii-btn"
+                    style="width: 100%; justify-content: center;"
+                    classList={{
+                      primary: !requestedProjects().has(project.id) && !(project as any).membershipStatus,
+                      secondary: requestedProjects().has(project.id) || !!(project as any).membershipStatus
+                    }}
                   >
                     {requestedProjects().has(project.id) || (project as any).membershipStatus === 'pending' ? t('joinProject.requestSent') :
                       (project as any).membershipStatus === 'approved' ? t('joinProject.alreadyMember') :
@@ -109,6 +115,15 @@ export default function JoinProjectPage() {
           </For>
         </div>
       </div>
+      
+      <style>{`
+        .project-title {
+          transition: var(--kawaii-transition);
+        }
+        .kawaii-card:hover .project-title {
+          color: var(--kawaii-accent);
+        }
+      `}</style>
     </div>
   );
 }
