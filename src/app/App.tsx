@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'solid-js';
 import { Router, Route } from '@solidjs/router';
 import type { RouteSectionProps } from '@solidjs/router';
 import { ErrorBoundary, LoadingSpinner } from './components';
+import { I18nProvider } from './utils/i18n';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -26,23 +27,25 @@ function RootLayout(props: RouteSectionProps) {
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <Router root={RootLayout}>
-        <Route path="/" component={HomePage} />
-        <Route path="/login" component={LoginPage} />
-        <Route path="/dashboard" component={DashboardPage} />
-        <Route path="/projects/create" component={CreateProjectPage} />
-        <Route path="/projects/join" component={JoinProjectPage} />
-        <Route path="/projects/:id" component={LanguageSelectionPage} />
-        <Route path="/projects/:id/language/:language" component={FileSelectionPage} />
-        <Route path="/projects/:id/settings" component={ProjectSettingsPage} />
-        <Route path="/projects/:id/manage" component={ProjectSettingsPage} />
-        <Route path="/projects/:projectId/translate/:language/:filename" component={TranslationEditorPage} />
-        <Route path="/projects/:projectId/translate/:language?" component={TranslationEditorPage} />
-        <Route path="/projects/:projectId/suggestions" component={TranslationSuggestionsPage} />
-        <Route path="/history" component={TranslationHistoryPage} />
-        <Route path="*" component={NotFoundPage} />
-      </Router>
-    </ErrorBoundary>
+    <I18nProvider>
+      <ErrorBoundary>
+        <Router root={RootLayout}>
+          <Route path="/" component={HomePage} />
+          <Route path="/login" component={LoginPage} />
+          <Route path="/dashboard" component={DashboardPage} />
+          <Route path="/projects/create" component={CreateProjectPage} />
+          <Route path="/projects/join" component={JoinProjectPage} />
+          <Route path="/projects/:id" component={LanguageSelectionPage} />
+          <Route path="/projects/:id/language/:language" component={FileSelectionPage} />
+          <Route path="/projects/:id/settings" component={ProjectSettingsPage} />
+          <Route path="/projects/:id/manage" component={ProjectSettingsPage} />
+          <Route path="/projects/:projectId/translate/:language/:filename" component={TranslationEditorPage} />
+          <Route path="/projects/:projectId/translate/:language?" component={TranslationEditorPage} />
+          <Route path="/projects/:projectId/suggestions" component={TranslationSuggestionsPage} />
+          <Route path="/history" component={TranslationHistoryPage} />
+          <Route path="*" component={NotFoundPage} />
+        </Router>
+      </ErrorBoundary>
+    </I18nProvider>
   );
 }

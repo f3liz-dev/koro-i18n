@@ -1,14 +1,16 @@
 import { useNavigate } from '@solidjs/router';
 import { createEffect, For, Show } from 'solid-js';
 import { user, auth } from '../auth';
-import { SkeletonCard } from '../components';
+import { SkeletonCard, LanguageSelector } from '../components';
 import { projects, refreshProjects } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
+import { useI18n } from '../utils/i18n';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   createEffect(() => {
     if (!user()) navigate('/login', { replace: true });
@@ -21,7 +23,7 @@ export default function DashboardPage() {
   };
 
   const handleDeleteProject = async (projectId: string) => {
-    if (!confirm('Delete this project? This cannot be undone.')) return;
+    if (!confirm(t('dashboard.deleteConfirm'))) return;
 
     try {
       const res = await authFetch(`/api/projects/${projectId}`, {
@@ -43,19 +45,19 @@ export default function DashboardPage() {
 
   const menuItems: MenuItem[] = [
     {
-      label: 'Create Project',
+      label: t('dashboard.createProject'),
       onClick: () => navigate('/projects/create'),
     },
     {
-      label: 'Join Project',
+      label: t('dashboard.joinProject'),
       onClick: () => navigate('/projects/join'),
     },
     {
-      label: 'History',
+      label: t('dashboard.history'),
       onClick: () => navigate('/history'),
     },
     {
-      label: 'Logout',
+      label: t('common.logout'),
       onClick: handleLogout,
     },
   ];
@@ -63,7 +65,7 @@ export default function DashboardPage() {
   return (
     <div class="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50/30">
       <PageHeader
-        title="koro-i18n"
+        title={t('common.appName')}
         subtitle={`<span class="text-gray-300">/</span> <span class="text-sm text-gray-600">${user()?.username}</span>`}
         logo={true}
         menuItems={menuItems}
@@ -72,15 +74,18 @@ export default function DashboardPage() {
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
         <div class="flex items-center justify-between mb-8">
           <div>
-            <h2 class="text-3xl font-bold text-gray-900 mb-1">Your Projects</h2>
-            <p class="text-gray-600">Manage your translation projects</p>
+            <h2 class="text-3xl font-bold text-gray-900 mb-1">{t('dashboard.title')}</h2>
+            <p class="text-gray-600">{t('dashboard.subtitle')}</p>
           </div>
-          <button
-            onClick={() => navigate('/projects/create')}
-            class="px-6 py-3 text-sm font-semibold bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
-          >
-            + New Project
-          </button>
+          <div class="flex items-center gap-3">
+            <LanguageSelector />
+            <button
+              onClick={() => navigate('/projects/create')}
+              class="px-6 py-3 text-sm font-semibold bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
+            >
+              {t('dashboard.newProject')}
+            </button>
+          </div>
         </div>
         
         <Show when={projects.loading}>
@@ -98,13 +103,13 @@ export default function DashboardPage() {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <div class="text-xl font-semibold text-gray-900 mb-2">No projects yet</div>
-            <div class="text-gray-500 mb-6">Create your first project to start managing translations</div>
+            <div class="text-xl font-semibold text-gray-900 mb-2">{t('dashboard.noProjectsYet')}</div>
+            <div class="text-gray-500 mb-6">{t('dashboard.noProjectsDescription')}</div>
             <button
               onClick={() => navigate('/projects/create')}
               class="px-6 py-3 text-sm font-semibold bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
             >
-              Create Project
+              {t('dashboard.createProject')}
             </button>
           </div>
         </Show>
@@ -126,7 +131,7 @@ export default function DashboardPage() {
                         <code class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">{project.repository}</code>
                       </div>
                       <Show when={(project.languages || []).length > 0} fallback={
-                        <div class="text-xs text-gray-400 italic py-2">No files uploaded yet</div>
+                        <div class="text-xs text-gray-400 italic py-2">{t('dashboard.noFilesUploaded')}</div>
                       }>
                         <div class="flex flex-wrap gap-2">
                           <For each={(project.languages || []).slice(0, 4)}>
@@ -149,7 +154,7 @@ export default function DashboardPage() {
                         onClick={() => navigate(`/projects/${project.id}/settings`)}
                         class="w-full px-4 py-2.5 text-sm font-medium border-2 border-gray-200 text-gray-700 rounded-xl hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 transition-all"
                       >
-                        Manage Project
+                        {t('dashboard.manageProject')}
                       </button>
                     </Show>
                   </div>
