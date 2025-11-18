@@ -23,7 +23,7 @@ export interface Project {
 
 const [projectsKey, refetchProjects] = createSignal(0);
 
-const projectsQuery = query(async () => {
+async function projectsQueryFn() {
   const res = await authFetch('/api/projects?includeLanguages=true', { credentials: 'include' });
   // When the server returns 304, reuse our in-memory cache
   if (!res.ok) {
@@ -35,9 +35,9 @@ const projectsQuery = query(async () => {
   projectsCache.length = 0;
   projectsCache.push(...(data.projects || []));
   return data.projects;
-}, 'projects');
+}
 
-export const [projects] = createResource(projectsKey, () => projectsQuery());
+export const [projects] = createResource(projectsKey, () => projectsQueryFn());
 
 export function refreshProjects() {
   refetchProjects(k => k + 1);
@@ -92,21 +92,6 @@ export async function fetchFilesSummary(projectId: string, language?: string) {
   return data;
 }
 
-export const fetchFilesSummaryQuery = query(async (projectId: string, language?: string) => {
-  let url = `/api/projects/${projectId}/files/summary`;
-  if (language && /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language)) {
-    url += `?lang=${language}`;
-  }
-  const res = await authFetch(url, { credentials: 'include' });
-  if (!res.ok) {
-    if (res.status === 304) return filesSummaryCache.get(url) || { files: [] };
-    throw new Error('Failed to fetch files summary');
-  }
-  const data = await res.json();
-  filesSummaryCache.set(url, data);
-  return data;
-}, 'fetchFilesSummary');
-
 export async function fetchTranslations(projectId: string, language: string, status?: string) {
   const params = new URLSearchParams({ projectId, language });
   if (status) params.append('status', status);
@@ -137,7 +122,12 @@ export async function fetchSuggestions(projectId: string, language: string, key?
   return data;
 }
 
-export const fetchSuggestionsQuery = query(async (projectId: string, language: string) => {
+// Expose "Query" suffixed async functions for existing callers (they no longer rely on @solidjs/router's query primitive)
+export const fetchFilesSummaryQuery = async (projectId: string, language?: string) => {
+  return fetchFilesSummary(projectId, language);
+};
+
+export const fetchSuggestionsQuery = async (projectId: string, language: string) => {
   const params = new URLSearchParams({ projectId, language });
   const url = `/api/translations/suggestions?${params}`;
   const res = await authFetch(url, { credentials: 'include' });
@@ -148,9 +138,9 @@ export const fetchSuggestionsQuery = query(async (projectId: string, language: s
   const data = await res.json() as { suggestions?: any[] };
   suggestionsCache.set(url, data);
   return data;
-}, 'fetchSuggestions');
+};
 
-export const fetchAllProjectsQuery = query(async () => {
+export const fetchAllProjectsQuery = async () => {
   const res = await authFetch('/api/projects/all', { credentials: 'include' });
   if (!res.ok) {
     if (res.status === 304) return projectsCache;
@@ -161,7 +151,7 @@ export const fetchAllProjectsQuery = query(async () => {
   projectsCache.length = 0;
   projectsCache.push(...(data.projects || []));
   return data.projects || [];
-}, 'fetchAllProjects');
+};
 
 export async function fetchMembers(projectId: string) {
   const res = await authFetch(`/api/projects/${projectId}/members`, { credentials: 'include' });
@@ -169,9 +159,80 @@ export async function fetchMembers(projectId: string) {
   return res.json();
 }
 
-export const fetchMembersQuery = query(async (projectId: string) => {
+export const fetchMembersQuery = async (projectId: string) => {
   const res = await authFetch(`/api/projects/${projectId}/members`, { credentials: 'include' });
   if (!res.ok) throw new Error('Failed to fetch members');
   const data = await res.json();
   return data;
-}, 'fetchMembers');
+};
+
+// Factory helpers that must be called inside a Route/component so `query` (which relies on router context)
+// runs in the appropriate scope and can provide its cache/invalidations.
+export function createProjectsQuery() {
+  return query(async () => {
+    const res = await authFetch('/api/projects?includeLanguages=true', { credentials: 'include' });
+    if (!res.ok) {
+      if (res.status === 304) return projectsCache;
+      return [];
+    }
+    const data = await res.json() as { projects: Project[] };
+    projectsCache.length = 0;
+    projectsCache.push(...(data.projects || []));
+    return data.projects;
+  }, 'projects');
+}
+
+export function createFetchFilesSummaryQuery() {
+  return query(async (projectId: string, language?: string) => {
+    let url = `/api/projects/${projectId}/files/summary`;
+    if (language && /^[a-z]{2,3}(-[A-Z]{2})?$/.test(language)) {
+      url += `?lang=${language}`;
+    }
+    const res = await authFetch(url, { credentials: 'include' });
+    if (!res.ok) {
+      if (res.status === 304) return filesSummaryCache.get(url) || { files: [] };
+      throw new Error('Failed to fetch files summary');
+    }
+    const data = await res.json();
+    filesSummaryCache.set(url, data);
+    return data;
+  }, 'fetchFilesSummary');
+}
+
+export function createFetchSuggestionsQuery() {
+  return query(async (projectId: string, language: string) => {
+    const params = new URLSearchParams({ projectId, language });
+    const url = `/api/translations/suggestions?${params}`;
+    const res = await authFetch(url, { credentials: 'include' });
+    if (!res.ok) {
+      if (res.status === 304) return suggestionsCache.get(url) || { suggestions: [] };
+      throw new Error('Failed to fetch suggestions');
+    }
+    const data = await res.json() as { suggestions?: any[] };
+    suggestionsCache.set(url, data);
+    return data;
+  }, 'fetchSuggestions');
+}
+
+export function createFetchAllProjectsQuery() {
+  return query(async () => {
+    const res = await authFetch('/api/projects/all', { credentials: 'include' });
+    if (!res.ok) {
+      if (res.status === 304) return projectsCache;
+      return [];
+    }
+    const data = await res.json() as { projects?: Project[] };
+    projectsCache.length = 0;
+    projectsCache.push(...(data.projects || []));
+    return data.projects || [];
+  }, 'fetchAllProjects');
+}
+
+export function createFetchMembersQuery() {
+  return query(async (projectId: string) => {
+    const res = await authFetch(`/api/projects/${projectId}/members`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Failed to fetch members');
+    const data = await res.json();
+    return data;
+  }, 'fetchMembers');
+}

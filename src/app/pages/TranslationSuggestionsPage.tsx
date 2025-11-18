@@ -2,7 +2,7 @@ import { createSignal, For, Show, onMount, createEffect, createResource } from '
 import { useParams, useNavigate } from '@solidjs/router';
 import { user } from '../auth';
 import { SkeletonListItem } from '../components';
-import { projects, fetchSuggestionsQuery } from '../utils/store';
+import { projects, createFetchSuggestionsQuery } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface TranslationSuggestion {
@@ -47,6 +47,7 @@ export default function TranslationSuggestionsPage() {
   const [error, setError] = createSignal<boolean>(false);
 
   const [suggestionsKey, setSuggestionsKey] = createSignal(0);
+  const fetchSuggestionsQuery = createFetchSuggestionsQuery();
   const [suggestions] = createResource(
     () => ({ projectId: projectId(), language: selectedLanguage() === 'all' ? '' : selectedLanguage(), key: suggestionsKey() }),
     async ({ projectId, language }) => {

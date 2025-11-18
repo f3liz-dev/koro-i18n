@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show, createResource } from 'solid-js';
 import { user } from '../auth';
-import { projects, fetchMembersQuery, refreshProjects } from '../utils/store';
+import { projects, createFetchMembersQuery, refreshProjects } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface Member {
@@ -29,6 +29,7 @@ export default function ProjectSettingsPage() {
   const project = () => (projects() || []).find((p: any) => p.name === params.id) || null;
   const projectId = () => project()?.id || params.id || '';
 
+  const fetchMembersQuery = createFetchMembersQuery();
   const [membersKey, setMembersKey] = createSignal(0);
   const [members] = createResource(
     () => ({ projectId: projectId(), key: membersKey() }),
@@ -224,8 +225,8 @@ export default function ProjectSettingsPage() {
               <button
                 onClick={() => handleAccessControlChange('whitelist')}
                 class={`px-4 py-2.5 text-sm rounded-lg border transition ${project()!.accessControl === 'whitelist'
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white hover:bg-gray-50 active:bg-gray-100 border-gray-300'
+                  ? 'bg-gray-900 text-white border-gray-900'
+                  : 'bg-white hover:bg-gray-50 active:bg-gray-100 border-gray-300'
                   }`}
               >
                 <div class="font-medium">Whitelist</div>
@@ -234,8 +235,8 @@ export default function ProjectSettingsPage() {
               <button
                 onClick={() => handleAccessControlChange('blacklist')}
                 class={`px-4 py-2.5 text-sm rounded-lg border transition ${project()!.accessControl === 'blacklist'
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white hover:bg-gray-50 active:bg-gray-100 border-gray-300'
+                  ? 'bg-gray-900 text-white border-gray-900'
+                  : 'bg-white hover:bg-gray-50 active:bg-gray-100 border-gray-300'
                   }`}
               >
                 <div class="font-medium">Blacklist</div>
@@ -257,8 +258,8 @@ export default function ProjectSettingsPage() {
               <button
                 onClick={() => setActiveTab('approved')}
                 class={`px-4 py-2 text-sm transition ${activeTab() === 'approved'
-                    ? 'border-b-2 border-gray-900 font-medium text-gray-900'
-                    : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
+                  ? 'border-b-2 border-gray-900 font-medium text-gray-900'
+                  : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
                   }`}
               >
                 Approved ({(membersList() as Member[]).filter(m => m.status === 'approved').length})
@@ -266,8 +267,8 @@ export default function ProjectSettingsPage() {
               <button
                 onClick={() => setActiveTab('pending')}
                 class={`px-4 py-2 text-sm transition ${activeTab() === 'pending'
-                    ? 'border-b-2 border-gray-900 font-medium text-gray-900'
-                    : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
+                  ? 'border-b-2 border-gray-900 font-medium text-gray-900'
+                  : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
                   }`}
               >
                 Pending ({(membersList() as Member[]).filter(m => m.status === 'pending').length})
@@ -275,8 +276,8 @@ export default function ProjectSettingsPage() {
               <button
                 onClick={() => setActiveTab('rejected')}
                 class={`px-4 py-2 text-sm transition ${activeTab() === 'rejected'
-                    ? 'border-b-2 border-gray-900 font-medium text-gray-900'
-                    : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
+                  ? 'border-b-2 border-gray-900 font-medium text-gray-900'
+                  : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
                   }`}
               >
                 Rejected ({(membersList() as Member[]).filter(m => m.status === 'rejected').length})

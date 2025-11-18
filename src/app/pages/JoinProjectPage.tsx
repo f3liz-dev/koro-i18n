@@ -1,7 +1,7 @@
 import { useNavigate } from '@solidjs/router';
 import { createSignal, onMount, For, Show, createResource } from 'solid-js';
 import { user } from '../auth';
-import { projects, fetchAllProjectsQuery } from '../utils/store';
+import { projects, createFetchAllProjectsQuery } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
 interface Project {
@@ -17,9 +17,9 @@ export default function JoinProjectPage() {
   const navigate = useNavigate();
   const [requestedProjects, setRequestedProjects] = createSignal<Set<string>>(new Set());
 
-  const [allProjects] = createResource(async () => {
-    return fetchAllProjectsQuery();
-  });
+  const fetchAllProjectsQuery = createFetchAllProjectsQuery();
+
+  const [allProjects] = createResource(async () => fetchAllProjectsQuery());
 
   const myProjectIds = () => (projects() || []).map(p => p.id);
 

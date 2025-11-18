@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { createSignal, onMount, For, Show, createResource, createMemo } from 'solid-js';
 import { user, auth } from '../auth';
-import { projects, fetchFilesSummaryQuery } from '../utils/store';
+import { projects, createFetchFilesSummaryQuery } from '../utils/store';
 import { PageHeader } from '../components';
 import type { MenuItem } from '../components';
 
@@ -34,6 +34,8 @@ export default function FileSelectionPage() {
 
   const project = () => (projects() || []).find((p: any) => p.id === params.id) || null;
   const language = () => params.language || '';
+
+  const fetchFilesSummaryQuery = createFetchFilesSummaryQuery();
 
   const [sourceFiles] = createResource(
     () => params.id,

@@ -1,5 +1,4 @@
-import { createSignal, onMount } from 'solid-js';
-import { query, createAsync } from '@solidjs/router';
+import { createSignal, onMount, createResource } from 'solid-js';
 import { authFetch } from './utils/authFetch';
 
 interface User {
@@ -34,7 +33,7 @@ const fetchUser = async (bypassCache = false) => {
   }
 };
 
-const fetchUserQuery = query(async (bypassCache = false) => {
+export async function fetchUserQuery(bypassCache = false) {
   try {
     const fetchOptions: RequestInit = {
       credentials: 'include',
@@ -47,10 +46,10 @@ const fetchUserQuery = query(async (bypassCache = false) => {
   } catch {
     return null;
   }
-}, 'fetchUser');
+}
 
 const [userRefreshKey, setUserRefreshKey] = createSignal(0);
-const initialUser = createAsync(() => fetchUserQuery(userRefreshKey()), { initialValue: undefined });
+const [initialUser, { refetch: refetchInitialUser }] = createResource(userRefreshKey, () => fetchUserQuery());
 
 // Export user signal for components
 export const user = () => userSignal() || initialUser();
