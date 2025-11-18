@@ -58,10 +58,7 @@
   "joinProject": {
     "title": "Join Project",
     "heading": "Join an Existing Project",
-    "description": "Enter the project ID to join and start translating",
-    "projectId": "Project ID",
-    "projectIdPlaceholder": "Enter project ID",
-    "projectIdHelp": "Get the project ID from the project owner",
+  "description": "Choose a public project to join and start translating",
     "joining": "Joining...",
     "joinProject": "Join Project",
     "noProjectsAvailable": "No projects available",

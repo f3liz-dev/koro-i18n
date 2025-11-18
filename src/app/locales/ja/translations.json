@@ -58,10 +58,7 @@
   "joinProject": {
     "title": "プロジェクトに参加",
     "heading": "既存のプロジェクトに参加",
-    "description": "プロジェクトIDを入力して翻訳を始めましょう 🌸",
-    "projectId": "プロジェクトID",
-    "projectIdPlaceholder": "プロジェクトIDを入力",
-    "projectIdHelp": "プロジェクトオーナーからIDを取得してください",
+  "description": "参加する公開プロジェクトを選択して翻訳を始めましょう 🌸",
     "joining": "参加中...",
     "joinProject": "プロジェクトに参加",
     "noProjectsAvailable": "利用可能なプロジェクトがありません",
