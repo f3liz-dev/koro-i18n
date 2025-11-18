@@ -3,7 +3,7 @@ export function LoadingSpinner() {
     <div class="kawaii-page flex items-center justify-center">
       <div class="text-center kawaii-card" style="padding: 32px;">
         <div
-          style="display: inline-block; width: 40px; height: 40px; border: 3px solid var(--kawaii-pink); border-top-color: var(--kawaii-accent); border-radius: 50%; animation: spin 0.8s linear infinite;"
+          style="display: inline-block; width: 40px; height: 40px; border: 3px solid var(--kawaii-pink-light); border-top-color: var(--kawaii-pink); border-radius: 50%; animation: spin 0.8s linear infinite;"
           role="status"
           aria-label="読み込み中"
         />
