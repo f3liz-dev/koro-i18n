@@ -1,8 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
-import { secureHeaders } from 'hono/secure-headers';
 import { initializePrisma, resolveActualProjectId } from './lib/database';
 import { createAuthRoutes } from './routes/auth';
 import { createTranslationRoutes } from './routes/translations';
@@ -28,10 +26,8 @@ export function createWorkerApp(env: Env) {
   const app = new Hono();
   const prisma = initializePrisma(env.DB);
 
-  app.use('*', logger());
-  app.use('*', secureHeaders());
   app.use('*', cors({
-    origin: env.ENVIRONMENT === 'development' 
+    origin: env.ENVIRONMENT === 'development'
       ? ['http://localhost:5173', 'http://localhost:8787', 'http://localhost:3000']
       : ['https://koro.f3liz.workers.dev'],
     credentials: true,
@@ -80,11 +76,11 @@ export function createWorkerApp(env: Env) {
 async function serveStatic(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   let path = url.pathname;
-  
+
   // Check if this is a request for a static asset (files with extensions in /assets or root-level static files)
-  const isStaticAsset = path.startsWith('/assets/') || 
-                        /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(path);
-  
+  const isStaticAsset = path.startsWith('/assets/') ||
+    /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(path);
+
   // For SPA routes (non-static assets), serve index.html
   if (path === '/' || (!path.startsWith('/api') && !isStaticAsset)) {
     path = '/index.html';
@@ -108,16 +104,16 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
       const url = new URL(request.url);
-      
+
       if (url.pathname.startsWith('/api') || url.pathname === '/health') {
         const app = createWorkerApp(env);
         return await app.fetch(request, env, ctx);
       }
-      
+
       if (env.ASSETS) {
         return await serveStatic(request, env);
       }
-      
+
       return new Response('Frontend not built. Run in dev mode with separate Vite server.', {
         status: 503,
         headers: { 'Content-Type': 'text/plain' },

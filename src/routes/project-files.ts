@@ -21,7 +21,7 @@ const MAX_FILES = 500;
 
 export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono();
-  
+
   // Initialize Rust compute worker (optional)
   let rustWorker = createRustWorker(env);
   if (rustWorker) {
@@ -55,7 +55,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
           workflow: oidcPayload.workflow
         };
       }
-      
+
       return {
         authorized: false,
         error: `Repository mismatch: token is for ${oidcPayload.repository}, but project repository is ${repository}`
@@ -63,14 +63,14 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     } catch (oidcError: any) {
       // Try JWT as fallback (development only)
       const jwtPayload = await verifyJWT(token, jwtSecret);
-      
+
       if (jwtPayload && env.ENVIRONMENT === 'development') {
         const hasAccess = await checkProjectAccess(prisma, projectId, jwtPayload.userId);
         if (hasAccess) {
           return { authorized: true, method: 'JWT', userId: jwtPayload.userId, username: jwtPayload.username };
         }
       }
-      
+
       return {
         authorized: false,
         error: `Authentication failed: ${oidcError.message}`
@@ -85,7 +85,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
 
     const projectName = c.req.param('projectName');
     const body = await c.req.json();
-  const { branch, commitSha, sourceLanguage, files, chunked, allSourceFiles: _allSourceFiles } = body;
+    const { branch, commitSha, sourceLanguage, files, chunked } = body;
 
     if (!files || !Array.isArray(files)) {
       return c.json({ error: 'Missing required field: files' }, 400);
@@ -94,8 +94,6 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     if (files.length > MAX_FILES) {
       return c.json({ error: `Too many files. Max ${MAX_FILES} files per chunk` }, 400);
     }
-
-    // Size and key-count checks are handled by the Rust compute worker when available.
 
     const project = await prisma.project.findUnique({
       where: { name: projectName },
@@ -111,31 +109,6 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       if (!authResult.authorized) {
         console.error(`[upload] Authorization failed: ${authResult.error}`);
         return c.json({ error: authResult.error || 'Unauthorized' }, 403);
-      }
-
-      // Validate that files have required fields for R2 storage
-      for (const file of files) {
-        // New format: client sends pre-packed data (zero CPU)
-        if (file.packedData) {
-          if (typeof file.packedData !== 'string') {
-            return c.json({ 
-              error: `File ${file.filename} (${file.lang}) packedData must be base64 string` 
-            }, 400);
-          }
-          continue; // Skip other validations for pre-packed data
-        }
-        
-        // Old format: validate metadata and sourceHash
-        if (!file.metadata || typeof file.metadata !== 'string') {
-          return c.json({ 
-            error: `File ${file.filename} (${file.lang}) missing preprocessed metadata. Client must send base64-encoded MessagePack metadata.` 
-          }, 400);
-        }
-        if (!file.sourceHash) {
-          return c.json({ 
-            error: `File ${file.filename} (${file.lang}) missing sourceHash` 
-          }, 400);
-        }
       }
 
       // Update project sourceLanguage if provided (only on first chunk or non-chunked upload)
@@ -162,9 +135,8 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       }
 
       // Use Rust worker for upload if available
-  let _uploadedFiles: string[] = [];
       let r2Keys: string[] = [];
-      
+
       if (rustWorker) {
         try {
           console.log(`[upload] Using Rust worker for R2 and D1 operations`);
@@ -175,39 +147,31 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
             files: files.map(file => ({
               lang: file.lang,
               filename: file.filename,
-              contents: file.contents,
+              contents: file.contents, // Optional, if packedData is present
               metadata: file.metadata,
               source_hash: file.sourceHash,
               packed_data: file.packedData,
             })),
           });
-          
-          _uploadedFiles = uploadResult.uploaded_files;
+
           r2Keys = uploadResult.r2_keys;
           console.log(`[upload] Rust worker completed upload of ${files.length} files`);
         } catch (error) {
-          console.error(`[upload] Rust worker upload failed, falling back to TypeScript:`, error);
-          // Fall through to TypeScript fallback
-          rustWorker = null; // Disable for subsequent operations
+          console.error(`[upload] Rust worker upload failed:`, error);
+          return c.json({ error: 'Rust worker upload failed' }, 503);
         }
-      }
-      
-      // The Rust compute worker should handle all R2/D1 uploads. If the worker is not configured
-      // or it failed during the upload call above, reject the request — do not run a TypeScript fallback.
-      if (!rustWorker) {
-        console.error('[upload] Rust compute worker not configured or failed; upload must be handled by Rust worker');
+      } else {
+        console.error('[upload] Rust compute worker not configured; upload cannot be processed');
         return c.json({ error: 'Rust compute worker not configured; upload cannot be processed' }, 503);
       }
 
       // Only process invalidations on the last chunk (or non-chunked upload)
-      // This is the CPU-intensive part
       const invalidationResults: Record<string, { invalidated: number; checked: number }> = {};
-      
+
       if (!chunked || chunked.isLastChunk) {
         console.log(`[upload] Last chunk - processing translation invalidations...`);
-        
+
         // Invalidate outdated translations for source language files
-        // Use Rust worker for batch validation when available (5x faster)
         for (const file of files) {
           if (file.lang === project.sourceLanguage || file.lang === sourceLanguage) {
             const result = await invalidateOutdatedTranslations(
@@ -218,14 +182,13 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
               file.filename,
               rustWorker || undefined
             );
-            
+
             if (result.invalidated > 0) {
               invalidationResults[`${file.lang}/${file.filename}`] = result;
               console.log(`[upload] Invalidated ${result.invalidated}/${result.checked} translations for ${file.lang}/${file.filename}`);
             }
           }
         }
-        
       }
 
       const response: any = {
@@ -254,7 +217,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       return c.json(response);
     } catch (error: any) {
       console.error('[upload] Error:', error);
-      return c.json({ 
+      return c.json({
         error: 'Failed to upload files',
         details: env.ENVIRONMENT === 'development' ? error.message : undefined
       }, 500);
@@ -316,7 +279,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       });
     } catch (error: any) {
       console.error('[cleanup] Error:', error);
-      return c.json({ 
+      return c.json({
         error: 'Failed to cleanup files',
         details: env.ENVIRONMENT === 'development' ? error.message : undefined
       }, 500);
@@ -367,11 +330,11 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     });
 
     // Generate ETag from latest update
-    const latestUpdate = files.length > 0 
+    const latestUpdate = files.length > 0
       ? Math.max(...files.map(f => f.lastUpdated.getTime()))
       : Date.now();
     const serverETag = `"${latestUpdate}"`;
-    
+
     // Check ETag
     const clientETag = c.req.header('If-None-Match');
     if (clientETag === serverETag) {
@@ -443,11 +406,11 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     });
 
     // Generate ETag from latest update
-    const latestUpdate = files.length > 0 
+    const latestUpdate = files.length > 0
       ? Math.max(...files.map(f => f.lastUpdated.getTime()))
       : Date.now();
     const serverETag = `"${latestUpdate}"`;
-    
+
     // Check ETag
     const clientETag = c.req.header('If-None-Match');
     if (clientETag === serverETag) {
@@ -484,30 +447,30 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-  const projectName = c.req.param('projectName');
+    const projectName = c.req.param('projectName');
     const branch = c.req.query('branch') || 'main';
     let lang = c.req.query('lang');
     const filename = c.req.query('filename');
 
-  console.log(`[summary] Request: projectName=${projectName}, lang=${lang}, filename=${filename}`);
+    console.log(`[summary] Request: projectName=${projectName}, lang=${lang}, filename=${filename}`);
 
     let actualProjectId = projectName;
     const project = await prisma.project.findUnique({
       where: { name: projectName },
       select: { repository: true, sourceLanguage: true, id: true },
     });
-    
+
     if (project) {
       actualProjectId = project.repository;
-  console.log(`[summary] Project found: ${project.repository}, sourceLanguage: ${project.sourceLanguage}`);
-      
+      console.log(`[summary] Project found: ${project.repository}, sourceLanguage: ${project.sourceLanguage}`);
+
       // Handle special 'source-language' query parameter
       if (lang === 'source-language') {
         lang = project.sourceLanguage;
         console.log(`[summary] Resolved source-language to: ${lang}`);
       }
     } else {
-    console.log(`[summary] Project not found, using projectName as-is: ${actualProjectId}`);
+      console.log(`[summary] Project not found, using projectName as-is: ${actualProjectId}`);
     }
 
     // Get files from D1
@@ -531,7 +494,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     // Generate ETag
     const latestUpdate = Math.max(...files.map(f => f.lastUpdated.getTime()));
     const serverETag = `"${latestUpdate}"`;
-    
+
     // Check ETag
     const clientETag = c.req.header('If-None-Match');
     if (clientETag === serverETag) {
@@ -546,12 +509,12 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       // For target language files (not source language):
       // If the file exists in R2, all keys are translated (from GitHub)
       // Web translations are overrides, not additions to the count
-      
+
       // Check if this is a source language file
       // The source language should match the lang field (e.g., 'en' === 'en')
       const sourceLanguage = project?.sourceLanguage || 'en';
       const isSourceLanguage = f.lang === sourceLanguage;
-      
+
       // For source files: translatedKeys = 0 (they are the source)
       // For target files: translatedKeys = totalKeys (all keys are translated if file exists)
       const translatedKeys = isSourceLanguage ? 0 : f.totalKeys;
@@ -588,7 +551,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     const payload = await requireAuth(c, env.JWT_SECRET);
     if (payload instanceof Response) return payload;
 
-  const projectName = c.req.param('projectName');
+    const projectName = c.req.param('projectName');
     const branch = c.req.query('branch') || 'main';
     let lang = c.req.query('lang');
     const filename = c.req.query('filename');
@@ -598,10 +561,10 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       where: { name: projectName },
       select: { repository: true, sourceLanguage: true },
     });
-    
+
     if (project) {
       actualProjectId = project.repository;
-      
+
       // Handle special 'source-language' query parameter
       if (lang === 'source-language') {
         lang = project.sourceLanguage;
@@ -625,7 +588,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
     // Generate ETag
     const latestUpdate = Math.max(...files.map(f => f.lastUpdated.getTime()));
     const serverETag = `"${latestUpdate}"`;
-    
+
     // Check ETag
     const clientETag = c.req.header('If-None-Match');
     if (clientETag === serverETag) {
@@ -635,7 +598,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
       });
     }
 
-    const response = c.json({ 
+    const response = c.json({
       files: files.map(f => ({
         id: f.id,
         filename: f.filename,
@@ -646,7 +609,7 @@ export function createProjectFileRoutes(prisma: PrismaClient, env: Env) {
         totalKeys: f.totalKeys,
         uploadedAt: f.uploadedAt,
       })),
-  note: 'Use /api/r2/:projectName/:lang/:filename to get actual file contents'
+      note: 'Use /api/r2/:projectName/:lang/:filename to get actual file contents'
     });
 
     response.headers.set('ETag', serverETag);

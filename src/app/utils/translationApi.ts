@@ -1,10 +1,10 @@
 import { authFetch } from './authFetch';
-import type { 
-  R2FileData, 
-  GitBlameInfo, 
+import type {
+  R2FileData,
+  GitBlameInfo,
   CharRange,
   WebTranslation as SharedWebTranslation,
-  MergedTranslation as SharedMergedTranslation 
+  MergedTranslation as SharedMergedTranslation
 } from '../../../shared/types';
 
 // Re-export shared types for convenience
@@ -28,12 +28,12 @@ export async function fetchR2File(
       lang,
       filename,
     });
-    
+
     const metadataResponse = await authFetch(
       `/api/projects/${encodeURIComponent(projectName)}/files?${params}`,
       { credentials: 'include' }
     );
-    
+
     // Handle conditional response (ETag) and standard errors
     if (!metadataResponse.ok) {
       if (metadataResponse.status === 404) return null;
@@ -45,20 +45,20 @@ export async function fetchR2File(
       }
       throw new Error('Failed to fetch file metadata');
     }
-    
+
     const metadata = await metadataResponse.json() as { files?: Array<{ r2Key: string }> };
     const fileInfo = metadata.files?.[0];
-    
+
     if (!fileInfo?.r2Key) {
       return null;
     }
-    
+
     // Now fetch the actual file data using the r2Key
     const response = await authFetch(
       `/api/r2/by-key/${encodeURIComponent(fileInfo.r2Key)}`,
       { credentials: 'include' }
     );
-    
+
     // Allow callers to handle 304 (not modified) by returning null so they can
     // reuse cached R2 content if they maintain one.
     if (!response.ok) {
@@ -66,7 +66,7 @@ export async function fetchR2File(
       if (response.status === 304) return null;
       throw new Error('Failed to fetch R2 file');
     }
-    
+
     // Parse main file data
     const fileData = await response.json() as R2FileData;
 
@@ -81,14 +81,25 @@ export async function fetchR2File(
       );
       if (miscResp.ok) {
         const miscJson = await miscResp.json() as { metadata?: any };
-        fileData.metadata = miscJson.metadata ?? emptyMetadata;
+        // Merge misc metadata into existing metadata
+        fileData.metadata = {
+          ...emptyMetadata,
+          ...(fileData.metadata || {}),
+          ...(miscJson.metadata || {})
+        };
       } else {
         // Not found or not ok -> use existing metadata if present, otherwise empty shape
-        fileData.metadata = (fileData.metadata as any) ?? emptyMetadata;
+        fileData.metadata = {
+          ...emptyMetadata,
+          ...(fileData.metadata || {})
+        };
       }
     } catch (err) {
       // Network or parse error - preserve main file data and ensure metadata shape
-      fileData.metadata = (fileData.metadata as any) ?? emptyMetadata;
+      fileData.metadata = {
+        ...emptyMetadata,
+        ...(fileData.metadata || {})
+      };
       console.warn('[R2] Failed to fetch misc metadata:', err);
     }
 
@@ -114,12 +125,12 @@ export async function fetchWebTranslations(
       filename,
       status: 'approved',
     });
-    
+
     const response = await authFetch(
       `/api/translations?${params}`,
       { credentials: 'include' }
     );
-    
+
     // Handle conditional requests (ETag)
     if (!response.ok) {
       if (response.status === 304) {
@@ -128,7 +139,7 @@ export async function fetchWebTranslations(
       }
       throw new Error('Failed to fetch web translations');
     }
-    
+
     const data = await response.json() as { translations?: WebTranslation[] };
     return data.translations || [];
   } catch (error) {
@@ -155,7 +166,7 @@ export function mergeTranslations(
 
   for (const [key, sourceValue] of Object.entries(r2Data.raw)) {
     const webTrans = webTransMap.get(key);
-    
+
     merged.push({
       key,
       sourceValue: String(sourceValue),
@@ -198,17 +209,17 @@ export function mergeTranslationsWithSource(
   for (const [key, sourceValue] of Object.entries(sourceR2Data.raw)) {
     const webTrans = webTransMap.get(key);
     const targetValue = targetMap.get(key);
-    
+
     // Priority: web translation > target R2 > empty (don't use source as fallback)
     // If there's no translation, leave it empty so users know to translate it
     const currentValue = webTrans?.value || (targetValue ? String(targetValue) : '');
-    
+
     // isValid flag:
     // - Git-imported translations (from R2) are always valid
     // - Web translations use their isValid flag (can be invalidated if source changed)
     // - Empty translations (no translation yet) are still "valid" (just not translated)
     const isValid = webTrans ? webTrans.isValid : true;
-    
+
     merged.push({
       key,
       sourceValue: String(sourceValue),

@@ -1,15 +1,13 @@
 import { useNavigate } from '@solidjs/router';
 import { createEffect, For, Show } from 'solid-js';
-import { user, auth } from '../auth';
+import { useAuth } from '../auth';
 import { SkeletonCard, LanguageSelector } from '../components';
 import { projects, refreshProjects } from '../utils/store';
-import { authFetch } from '../utils/authFetch';
-import { PageHeader } from '../components';
-import type { MenuItem } from '../components';
 import { useI18n } from '../utils/i18n';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { t } = useI18n();
 
   createEffect(() => {
@@ -18,185 +16,115 @@ export default function DashboardPage() {
 
   refreshProjects();
 
-  const handleLogout = async () => {
-    await auth.logout();
-  };
-
-  const _handleDeleteProject = async (projectName: string) => {
-    if (!confirm(t('dashboard.deleteConfirm'))) return;
-
-    try {
-  const res = await authFetch(`/api/projects/${projectName}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (res.ok) {
-        refreshProjects();
-      } else {
-        const data = await res.json() as { error?: string };
-        alert(data.error || 'Failed to delete project');
-      }
-    } catch (error) {
-      console.error('Failed to delete project:', error);
-      alert('Failed to delete project');
-    }
-  };
-
-  const menuItems: MenuItem[] = [
-    {
-      label: t('dashboard.createProject'),
-      onClick: () => navigate('/projects/create'),
-    },
-    {
-      label: t('dashboard.joinProject'),
-      onClick: () => navigate('/projects/join'),
-    },
-    {
-      label: t('dashboard.history'),
-      onClick: () => navigate('/history'),
-    },
-    {
-      label: t('common.logout'),
-      onClick: handleLogout,
-    },
-  ];
-
   return (
-    <div class="page" style="min-height: 100vh;">
-      <PageHeader
-        title={t('common.appName')}
-        subtitle={`<span style="color: var(--color-gray-500);">/</span> <span style="font-size: 0.813rem; color: var(--color-gray-500);">${user()?.username}</span>`}
-        logo={true}
-        menuItems={menuItems}
-      />
-
-      <div class="container animate-fade-in">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2.5rem; flex-wrap: wrap; gap: 1rem;">
-          <div>
-            <h2 style="font-size: 1.875rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.375rem;">{t('dashboard.title')}</h2>
-            <p style="color: var(--color-text-secondary); font-size: 0.875rem; line-height: 1.6;">{t('dashboard.subtitle')}</p>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <LanguageSelector />
-            <button
-              onClick={() => navigate('/projects/create')}
-              class="btn primary"
-              style="border-radius: var(--radius);"
-            >
-              {t('dashboard.newProject')}
-            </button>
-          </div>
+    <div class="flex flex-col gap-8">
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h2 class="text-3xl font-serif font-bold text-neutral-800 mb-2">
+            {t('dashboard.title')}
+          </h2>
+          <p class="text-neutral-500">
+            {t('dashboard.subtitle')}
+          </p>
         </div>
-        
-        <Show when={projects.loading}>
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); gap: 1.25rem;">
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
+        <div class="flex items-center gap-3">
+          <LanguageSelector />
+          <button
+            onClick={() => navigate('/projects/create')}
+            class="btn-primary"
+          >
+            <div class="i-carbon-add text-lg" />
+            <span>{t('dashboard.newProject')}</span>
+          </button>
+        </div>
+      </div>
+
+      <Show when={projects.loading}>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </Show>
+
+      <Show when={!projects.loading && (projects() || []).length === 0}>
+        <div class="card flex flex-col items-center justify-center py-16 text-center">
+          <div class="w-24 h-24 bg-neutral-50 rounded-full flex items-center justify-center mb-6">
+            <div class="i-carbon-folder text-4xl text-neutral-300" />
           </div>
-        </Show>
+          <h3 class="text-xl font-bold text-neutral-800 mb-2">{t('dashboard.noProjectsYet')}</h3>
+          <p class="text-neutral-500 mb-8 max-w-md">{t('dashboard.noProjectsDescription')}</p>
+          <button
+            onClick={() => navigate('/projects/create')}
+            class="btn-primary"
+          >
+            {t('dashboard.createProject')}
+          </button>
+        </div>
+      </Show>
 
-        <Show when={!projects.loading && (projects() || []).length === 0}>
-          <div class="card empty-state">
-            <div class="icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div class="title">{t('dashboard.noProjectsYet')}</div>
-            <div class="description">{t('dashboard.noProjectsDescription')}</div>
-            <button
-              onClick={() => navigate('/projects/create')}
-              class="btn primary"
-            >
-              {t('dashboard.createProject')}
-            </button>
-          </div>
-        </Show>
+      <Show when={!projects.loading && (projects() || []).length > 0}>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <For each={projects()}>
+            {(project) => {
+              const isOwner = () => project.userId === user()?.id;
 
-        <Show when={!projects.loading && (projects() || []).length > 0}>
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); gap: 1.5rem;">
-            <For each={projects()}>
-              {(project) => {
-                const isOwner = () => project.userId === user()?.id;
+              return (
+                <div
+                  class="card hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                  onClick={() => navigate(`/projects/${project.name}`)}
+                >
+                  <div class="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 class="text-lg font-bold text-neutral-800 group-hover:text-primary-500 transition-colors mb-1">
+                        {project.name}
+                      </h3>
+                      <code class="text-xs bg-neutral-100 text-neutral-500 px-2 py-1 rounded border border-neutral-200">
+                        {project.repository}
+                      </code>
+                    </div>
+                    <div class="i-carbon-arrow-right text-neutral-300 group-hover:text-primary-400 transition-colors" />
+                  </div>
 
-                return (
-                  <div class="card hover-lift transition-all" style="cursor: pointer;">
-                    <button
-                      onClick={() => navigate(`/projects/${project.name}`)}
-                      style="
-                        width: 100%;
-                        text-align: left;
-                        background: none;
-                        border: none;
-                        cursor: pointer;
-                        padding: 0;
-                        margin-bottom: 1rem;
-                      "
-                    >
-                      <div style="margin-bottom: 1rem;">
-                        <h3 class="project-title" style="
-                          font-size: 1.125rem;
-                          font-weight: 600;
-                          color: var(--color-text-primary);
-                          margin-bottom: 0.625rem;
-                          transition: var(--transition);
-                        ">{project.name}</h3>
-                        <code style="
-                          font-size: 0.75rem;
-                          color: var(--color-text-secondary);
-                          background: var(--color-cream);
-                          padding: 0.375rem 0.625rem;
-                          border-radius: var(--radius);
-                          display: inline-block;
-                          border: var(--border);
-                        ">{project.repository}</code>
-                      </div>
-                      <Show when={(project.languages || []).length > 0} fallback={
-                        <div style="font-size: 0.813rem; color: var(--color-text-muted); font-style: italic; padding: 0.5rem 0;">{t('dashboard.noFilesUploaded')}</div>
-                      }>
-                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                          <For each={(project.languages || []).slice(0, 4)}>
-                            {(lang) => (
-                              <span class="badge primary">
-                                {lang.toUpperCase()}
-                              </span>
-                            )}
-                          </For>
-                          <Show when={(project.languages || []).length > 4}>
-                            <span class="badge">
-                              +{(project.languages || []).length - 4}
+                  <div class="mb-6">
+                    <Show when={(project.languages || []).length > 0} fallback={
+                      <div class="text-sm text-neutral-400 italic">{t('dashboard.noFilesUploaded')}</div>
+                    }>
+                      <div class="flex flex-wrap gap-2">
+                        <For each={(project.languages || []).slice(0, 4)}>
+                          {(lang) => (
+                            <span class="px-2 py-1 text-xs font-bold rounded-md bg-primary-50 text-primary-600 border border-primary-100">
+                              {lang.toUpperCase()}
                             </span>
-                          </Show>
-                        </div>
-                      </Show>
-                    </button>
-                    <Show when={isOwner()}>
-                      <button
-                        onClick={() => navigate(`/projects/${project.name}/settings`)}
-                        class="btn"
-                        style="width: 100%; justify-content: center; border-radius: var(--radius);"
-                      >
-                        {t('dashboard.manageProject')}
-                      </button>
+                          )}
+                        </For>
+                        <Show when={(project.languages || []).length > 4}>
+                          <span class="px-2 py-1 text-xs font-medium rounded-md bg-neutral-100 text-neutral-500">
+                            +{(project.languages || []).length - 4}
+                          </span>
+                        </Show>
+                      </div>
                     </Show>
                   </div>
-                );
-              }}
-            </For>
-          </div>
-        </Show>
-      </div>
-      
-      <style>{`
-        .project-title {
-          transition: var(--transition);
-        }
-        .card:hover .project-title {
-          color: var(--color-accent-peach);
-        }
-      `}</style>
+
+                  <Show when={isOwner()}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/projects/${project.name}/settings`);
+                      }}
+                      class="w-full py-2 rounded-xl border border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:text-primary-500 hover:border-primary-200 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <div class="i-carbon-settings" />
+                      <span>{t('dashboard.manageProject')}</span>
+                    </button>
+                  </Show>
+                </div>
+              );
+            }}
+          </For>
+        </div>
+      </Show>
     </div>
   );
 }

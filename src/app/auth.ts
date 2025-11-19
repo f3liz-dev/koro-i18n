@@ -15,12 +15,12 @@ const [error, setError] = createSignal<string | null>(null);
 
 const _fetchUser = async (bypassCache = false) => {
   try {
-    const fetchOptions: RequestInit = { 
+    const fetchOptions: RequestInit = {
       credentials: 'include',
       // Use 'reload' cache mode to bypass cache if needed
       ...(bypassCache ? { cache: 'reload' } : {})
     };
-    
+
     const res = await authFetch(`${API}/auth/me`, fetchOptions);
     if (!res.ok) return null;
     const data: any = await res.json();
@@ -89,4 +89,15 @@ export const auth = {
   clearError() {
     setError(null);
   },
+};
+
+export const useAuth = () => {
+  return {
+    user,
+    login: auth.login,
+    logout: auth.logout,
+    refresh: auth.refresh,
+    error: auth.error,
+    isAuthenticated: () => !!user(),
+  };
 };

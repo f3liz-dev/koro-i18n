@@ -144,6 +144,39 @@ pub fn sort_items(items: &mut Vec<serde_json::Value>, sort_by: &str, order: &str
     });
 }
 
+// Pre-calculate and cache complex responses or metadata
+async fn pre_cache_file_metadata(
+    bucket: &Bucket, 
+    project_id: &str, 
+    lang: &str, 
+    filename: &str, 
+    keys: usize, 
+    source_hash: &str
+) -> Result<()> {
+    // Create a lightweight metadata object for fast listing/filtering
+    let cache_key = format!("meta-{}-{}-{}", project_id, lang, filename);
+    let metadata = serde_json::json!({
+        "projectId": project_id,
+        "lang": lang,
+        "filename": filename,
+        "keys": keys,
+        "sourceHash": source_hash,
+        "updatedAt": chrono::Utc::now().to_rfc3339()
+    });
+    
+    // Store in R2 with short TTL or just rely on R2's speed
+    // This avoids hitting D1 for simple file existence checks
+    bucket.put(&cache_key, serde_json::to_vec(&metadata)?)
+        .http_metadata(worker::HttpMetadata { 
+            content_type: Some("application/json".to_string()), 
+            ..Default::default() 
+        })
+        .execute()
+        .await?;
+        
+    Ok(())
+}
+
 async fn handle_upload(mut req: Request, env: &Env, _ctx: &Context) -> Result<Response> {
     let upload_req: UploadRequest = req.json().await?;
     let bucket = env.bucket("TRANSLATION_BUCKET")?;
@@ -177,8 +210,8 @@ async fn handle_upload(mut req: Request, env: &Env, _ctx: &Context) -> Result<Re
         let key = generate_r2_key(&upload_req.project_id, &f.lang, &f.filename);
         let decoded = BASE64.decode(f.packed_data.as_ref().unwrap())
             .map_err(|e| worker::Error::RustError(format!("Failed to decode packed data: {}", e)))?;
-        let mut main_bytes = decoded.clone();
-        let mut misc_key: Option<String> = None;
+        let main_bytes = decoded.clone();
+        let misc_key: Option<String> = None;
 
 
         let mut meta = std::collections::HashMap::new();
@@ -202,6 +235,12 @@ async fn handle_upload(mut req: Request, env: &Env, _ctx: &Context) -> Result<Re
         }
 
         let (keys, _) = count_keys_and_bytes(f).unwrap_or((0,0));
+        
+        // Dynamic Pre-cache: Store lightweight metadata in R2 for fast access
+        if let Err(e) = pre_cache_file_metadata(&bucket, &upload_req.project_id, &f.lang, &f.filename, keys, &f.source_hash).await {
+            console_log!("Failed to pre-cache metadata for {}: {}", f.filename, e);
+        }
+
         d1_records.push(D1FileRecord {
             id: Uuid::new_v4().to_string(),
             project_id: upload_req.project_id.clone(),

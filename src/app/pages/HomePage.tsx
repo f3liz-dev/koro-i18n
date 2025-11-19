@@ -1,70 +1,68 @@
 import { useNavigate } from '@solidjs/router';
-import { user } from '../auth';
+import { useAuth } from '../auth';
 import { useI18n } from '../utils/i18n';
 import { LanguageSelector } from '../components';
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { t } = useI18n();
 
   return (
-    <div class="page" style="display: flex; align-items: center; justify-content: center; padding: 1.5rem;">
-      <div style="position: absolute; top: 1.5rem; right: 1.5rem;">
+    <div class="flex flex-col items-center justify-center min-h-[80vh] relative">
+      <div class="absolute top-4 right-4">
         <LanguageSelector />
       </div>
-      <div class="animate-slide-up" style="text-align: center; max-width: 42rem; margin: 0 auto;">
-        <div style="margin-bottom: 2.5rem; display: flex; justify-content: center;">
-          <div style="
-            padding: 1.25rem;
-            background: var(--color-bg-surface);
-            border-radius: var(--radius-xl);
-            box-shadow: var(--shadow-soft);
-            border: var(--border);
-          ">
-            <img 
-              src="/logo.png" 
-              alt="Koro i18n" 
-              style="width: 8rem; height: 8rem; object-fit: contain; display: block;"
-            />
+
+      <div class="text-center max-w-2xl mx-auto animate-fade-in-up">
+        <div class="mb-8 flex justify-center">
+          <div class="p-8 bg-white rounded-full shadow-lg border-4 border-primary-100 transform hover:scale-105 transition-transform duration-300">
+            <div class="text-8xl filter drop-shadow-md">🐱</div>
           </div>
         </div>
-        
-        <h1 style="
-          font-size: 3rem;
-          font-weight: 600;
-          margin-bottom: 1rem;
-          letter-spacing: -0.01em;
-          color: var(--color-text-primary);
-        ">
-          {t('home.title')}
+
+        <h1 class="text-5xl md:text-6xl font-serif font-bold mb-6 text-neutral-800 tracking-tight">
+          <span class="text-primary-500">Koro</span> i18n
         </h1>
-        <p style="
-          font-size: 1.125rem;
-          color: var(--color-text-secondary);
-          margin-bottom: 2.5rem;
-          font-weight: 400;
-          line-height: 1.7;
-        ">
-          {t('home.subtitle')}
+
+        <p class="text-xl text-neutral-600 mb-10 leading-relaxed max-w-lg mx-auto">
+          {t('home.subtitle') || 'The cutest way to manage your translations. Simple, fast, and purr-fectly organized.'}
         </p>
-        
-        {user() ? (
-          <button
-            onClick={() => navigate('/dashboard')}
-            class="btn primary"
-            style="padding: 1rem 2.5rem; font-size: 1rem; border-radius: var(--radius-lg);"
-          >
-            {t('home.goToDashboard')}
-          </button>
-        ) : (
-          <button
-            onClick={() => navigate('/login')}
-            class="btn primary"
-            style="padding: 1rem 2.5rem; font-size: 1rem; border-radius: var(--radius-lg);"
-          >
-            {t('home.signInWithGitHub')}
-          </button>
-        )}
+
+        <div class="flex flex-col items-center gap-4">
+          {user() ? (
+            <button
+              onClick={() => navigate('/dashboard')}
+              class="btn-primary text-lg px-8 py-4 shadow-xl shadow-primary-200 hover:shadow-primary-300 transform hover:-translate-y-1"
+            >
+              <span>{t('home.goToDashboard')}</span>
+              <div class="i-carbon-arrow-right" />
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/login')}
+              class="btn-primary text-lg px-8 py-4 shadow-xl shadow-primary-200 hover:shadow-primary-300 transform hover:-translate-y-1"
+            >
+              <div class="i-carbon-logo-github text-xl" />
+              <span>{t('home.signInWithGitHub')}</span>
+            </button>
+          )}
+
+          <div class="mt-8 flex gap-8 text-neutral-400">
+            <div class="flex flex-col items-center gap-2">
+              <div class="i-carbon-flash text-2xl text-primary-300" />
+              <span class="text-xs font-medium">Fast</span>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+              <div class="i-carbon-cloud text-2xl text-primary-300" />
+              <span class="text-xs font-medium">Cloudflare</span>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+              <div class="i-carbon-favorite text-2xl text-primary-300" />
+              <span class="text-xs font-medium">Free</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
