@@ -5,8 +5,6 @@ import { initializePrisma, resolveActualProjectId } from './lib/database';
 import { createAuthRoutes } from './routes/auth';
 import { createTranslationRoutes } from './routes/translations';
 import { createProjectRoutes } from './routes/projects';
-import { createProjectFileRoutes } from './routes/project-files';
-import { createR2FileRoutes } from './routes/r2-files';
 import { CACHE_CONFIGS, buildCacheControl } from './lib/cache-headers';
 import { etagMiddleware } from './lib/etag-middleware';
 
@@ -20,6 +18,9 @@ interface Env {
   PLATFORM_URL?: string;
   COMPUTE_WORKER_URL?: string; // Optional Rust compute worker URL
   ASSETS?: Fetcher;
+  Variables: {
+    user: any;
+  };
 }
 
 export function createWorkerApp(env: Env) {
@@ -40,8 +41,6 @@ export function createWorkerApp(env: Env) {
   app.route('/api/auth', createAuthRoutes(prisma, env));
   app.route('/api/translations', createTranslationRoutes(prisma, env));
   app.route('/api/projects', createProjectRoutes(prisma, env));
-  app.route('/api/projects', createProjectFileRoutes(prisma, env));
-  app.route('/api/r2', createR2FileRoutes(prisma, env));
 
   app.get('/api/logs/history', async (c) => {
     const projectName = c.req.query('projectName');

@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { Octokit } from '@octokit/rest';
-import { PrismaClient } from '../generated/prisma/';
-import { createJWT, requireAuth } from '../lib/auth';
+import { PrismaClient } from '@prisma/client';
+import { createJWT, authMiddleware } from '../lib/auth';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 
 interface Env {
@@ -12,10 +12,13 @@ interface Env {
   GITHUB_CLIENT_SECRET: string;
   JWT_SECRET: string;
   ENVIRONMENT: string;
+  Variables: {
+    user: any;
+  };
 }
 
 export function createAuthRoutes(prisma: PrismaClient, env: Env) {
-  const app = new Hono();
+  const app = new Hono<{ Bindings: Env }>();
 
   const oauth = createOAuthAppAuth({
     clientType: 'oauth-app',
@@ -110,15 +113,14 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
     }
   });
 
-  app.get('/me', async (c) => {
-    const payload = await requireAuth(c, env.JWT_SECRET);
-    if (payload instanceof Response) return payload;
+  app.get('/me', authMiddleware, async (c) => {
+    const user = c.get('user');
 
     const response = c.json({
       user: {
-        id: payload.userId,
-        username: payload.username,
-        githubId: payload.githubId,
+        id: user.userId,
+        username: user.username,
+        githubId: user.githubId,
       },
     });
     response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.auth));

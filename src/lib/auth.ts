@@ -1,12 +1,17 @@
 import { Context } from 'hono';
 import { getCookie, deleteCookie } from 'hono/cookie';
 import { SignJWT, jwtVerify } from 'jose';
+import { createMiddleware } from 'hono/factory';
+import { verifyGitHubOIDCToken } from '../oidc';
 
 export interface AuthPayload {
   userId: string;
   username: string;
   githubId: number;
   accessToken?: string;
+  repository?: string;
+  actor?: string;
+  workflow?: string;
 }
 
 const toKey = (secret: string) => new TextEncoder().encode(secret);
@@ -49,15 +54,50 @@ export const extractToken = (c: Context): string | undefined => {
   return undefined;
 };
 
-export async function requireAuth(c: Context, secret: string): Promise<AuthPayload | Response> {
-  const token = extractToken(c);
-  if (!token) return c.json({ error: 'Unauthorized' }, 401);
+type Env = {
+  Variables: {
+    user: AuthPayload;
+  };
+  Bindings: {
+    JWT_SECRET: string;
+    PLATFORM_URL?: string;
+  };
+};
 
-  const payload = await verifyJWT(token, secret);
+export const authMiddleware = createMiddleware<Env>(async (c, next) => {
+  const token = extractToken(c);
+  if (!token) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const secret = c.env.JWT_SECRET;
+  let payload = await verifyJWT(token, secret);
+
+  if (!payload) {
+    try {
+      const platformUrl = c.env.PLATFORM_URL || 'https://koro.f3liz.workers.dev';
+      // We don't know the repository yet, so we can't validate it here strictly against a project
+      // But we verify the token is valid from GitHub.
+      // The route handler should check if the repository matches the project.
+      const oidc = await verifyGitHubOIDCToken(token, platformUrl);
+      payload = {
+        userId: 'oidc-user',
+        username: oidc.actor,
+        githubId: 0,
+        repository: oidc.repository,
+        actor: oidc.actor,
+        workflow: oidc.workflow,
+      };
+    } catch (e) {
+      // Ignore
+    }
+  }
+
   if (!payload) {
     deleteCookie(c, 'auth_token');
     return c.json({ error: 'Invalid token' }, 401);
   }
 
-  return payload;
-}
+  c.set('user', payload);
+  await next();
+});

@@ -24,12 +24,14 @@
     "logs:rust": "cd rust-worker && wrangler tail"
   },
   "dependencies": {
+    "@hono/standard-validator": "^0.2.0",
     "@msgpack/msgpack": "^3.1.2",
     "@octokit/auth-oauth-app": "^9.0.3",
     "@octokit/rest": "^22.0.1",
     "@prisma/adapter-d1": "^6.19.0",
     "@prisma/client": "^6.19.0",
     "@solidjs/router": "^0.15.3",
+    "@standard-schema/spec": "^1.0.0",
     "fp-ts": "^2.16.11",
     "hono": "^4.6.3",
     "io-ts": "^2.2.22",

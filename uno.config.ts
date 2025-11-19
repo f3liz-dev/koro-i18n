@@ -69,3 +69,4 @@ export default defineConfig({
     'card': 'bg-white rounded-2xl shadow-sm border border-neutral-100 p-6',
     'input': 'w-full px-4 py-2 rounded-xl border border-neutral-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition-all duration-200 bg-neutral-50 focus:bg-white',
   },
+})

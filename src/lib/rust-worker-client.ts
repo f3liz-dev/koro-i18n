@@ -44,10 +44,10 @@ export interface UploadRequest {
 export interface FileToUpload {
   lang: string;
   filename: string;
-  contents: Record<string, any>;
-  metadata: string;
+  contents: string | Record<string, any> | undefined;
+  metadata: string | Record<string, any> | undefined;
   source_hash: string;
-  packed_data?: string;
+  packed_data?: string | number[];
 }
 
 export interface UploadResponse {
@@ -298,7 +298,7 @@ export class RustComputeWorker {
  */
 export function createRustWorker(env: { COMPUTE_WORKER_URL?: string }): RustComputeWorker | null {
   const workerUrl = env.COMPUTE_WORKER_URL;
-  
+
   if (!workerUrl) {
     console.warn('[RustWorker] COMPUTE_WORKER_URL not configured, Rust worker will not be used');
     return null;
