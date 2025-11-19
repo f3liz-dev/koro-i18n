@@ -416,7 +416,7 @@ async fn handle_upload_misc_git(mut req: Request, env: &Env, _ctx: &Context) -> 
             }
             Err(e) => {
                 // Log but continue
-                    worker::console_log!("[misc-git] failed to update D1 miscR2Key: {}", e);
+                worker::console_log!("[misc-git] failed to update D1 miscR2Key: {}", e);
             }
         }
     } else {
