@@ -39,9 +39,9 @@ model OauthState {
   @@index([expiresAt])
 }
 
--- R2 File Index (GitHub imports - mutable, stored in R2)
--- This table stores metadata and pointers to R2, not the actual file contents
--- Files are OVERWRITTEN on each upload, git history is in the metadata
+// R2 File Index (GitHub imports - mutable, stored in R2)
+// This table stores metadata and pointers to R2, not the actual file contents
+// Files are OVERWRITTEN on each upload, git history is in the metadata
 model R2File {
   id          String   @id
   projectId   String
