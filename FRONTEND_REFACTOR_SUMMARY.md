@@ -7,6 +7,7 @@ This rewrite focused on removing over-engineered performance optimizations and c
 
 - Removed custom prefetch & predictive utilities and deferred rendering.
 - Replaced complex `dataStore` caching with `createResource` + backend caching.
+ - Simplified UI: added `SimpleLayout` and `minimal.css` to present a modern, minimal theme; replaced `kawaii-` themed helpers across pages with simpler classes like `panel`, `ghost`, `icon` to reduce CSS surface area.
   
 ### Complex State Management (Removed ~414 lines)
 - **dataStore.ts** - Replaced 414-line complex caching system with 90-line simple store
@@ -73,6 +74,11 @@ These pages still reference the old `dataStore`:
 
 5. **TranslationSuggestionsPage.tsx** (464 lines)
    - Migrate `suggestionsCache` to `createResource`
+
+   ### UI Minimalism (new)
+   1. Consolidate `main.css` and `minimal.css` removing unused `kawaii-` token-rich styles; `main.css` is now retired and `minimal.css` is the default style.
+   2. Continue converting components to the new theme (replace `kawaii-` classes and reduce custom tokens).
+   3. Add optional theme toggle for users to switch between "simple" and "kawaii" themes during migration.
 
 ### Pattern to Follow
 ```typescript

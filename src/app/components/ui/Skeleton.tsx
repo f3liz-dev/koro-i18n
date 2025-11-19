@@ -86,7 +86,7 @@ interface SkeletonPanelProps {
 
 export function SkeletonPanel(props: SkeletonPanelProps) {
   return (
-    <div class={`kawaii-panel p-4 ${props.className || ''}`}>
+    <div class={`panel p-4 ${props.className || ''}`}>
       <Skeleton width="50%" height="1rem" className="mb-4" />
       <div class="space-y-3">
         <div>
@@ -110,7 +110,7 @@ interface SkeletonTableRowProps {
 export function SkeletonTableRow(props: SkeletonTableRowProps) {
   const columns = props.columns || 3;
   return (
-    <div class={`kawaii-card p-4 flex items-center justify-between ${props.className || ''}`}>
+    <div class={`card p-4 flex items-center justify-between ${props.className || ''}`}>
       <div class="flex items-center gap-3 flex-1">
         <Skeleton width="2.5rem" height="2.5rem" rounded="full" />
         <div class="flex-1">

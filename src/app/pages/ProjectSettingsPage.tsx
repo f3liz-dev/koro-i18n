@@ -171,14 +171,14 @@ export default function ProjectSettingsPage() {
   return (
     <div class="page min-h-screen">
       {/* Header */}
-  <div class="kawaii-header border-b">
+  <div class="panel border-b">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div class="flex items-center gap-3">
 
             <button
 
               onClick={() => navigate(`/projects/${params.projectName}`)}
-              class="kawaii-ghost"
+              class="btn ghost"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -213,14 +213,14 @@ export default function ProjectSettingsPage() {
             <div class="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => handleAccessControlChange('whitelist')}
-                class={`btn ${project()!.accessControl === 'whitelist' ? 'selected' : 'kawaii-ghost'}`}
+                class={`btn ${project()!.accessControl === 'whitelist' ? 'selected' : 'ghost'}`}
               >
                 <div class="font-medium">Whitelist</div>
                 <div class="text-xs opacity-80">Approve users to join</div>
               </button>
               <button
                 onClick={() => handleAccessControlChange('blacklist')}
-                class={`btn ${project()!.accessControl === 'blacklist' ? 'selected' : 'kawaii-ghost'}`}
+                class={`btn ${project()!.accessControl === 'blacklist' ? 'selected' : 'ghost'}`}
               >
                 <div class="font-medium">Blacklist</div>
                 <div class="text-xs opacity-80">Block specific users</div>
@@ -290,7 +290,7 @@ export default function ProjectSettingsPage() {
                         <button
                           onClick={() => handleApprove(member.id, 'rejected')}
                           disabled={actionInProgress() !== null}
-                          class="btn kawaii-ghost"
+                          class="btn ghost"
                         >
                           {actionInProgress() === member.id ? 'Processing...' : 'Reject'}
                         </button>
@@ -308,7 +308,7 @@ export default function ProjectSettingsPage() {
                         <button
                           onClick={() => handleApprove(member.id, 'approved')}
                           disabled={actionInProgress() !== null}
-                          class="btn kawaii-ghost"
+                          class="btn ghost"
                         >
                           {actionInProgress() === member.id ? 'Processing...' : 'Approve'}
                         </button>

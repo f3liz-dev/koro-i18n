@@ -34,13 +34,13 @@ export function MobileMenuOverlay(props: MobileMenuOverlayProps) {
       />
 
       {/* Slide-in Menu */}
-  <div class="lg:hidden fixed top-0 left-0 bottom-0 w-[95%] max-w-sm z-50 flex flex-col kawaii-panel" style="backdrop-filter: blur(4px);">
+  <div class="lg:hidden fixed top-0 left-0 bottom-0 w-[95%] max-w-sm z-50 flex flex-col panel" style="backdrop-filter: blur(4px);">
         {/* Header */}
         <div class="flex items-center justify-between p-4 border-b border-transparent">
           <h2 class="text-lg font-semibold">翻訳文字列</h2>
           <button
             onClick={props.onClose}
-            class="kawaii-ghost p-2 rounded transition"
+            class="btn ghost p-2 rounded transition"
             aria-label="閉じる"
           >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

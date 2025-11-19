@@ -9,7 +9,7 @@ This project uses CSS variables for colors. To improve perceptual contrast and m
 
 If you need to add a new color token:
 
-1. Add the hex fallback in `src/app/styles/main.css` under `:root`.
+1. Add the hex fallback in `src/app/styles/minimal.css` under `:root` (we replaced `main.css` with a smaller, minimal theme).
 2. Add an OKLCH override inside the `@supports (color: oklch(...))` block to override the fallback.
 3. Use the variable everywhere else and avoid hard-coded hex values.
 

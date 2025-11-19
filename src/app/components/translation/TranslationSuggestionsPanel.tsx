@@ -80,7 +80,7 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
 
   return (
     <Show when={props.show}>
-      <div class="border-t kawaii-panel">
+      <div class="border-t panel">
         <div class="p-3 lg:p-4">
           <h3 class="text-sm font-semibold text-gray-900 mb-3">Translation Suggestions</h3>
           
@@ -146,7 +146,7 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
                             </span>
                             
                             {/* Status icon and badge */}
-                            <span class="kawaii-icon">{getStatusIcon(entry.status)}</span>
+                            <span class="icon">{getStatusIcon(entry.status)}</span>
                             <span class={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${getStatusBadge(entry.status)}`}>
                               {entry.status}
                             </span>

@@ -199,7 +199,7 @@ export default function TranslationSuggestionsPage() {
   return (
     <div class="page min-h-screen">
       {/* Header */}
-  <div class="kawaii-header border-b sticky top-0 z-30">
+  <div class="panel border-b sticky top-0 z-30">
         <div class="max-w-7xl mx-auto px-4 py-4">
           <div class="flex items-center justify-between mb-4">
             <div>
@@ -210,7 +210,7 @@ export default function TranslationSuggestionsPage() {
             </div>
             <button
               onClick={() => navigate('/dashboard')}
-              class="kawaii-ghost"
+              class="btn ghost"
             >
               Back to Dashboard
             </button>

@@ -76,7 +76,7 @@ export default function TranslationHistoryPage() {
         <div class="max-w-5xl mx-auto px-8 py-5 flex items-center gap-3">
           <button
             onClick={() => navigate('/dashboard')}
-            class="kawaii-ghost p-2 rounded transition"
+            class="btn ghost p-2 rounded transition"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -148,7 +148,7 @@ export default function TranslationHistoryPage() {
                       <div class="p-4 hover-lift transition-all">
                         <div class="flex items-center gap-3 mb-2">
                           <span class="text-sm font-medium">{entry.username}</span>
-                          <span class="kawaii-icon">{getActionIcon(entry.action)}</span>
+                          <span class="icon">{getActionIcon(entry.action)}</span>
                           <span class={`text-xs ${getActionColor(entry.action)}`}>{entry.action}</span>
                           <span class="text-xs text-gray-400">
                             {new Date(entry.createdAt).toLocaleString()}

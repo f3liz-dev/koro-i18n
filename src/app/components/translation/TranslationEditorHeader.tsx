@@ -13,14 +13,14 @@ export function TranslationEditorHeader(props: TranslationEditorHeaderProps) {
   const navigate = useNavigate();
 
   return (
-  <div class="kawaii-header border-b sticky top-0 z-30">
+  <div class="panel border-b sticky top-0 z-30">
       <div class="max-w-7xl mx-auto px-4 py-3">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             {/* Hamburger Menu Button - Mobile Only */}
             <button
               onClick={props.onMenuToggle}
-              class="lg:hidden p-2 kawaii-ghost transition"
+              class="lg:hidden p-2 btn ghost transition"
               aria-label="Menu"
             >
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -42,7 +42,7 @@ export function TranslationEditorHeader(props: TranslationEditorHeaderProps) {
             </div>
             <button
               onClick={() => navigate('/dashboard')}
-              class="btn kawaii-ghost"
+              class="btn ghost"
             >
               <span class="hidden sm:inline">Back to Dashboard</span>
               <span class="sm:hidden">Back</span>

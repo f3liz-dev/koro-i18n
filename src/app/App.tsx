@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'solid-js';
 import { Router, Route } from '@solidjs/router';
 import type { RouteSectionProps } from '@solidjs/router';
 import { ErrorBoundary, LoadingSpinner } from './components';
-import { KawaiiLayout } from './components/KawaiiLayout';
+import { SimpleLayout } from './components/SimpleLayout';
 import { I18nProvider } from './utils/i18n';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -19,8 +19,9 @@ const JoinProjectPage = lazy(() => import('./pages/JoinProjectPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function RootLayout(props: RouteSectionProps) {
+  // Use the `SimpleLayout` for a modern, minimalistic UI.
   return (
-    <KawaiiLayout>
+    <SimpleLayout>
       <Suspense fallback={
         <div class="flex items-center justify-center min-h-[50vh]">
           <LoadingSpinner />
@@ -28,7 +29,7 @@ function RootLayout(props: RouteSectionProps) {
       }>
         {props.children}
       </Suspense>
-    </KawaiiLayout>
+    </SimpleLayout>
   );
 }
 
@@ -36,6 +37,7 @@ export default function App() {
   return (
     <I18nProvider>
       <ErrorBoundary>
+        {/* Use SimpleLayout to provide a leaner, modern look */}
         <Router root={RootLayout}>
           <Route path="/" component={HomePage} />
           <Route path="/login" component={LoginPage} />

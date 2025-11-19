@@ -182,7 +182,7 @@ src/app/
 │   └── deferredRendering.ts     # Deferred rendering utilities
 │
 ├── styles/                      # Global styles
-│   └── main.css                 # CSS reset and base styles
+│   └── minimal.css              # Minimal, modern CSS used by default (main.css retired)
 │
 └── public/                      # Static assets
     └── logo.png                 # Application logo

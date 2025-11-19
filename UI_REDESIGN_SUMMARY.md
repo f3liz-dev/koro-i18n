@@ -5,7 +5,7 @@ This redesign transforms the koro-i18n frontend into a cohesive, kawaii (cute) i
 
 ## Key Changes
 
-### 1. Enhanced CSS System (src/app/styles/main.css)
+### 1. Enhanced CSS System (main Kawaii system updated; new minimal theme in `src/app/styles/minimal.css`)
 - **Extended CSS Variables**: Added more kawaii color variants and transition properties
 - **New Helper Classes**: 
   - `kawaii-btn` (with primary/secondary variants)
@@ -165,6 +165,7 @@ input:focus-visible {
 - Implement more micro-interactions
 - Add sound effects for button clicks (optional)
 - Create theme switcher for color variations
+ - Add a minimal/modern theme to complement the kawaii look: `SimpleLayout` and `minimal.css` (a lighter palette and simplified components) to give users a clearer, less CSS-heavy option.
 - Add more empty state illustrations
 
 ## Migration Guide

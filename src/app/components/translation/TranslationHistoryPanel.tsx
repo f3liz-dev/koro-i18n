@@ -75,7 +75,7 @@ export function TranslationHistoryPanel(props: TranslationHistoryPanelProps) {
 
   return (
     <Show when={props.show}>
-      <div class="border-t kawaii-panel">
+      <div class="border-t panel">
         <div class="p-3 lg:p-4">
           <h3 class="text-sm font-semibold text-gray-900 mb-3">Translation History</h3>
           
@@ -125,7 +125,7 @@ export function TranslationHistoryPanel(props: TranslationHistoryPanelProps) {
                                   {entry.username}
                                 </span>
                               </Show>
-                                <span class="kawaii-icon">{getActionIcon(entry.action)}</span>
+                                <span class="icon">{getActionIcon(entry.action)}</span>
                                 <span class={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${getActionBadge(entry.action)}`}>
                                 {entry.action}
                               </span>
