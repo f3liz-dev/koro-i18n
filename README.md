@@ -56,31 +56,16 @@ pnpm run deploy
 
 ## Documentation
 
-Concise docs are in `docs/` — key ones:
-- `docs/SETUP.md` — install + Cloudflare setup
-- `docs/FRONTEND.md` — frontend notes
-- `docs/FRONTEND_ARCHITECTURE.md` — architecture and patterns
-- `docs/RUST_WORKER.md` — compute worker details
-- `docs/BACKEND_API.md` — endpoints and examples
+- `docs/SETUP.md` — Installation + Cloudflare setup
+- `docs/API.md` — API reference
+- `docs/ARCHITECTURE.md` — System design
+- `docs/FRONTEND_GUIDE.md` — Frontend development
+- `docs/RUST_WORKER.md` — Compute worker details
+- `docs/CLIENT_LIBRARY.md` — Manifest generation
+- `docs/PRISMA.md` — Database schema
+- `docs/TESTING.md` — Testing guide
 
-**Frontend Documentation:**
-- **[Frontend Guide](docs/FRONTEND.md)** - Complete frontend documentation (SolidJS, routing, state management)
-- **[Frontend Architecture](docs/FRONTEND_ARCHITECTURE.md)** - Deep dive into architectural decisions and patterns
-
-**Backend Documentation:**
-- **[Backend API Reference](docs/BACKEND_API.md)** - Complete API documentation with all endpoints
-- **[Backend Internals](docs/BACKEND_INTERNALS.md)** - Implementation details and architecture
-- **[Backend Deployment](docs/BACKEND_DEPLOYMENT.md)** - Step-by-step deployment guide
-- **[Architecture](docs/ARCHITECTURE.md)** - System design & data flow
-- **[Technical Flows](docs/FLOWS.md)** - Complete flow documentation
-- **[Rust Worker](docs/RUST_WORKER.md)** - Auxiliary compute worker for CPU-intensive operations
-- **[Computation Strategy](docs/COMPUTATION_STRATEGY.md)** - How computation is distributed across components
-- **[Computation Flow](docs/COMPUTATION_FLOW.md)** - Visual diagrams and decision matrices
-
-**Additional Resources:**
-- **[Client Library](docs/CLIENT_LIBRARY.md)** - Client implementation details
-- **[Prisma Guide](docs/PRISMA.md)** - Database schema and ORM usage
-- **[Testing Guide](docs/TESTING.md)** - How to run and write tests
+See [docs/README.md](docs/README.md) for complete index.
 
 ## Tech Stack
 

@@ -1,77 +1,26 @@
-# koro-i18n documentation
+# Documentation
 
-Concise documentation for the koro-i18n platform.
+Comprehensive documentation for koro-i18n platform.
 
+## Quick Links
 
-## Quick links
+- [Setup Guide](SETUP.md) - Installation and Cloudflare setup
+- [API Reference](API.md) - Complete API documentation
+- [Architecture](ARCHITECTURE.md) - System design and data flow
+- [Frontend Guide](FRONTEND_GUIDE.md) - Frontend development
+- [Client Library](CLIENT_LIBRARY.md) - Manifest generation tool
+- [Rust Worker](RUST_WORKER.md) - Compute worker for CPU-intensive tasks
+- [Prisma Guide](PRISMA.md) - Database schema and ORM
+- [Testing Guide](TESTING.md) - How to run and write tests
+- [Deployment](DEPLOYMENT.md) - Deployment instructions
+- [Manifest-Based Fetching](MANIFEST_BASED_FETCHING.md) - How manifest fetching works
 
-- **R2 Storage**: GitHub imports stored in R2 (unlimited size)
-- **Source Validation**: Auto-detect outdated translations
-- **Git Integration**: Full git blame + commit info preserved
-- **Web Translations**: User translations stored in D1
-- **Separate APIs**: R2 (GitHub imports) + D1 (web translations)
-- **Free Tier Optimized**: <1GB storage, minimal operations
+## Getting Started
 
-## Architecture
-
-```
-GitHub → Client (preprocess) → Worker → R2 (files) + D1 (index)
-Web UI → Worker → D1 (web translations)
-Display → R2 API + D1 API → Merge in UI
-```
-
-**Key Concepts:**
-- R2 files are mutable (overwrite on upload)
-- Git history preserved in metadata
-- Source validation via hash comparison
-- Individual file storage: `[project]-[lang]-[filename]`
-
-## Quick start
-
-1. Install dependencies and Prisma client:
-
-```pwsh
-pnpm install
-pnpm run prisma:generate
-```
-
-2. Cloudflare setup (R2 + D1) — one-time:
-
-```pwsh
-wrangler r2 bucket create koro-i18n-translations
-pnpm run prisma:migrate:local
-```
-
-3. Start local development or deploy:
-
-```pwsh
-pnpm run dev:all
-pnpm run deploy
-```
-
-## Documentation
-
-Find full docs under this folder: `SETUP.md`, `FRONTEND.md`, `BACKEND_API.md`, `RUST_WORKER.md`.
-
-**Frontend Documentation:**
-- **[Frontend Guide](FRONTEND.md)** - Complete frontend documentation (SolidJS, routing, state management, components, utilities)
-- **[Frontend Architecture](FRONTEND_ARCHITECTURE.md)** - Deep dive into architectural decisions, performance optimizations, and design patterns
-
-**Backend Documentation:**
-- **[Backend API Reference](BACKEND_API.md)** - Complete API documentation with all endpoints
-- **[Backend Internals](BACKEND_INTERNALS.md)** - Implementation details and architecture
-- **[Backend Deployment](BACKEND_DEPLOYMENT.md)** - Step-by-step deployment guide
-
-**Technical Documentation:**
-- **[Architecture](ARCHITECTURE.md)** - System design & data flow
-- **[Technical Flows](FLOWS.md)** - Complete flow documentation (frontend, backend, actions)
-- **[Client Library](CLIENT_LIBRARY.md)** - Client implementation details
-
-**Additional Guides:**
-- **[Testing](TESTING.md)** - Testing guide
-- **[Prisma](PRISMA.md)** - Database ORM guide
-- **[Project Creation](PROJECT_CREATION_RESTRICTION.md)** - Project management
-- **[Get JWT Token](GET_JWT_TOKEN.md)** - Development authentication
+1. **Setup**: Follow [SETUP.md](SETUP.md) to install dependencies and configure Cloudflare
+2. **Development**: Run `pnpm run dev:all` to start all services
+3. **Architecture**: Read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the system
+4. **API**: Reference [API.md](API.md) for endpoint documentation
 
 ## Tech Stack
 
@@ -82,38 +31,7 @@ Find full docs under this folder: `SETUP.md`, `FRONTEND.md`, `BACKEND_API.md`, `
 - **Auth**: GitHub OAuth + JWT
 - **Compression**: MessagePack
 
-## API Endpoints
+## Archive
 
-### D1 API - Metadata & Web Translations
-```
-POST /api/projects/:project/upload          - Upload files to R2
-GET  /api/projects/:project/files/list      - List files (metadata)
-GET  /api/projects/:project/files/summary   - File summaries
-GET  /api/translations                      - Get web translations
-POST /api/translations                      - Create web translation
-```
+Historical documentation is in [archive/](archive/) for reference only.
 
-### R2 API - GitHub Imports
-```
-GET /api/r2/:project/:lang/:filename        - Get file from R2
-GET /api/r2/by-key/:r2Key                   - Get by R2 key
-```
-
-## Performance
-
-### Free Tier Usage
-- R2 writes: ~100/month
-- R2 reads: ~1000/month (cached)
-- D1 writes: ~200/month
-- D1 reads: ~10K/month
-- Storage: <1GB total
-
-### Optimizations
-- In-memory caching (1 hour TTL)
-- ETag support (304 Not Modified)
-- MessagePack compression
-- Individual file storage
-
-## License
-
-MIT
