@@ -214,6 +214,9 @@ async fn pre_cache_file_metadata(
 }
 
 async fn handle_upload(mut req: Request, env: &Env, _ctx: &Context) -> Result<Response> {
+    // Log deprecation warning
+    console_log!("[DEPRECATED] /upload endpoint is deprecated. Files should be fetched directly from GitHub using user's access token.");
+    
     let upload_req: UploadRequest = req.json().await?;
     let bucket = env.bucket("TRANSLATION_BUCKET")?;
     let db = env.d1("DB")?;
@@ -430,8 +433,14 @@ async fn handle_upload_misc_git(mut req: Request, env: &Env, _ctx: &Context) -> 
 async fn main(mut req: Request, env: Env, ctx: Context) -> Result<Response> {
     let url = req.url()?;
     match (req.method(), url.path()) {
-        (Method::Post, "/upload") => handle_upload(req, &env, &ctx).await,
-        (Method::Post, "/upload-misc-git") => handle_upload_misc_git(req, &env, &ctx).await,
+        (Method::Post, "/upload") => {
+            // DEPRECATED: This endpoint is deprecated in favor of fetching files directly from GitHub
+            handle_upload(req, &env, &ctx).await
+        }
+        (Method::Post, "/upload-misc-git") => {
+            // DEPRECATED: This endpoint is deprecated in favor of fetching files directly from GitHub
+            handle_upload_misc_git(req, &env, &ctx).await
+        }
         (Method::Post, "/hash") => {
             let req: HashRequest = req.json().await?;
             Response::from_json(&HashResponse {

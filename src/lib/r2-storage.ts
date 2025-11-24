@@ -32,6 +32,11 @@ export function generateR2Key(
  * Each file is stored separately and OVERWRITES previous version
  * Git history is preserved in the metadata
  * 
+ * NOTE: This is primarily used for web translations now.
+ * GitHub source files are fetched directly via GitHub API instead of being stored in R2.
+ * 
+ * @deprecated for GitHub source files - use direct GitHub API access instead
+ * 
  * ULTRA-OPTIMIZED: Zero encoding - client sends pre-packed data
  */
 export async function storeFile(

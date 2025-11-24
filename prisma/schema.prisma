@@ -18,6 +18,7 @@ model User {
   username String
   email    String
   avatarUrl String?
+  githubAccessToken String? // GitHub OAuth token with public_repo scope
   createdAt DateTime @default(now())
 
   // Relations

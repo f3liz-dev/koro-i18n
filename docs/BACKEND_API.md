@@ -466,9 +466,87 @@ Remove project member.
 
 ### Project File Routes
 
-Base path: `/api/projects/:projectName`
+Base path: `/api/projects/:projectName/files`
 
-#### `POST /api/projects/:projectName/upload`
+#### `POST /api/projects/:projectName/files/fetch-from-github` ⭐ NEW RECOMMENDED
+
+Fetch translation files directly from a GitHub repository using the user's stored access token.
+
+**Authentication:** Required (JWT)
+
+**Authorization Header:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Request Body:**
+```json
+{
+  "path": "locales",  // Optional, default: "locales"
+  "branch": "main"    // Optional, default: "main"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "repository": "owner/repo",
+  "branch": "main",
+  "commitSha": "abc123def456",
+  "filesFound": 5,
+  "files": [
+    {
+      "lang": "en",
+      "filename": "common.json",
+      "contents": {
+        "key1": "value1",
+        "key2": "value2"
+      },
+      "metadata": {
+        "gitBlame": {
+          "key1": {
+            "commit": "abc123",
+            "author": "John Doe",
+            "email": "john@example.com",
+            "date": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "charRanges": {
+          "key1": {
+            "start": [3, 4],
+            "end": [3, 20]
+          }
+        },
+        "sourceHashes": {
+          "key1": "a1b2c3d4e5f6g7h8"
+        }
+      },
+      "sourceHash": "file-content-hash",
+      "commitSha": "abc123def456"
+    }
+  ],
+  "message": "Files and git blame fetched successfully from GitHub."
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - GitHub access token not found or expired
+- `404 Not Found` - Project or files not found
+- `500 Internal Server Error` - Failed to fetch from GitHub
+
+**Notes:**
+- This endpoint automatically uses the latest commit from the specified branch
+- Files are fetched on-demand, not stored in R2
+- Git blame information is fetched directly from GitHub for each file
+- The user must have re-authenticated after the `public_repo` scope was added
+- **Security:** The GitHub token is never exposed to the client - it's used only server-side
+
+---
+
+#### `POST /api/projects/:projectName/files/upload` ⚠️ DEPRECATED
+
+> **Warning:** This endpoint is deprecated. Use `/fetch-from-github` instead to fetch files directly from GitHub.
 
 Upload translation files to R2 (GitHub imports).
 
