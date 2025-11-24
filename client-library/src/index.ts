@@ -8,7 +8,6 @@ import * as crypto from 'crypto';
 export interface Config {
   project: {
     name: string;
-    platform_url?: string; // No longer required for manifest generation
   };
   source: {
     language: string;

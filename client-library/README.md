@@ -1,6 +1,6 @@
-# @i18n-platform/client
+# koro-i18n Client
 
-Client library for koro-i18n Platform - generates translation manifest for your repository.
+Client library for koro-i18n platform - generates translation manifest for your repository.
 
 ## What It Does
 
