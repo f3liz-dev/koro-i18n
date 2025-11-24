@@ -126,9 +126,18 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
                 }, 404);
             }
 
-            // Process files
-            const processedFiles = await processGitHubTranslationFiles(githubFiles, commitSha);
+            // Process files with metadata (git blame fetched from GitHub)
+            const processedFiles = await processGitHubTranslationFiles(
+                octokit,
+                owner,
+                repo,
+                githubFiles,
+                commitSha,
+                branch
+            );
 
+            // Important: Never expose the GitHub token to the client
+            // The token is used only server-side to fetch files and metadata
             return c.json({
                 success: true,
                 repository: project.repository,
@@ -136,7 +145,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
                 commitSha,
                 filesFound: processedFiles.length,
                 files: processedFiles,
-                message: 'Files fetched successfully from GitHub. Metadata validation should be done client-side.',
+                message: 'Files and git blame fetched successfully from GitHub.',
             });
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';

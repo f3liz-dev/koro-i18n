@@ -159,7 +159,12 @@ Yes, OIDC tokens still work for the deprecated upload endpoints. However, the ne
 
 ### What about metadata (git blame, etc.)?
 
-In the new flow, metadata validation should be done client-side. The platform focuses on fetching and serving the translation content. Git blame and other metadata can be retrieved separately using GitHub's API if needed.
+In the new flow, git blame and metadata are fetched automatically from GitHub along with the file contents. Each file includes:
+- **gitBlame**: Author, commit, email, and date for each translation key
+- **charRanges**: Line and character positions for each key
+- **sourceHashes**: Hash of each value for validation
+
+This metadata is fetched server-side and included in the response, eliminating the need for client-side processing.
 
 ### How often are files fetched?
 
