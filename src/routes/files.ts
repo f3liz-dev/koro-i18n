@@ -8,6 +8,13 @@ import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 import { resolveActualProjectId, checkProjectAccess } from '../lib/database';
 import { createRustWorker } from '../lib/rust-worker-client';
 import { invalidateOutdatedTranslations } from '../lib/translation-validation';
+import { Octokit } from '@octokit/rest';
+import {
+    getUserGitHubToken,
+    fetchTranslationFilesFromGitHub,
+    processGitHubTranslationFiles,
+    getLatestCommitSha,
+} from '../lib/github-repo-fetcher';
 
 interface Env {
     TRANSLATION_BUCKET: R2Bucket;
@@ -62,8 +69,86 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
     // Hono's app.route preserves params if configured correctly, but usually we need to access it carefully.
     // If mounted as app.route('/:projectName/files', filesApp), then :projectName is a param.
 
+    // Fetch files from GitHub repository (NEW PREFERRED METHOD)
+    // This endpoint replaces the need for manual uploads
+    app.post('/fetch-from-github', authMiddleware, async (c) => {
+        const user = c.get('user');
+        const projectName = c.req.param('projectName');
+        const { path = 'locales', branch = 'main' } = await c.req.json().catch(() => ({}));
+
+        const project = await prisma.project.findUnique({
+            where: { name: projectName },
+            select: { id: true, userId: true, repository: true, sourceLanguage: true },
+        });
+
+        if (!project) return c.json({ error: 'Project not found' }, 404);
+
+        // Check access
+        const hasAccess = await checkProjectAccess(prisma, project.id, user.userId);
+        if (!hasAccess) return c.json({ error: 'Forbidden' }, 403);
+
+        // Get user's GitHub access token
+        const githubToken = await getUserGitHubToken(prisma, user.userId);
+        if (!githubToken) {
+            return c.json({ 
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            }, 401);
+        }
+
+        try {
+            // Parse repository (format: owner/repo)
+            const [owner, repo] = project.repository.split('/');
+            if (!owner || !repo) {
+                return c.json({ error: 'Invalid repository format. Expected: owner/repo' }, 400);
+            }
+
+            // Initialize Octokit with user's token
+            const octokit = new Octokit({ auth: githubToken });
+
+            // Get latest commit SHA
+            const commitSha = await getLatestCommitSha(octokit, owner, repo, branch);
+
+            // Fetch translation files from GitHub
+            const githubFiles = await fetchTranslationFilesFromGitHub(
+                octokit,
+                owner,
+                repo,
+                path,
+                branch
+            );
+
+            if (githubFiles.length === 0) {
+                return c.json({ 
+                    error: `No translation files found in ${owner}/${repo} at path: ${path}` 
+                }, 404);
+            }
+
+            // Process files
+            const processedFiles = await processGitHubTranslationFiles(githubFiles, commitSha);
+
+            return c.json({
+                success: true,
+                repository: project.repository,
+                branch,
+                commitSha,
+                filesFound: processedFiles.length,
+                files: processedFiles,
+                message: 'Files fetched successfully from GitHub. Metadata validation should be done client-side.',
+            });
+        } catch (error: any) {
+            console.error('Error fetching from GitHub:', error);
+            return c.json({ 
+                error: `Failed to fetch files from GitHub: ${error.message}` 
+            }, 500);
+        }
+    });
+
     // Upload files
+    // @deprecated This endpoint is deprecated. Use /fetch-from-github instead to fetch files directly from GitHub.
+    // This endpoint will be removed in a future version.
     app.post('/upload', authMiddleware, validate('json', UploadSchema), async (c) => {
+        console.warn('[DEPRECATED] /upload endpoint is deprecated. Use /fetch-from-github instead.');
+        
         const user = c.get('user');
         const projectName = c.req.param('projectName');
         const { branch, commitSha, sourceLanguage, files, chunked } = c.req.valid('json');

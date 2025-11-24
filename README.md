@@ -43,13 +43,17 @@ pnpm run deploy
 
 ## Architecture
 
-GitHub → Client (preprocess) → Worker → R2 (files) + D1 (index). Web UI queries Worker → D1 for web translations.
+**New Flow (Recommended):** GitHub → Worker (fetch with user token) → Process & Validate → D1 (metadata). Web UI queries Worker → D1 for web translations.
+
+**Legacy Flow (Deprecated):** GitHub → Client (preprocess) → Worker → R2 (files) + D1 (index). Web UI queries Worker → D1 for web translations.
 
 **Key Concepts:**
-- R2 files are mutable (overwrite on upload)
+- **Direct GitHub Access:** Files are fetched on-demand from GitHub using user's OAuth token with `public_repo` scope
+- **Client-side Validation:** Metadata validation is done on the client side
+- **No Manual Upload:** The system automatically fetches the latest files from the repository
+- **R2 for Web Translations Only:** R2 storage is now primarily used for user-submitted web translations
 - Git history preserved in metadata
 - Source validation via hash comparison
-- Individual file storage: `[project]-[lang]-[filename]`
 
 ## Documentation
 
@@ -91,17 +95,22 @@ Concise docs are in `docs/` — key ones:
 
 ## API Endpoints
 
+### GitHub Integration (New)
+```
+POST /api/projects/:project/files/fetch-from-github  # Fetch files directly from GitHub
+```
+
 ### D1 API - Metadata & Web Translations
 ```
-POST /api/projects/:project/upload
+POST /api/projects/:project/upload  # DEPRECATED: Use fetch-from-github instead
 GET  /api/projects/:project/files/list
 GET  /api/translations
 POST /api/translations
 ```
 
-### R2 API - GitHub Imports
+### R2 API - Web Translations Only
 ```
-GET /api/r2/:project/:lang/:filename
+GET /api/r2/:project/:lang/:filename  # Primarily for web translations
 GET /api/r2/by-key/:r2Key
 ```
 

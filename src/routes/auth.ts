@@ -35,7 +35,7 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
       secure: env.ENVIRONMENT === 'production',
     });
 
-  async function upsertUserFromProfile(profile: any) {
+  async function upsertUserFromProfile(profile: any, accessToken: string) {
     const email = profile.email || `${profile.id}+${profile.login}@users.noreply.github.com`;
     const existing = await prisma.user.findUnique({
       where: { githubId: profile.id },
@@ -45,7 +45,12 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
     if (existing) {
       await prisma.user.update({
         where: { id: existing.id },
-        data: { username: profile.login, email, avatarUrl: profile.avatar_url },
+        data: { 
+          username: profile.login, 
+          email, 
+          avatarUrl: profile.avatar_url,
+          githubAccessToken: accessToken, // Store GitHub access token
+        },
       });
       return existing.id;
     }
@@ -58,6 +63,7 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
         username: profile.login,
         email,
         avatarUrl: profile.avatar_url,
+        githubAccessToken: accessToken, // Store GitHub access token
       },
     });
     return id;
@@ -74,6 +80,7 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
     const params = new URLSearchParams({
       client_id: env.GITHUB_CLIENT_ID,
       state,
+      scope: 'public_repo', // Request public_repo scope to access repository files
     });
 
     return c.redirect(`https://github.com/login/oauth/authorize?${params}`);
@@ -97,7 +104,7 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
       const octokit = new Octokit({ auth: auth.token });
       const { data: profile } = await octokit.rest.users.getAuthenticated();
 
-      const userId = await upsertUserFromProfile(profile);
+      const userId = await upsertUserFromProfile(profile, auth.token);
 
       const token = await createJWT(
         { id: userId, username: profile.login, githubId: profile.id },
