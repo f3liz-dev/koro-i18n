@@ -4,12 +4,11 @@ import { glob } from 'glob';
 import * as toml from 'toml';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
-import { encode } from '@msgpack/msgpack';
 
 export interface Config {
   project: {
     name: string;
-    platform_url: string;
+    platform_url?: string; // No longer required for manifest generation
   };
   source: {
     language: string;
@@ -30,9 +29,8 @@ export interface TranslationFile {
   lang: string;
   filename: string;
   contents: Record<string, any>;
-  metadata: string; // Base64-encoded MessagePack (uploaded separately via /upload-misc-git)
+  metadata: string; // Base64-encoded MessagePack (for git blame info)
   sourceHash: string;
-  packedData?: string; // Optional: pre-packed base64 data for R2 (zero server CPU)
 }
 
 /**
@@ -352,303 +350,45 @@ function getBranch(): string {
 }
 
 /**
- * Pre-pack files for R2 storage (zero server CPU)
- * Adds commitSha and uploadedAt, then packs with MessagePack
+ * Generate manifest file for the repository
+ * Creates .koro-i18n/koro-i18n.repo.generated.json
  */
-function prePackFiles(files: TranslationFile[], commitSha: string): void {
-  const uploadedAt = new Date().toISOString();
-  
-  for (const file of files) {
-    // Do NOT inline metadata into the main R2 object.
-    // Metadata will be uploaded separately to /upload-misc-git.
-    const fileData = {
-      raw: file.contents,
-      sourceHash: file.sourceHash,
-      commitSha,
-      uploadedAt,
-    };
-    const packed = encode(fileData);
-    file.packedData = Buffer.from(packed).toString('base64');
-  }
+export function generateManifest(
+  repository: string,
+  sourceLanguage: string,
+  files: TranslationFile[]
+): any {
+  const manifestFiles = files.map(file => ({
+    filename: file.filename,
+    sourceFilename: file.filename, // Full path with directory structure
+    lastUpdated: new Date().toISOString(),
+    commitHash: getCommitSha(),
+    language: file.lang,
+  }));
+
+  return {
+    repository,
+    sourceLanguage,
+    configVersion: 1,
+    files: manifestFiles,
+  };
 }
 
 /**
- * Run cleanup to remove orphaned files
+ * Write manifest to .koro-i18n/koro-i18n.repo.generated.json
  */
-async function runCleanup(
-  projectName: string,
-  platformUrl: string,
-  token: string,
-  branch: string,
-  allSourceFileKeys: Set<string>
-): Promise<void> {
-  try {
-    console.log('🧹 Running cleanup check...');
-    
-    const response = await fetch(`${platformUrl}/api/projects/${projectName}/cleanup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        branch,
-        allSourceFiles: Array.from(allSourceFileKeys),
-      }),
-    });
+function writeManifest(manifest: any): void {
+  const outputDir = '.koro-i18n';
+  const outputPath = path.join(outputDir, 'koro-i18n.repo.generated.json');
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.warn(`⚠ Cleanup failed (${response.status}): ${errorText}`);
-      return;
-    }
-
-    const result = await response.json() as any;
-    if (result.cleanupResult && result.cleanupResult.deleted > 0) {
-      console.log(`🧹 Cleaned up ${result.cleanupResult.deleted} orphaned files`);
-    } else {
-      console.log('✨ No orphaned files to clean up');
-    }
-  } catch (error: any) {
-    console.warn(`⚠ Cleanup error: ${error.message}`);
-  }
-}
-
-/**
- * Fetch existing files from platform to check for duplicates
- */
-async function fetchExistingFiles(
-  projectName: string,
-  platformUrl: string,
-  token: string,
-  branch: string
-): Promise<Map<string, string>> {
-  try {
-    const response = await fetch(
-      `${platformUrl}/api/projects/${projectName}/files/list-oidc?branch=${encodeURIComponent(branch)}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      console.warn(`⚠ Could not fetch existing files (${response.status}), uploading all files`);
-      return new Map();
-    }
-
-    const data = await response.json() as any;
-    const existingFiles = new Map<string, string>();
-    
-    for (const file of data.files || []) {
-      const key = `${file.lang}/${file.filename}`;
-      existingFiles.set(key, file.sourceHash);
-    }
-    
-    console.log(`📥 Found ${existingFiles.size} existing files on platform`);
-    return existingFiles;
-  } catch (error: any) {
-    console.warn(`⚠ Error fetching existing files: ${error.message}, uploading all files`);
-    return new Map();
-  }
-}
-
-/**
- * Upload to platform with chunking support and differential upload
- */
-export async function upload(
-  projectName: string,
-  files: TranslationFile[],
-  platformUrl: string,
-  token: string,
-  chunkSize: number,
-  sourceLanguage?: string
-): Promise<void> {
-  const branch = process.env.GITHUB_REF_NAME || getBranch();
-  const commitSha = process.env.GITHUB_SHA || getCommitSha();
-  // Use provided sourceLanguage or default to 'en'
-  const actualSourceLanguage = sourceLanguage || 'en';
-
-  // Collect ALL source file keys (for cleanup - includes unchanged files)
-  const allSourceFileKeys = new Set<string>();
-  for (const file of files) {
-    allSourceFileKeys.add(`${file.lang}/${file.filename}`);
+  // Create directory if it doesn't exist
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  // Fetch existing files for differential upload
-  console.log('🔍 Checking for existing files...');
-  const existingFiles = await fetchExistingFiles(projectName, platformUrl, token, branch);
-  
-  // Filter out files that haven't changed (same sourceHash)
-  const filesToUpload = files.filter(file => {
-    const key = `${file.lang}/${file.filename}`;
-    const existingHash = existingFiles.get(key);
-    
-    if (existingHash === file.sourceHash) {
-      console.log(`  ⏭ Skipping ${key} (unchanged)`);
-      return false;
-    }
-    
-    return true;
-  });
-  
-  const skippedCount = files.length - filesToUpload.length;
-  if (skippedCount > 0) {
-    console.log(`✨ Skipping ${skippedCount} unchanged files (differential upload)`);
-  }
-  
-  if (filesToUpload.length === 0) {
-    console.log('✅ All files are up to date, nothing to upload');
-    
-    // Still need to run cleanup even if no files changed
-    await runCleanup(projectName, platformUrl, token, branch, allSourceFileKeys);
-    return;
-  }
-
-  // Pre-pack all files on client (zero server CPU)
-  console.log(`📦 Pre-packing ${filesToUpload.length} files for optimized upload...`);
-  prePackFiles(filesToUpload, commitSha);
-
-  // If files are small enough, use single upload
-    if (filesToUpload.length <= chunkSize) {
-    const payload = {
-      branch,
-      commitSha,
-      sourceLanguage: actualSourceLanguage,
-      files: filesToUpload,
-    };
-
-    const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Upload failed (${response.status}): ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('✅ Upload successful:', result);
-    
-    // Upload metadata separately to /upload-misc-git for each file
-    for (const f of filesToUpload) {
-      if (f.metadata) {
-        try {
-          const r2Key = `${projectName}-${f.lang}-${f.filename.replace(/[\\/]/g, '-')}`;
-          const mres = await fetch(`${platformUrl}/api/projects/${projectName}/upload-misc-git`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              project_id: projectName,
-              r2_key: r2Key,
-              metadata_base64: f.metadata,
-              lang: f.lang,
-              filename: f.filename,
-            }),
-          });
-          if (!mres.ok) {
-            console.warn(`⚠ metadata upload failed for ${f.filename} (${mres.status})`);
-          }
-        } catch (err: any) {
-          console.warn(`⚠ metadata upload error for ${f.filename}: ${err.message}`);
-        }
-      }
-    }
-
-    // Run cleanup after successful upload
-    await runCleanup(projectName, platformUrl, token, branch, allSourceFileKeys);
-    return;
-  }
-
-  // Chunked upload for large file sets
-  console.log(`📦 Uploading ${filesToUpload.length} files in chunks of ${chunkSize}...`);
-  
-  const totalChunks = Math.ceil(filesToUpload.length / chunkSize);
-  const uploadId = `${commitSha}-${Date.now()}`;
-  
-  for (let i = 0; i < totalChunks; i++) {
-    const start = i * chunkSize;
-    const end = Math.min(start + chunkSize, filesToUpload.length);
-    const chunk = filesToUpload.slice(start, end);
-    const chunkIndex = i + 1;
-    
-    console.log(`📤 Uploading chunk ${chunkIndex}/${totalChunks} (${chunk.length} files)...`);
-    
-    const payload = {
-      branch,
-      commitSha,
-      sourceLanguage: actualSourceLanguage,
-      files: chunk,
-      chunked: {
-        uploadId,
-        chunkIndex,
-        totalChunks,
-        isLastChunk: chunkIndex === totalChunks,
-      },
-    };
-
-    const response = await fetch(`${platformUrl}/api/projects/${projectName}/upload`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Chunk ${chunkIndex}/${totalChunks} upload failed (${response.status}): ${errorText}`);
-    }
-
-    const result = await response.json();
-    const progress = Math.round((end / filesToUpload.length) * 100);
-    console.log(`  ✓ Chunk ${chunkIndex}/${totalChunks} complete (${progress}% total)`);
-    
-    // Show final summary and run cleanup on last chunk
-    if (chunkIndex === totalChunks) {
-      console.log('✅ Upload successful:', result);
-
-      // Upload metadata for all chunked files after final chunk completes
-      for (const f of filesToUpload) {
-        if (f.metadata) {
-          try {
-            const r2Key = `${projectName}-${f.lang}-${f.filename.replace(/[\\/]/g, '-')}`;
-            const mres = await fetch(`${platformUrl}/api/projects/${projectName}/upload-misc-git`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                project_id: projectName,
-                r2_key: r2Key,
-                metadata_base64: f.metadata,
-                lang: f.lang,
-                filename: f.filename,
-              }),
-            });
-            if (!mres.ok) {
-              console.warn(`⚠ metadata upload failed for ${f.filename} (${mres.status})`);
-            }
-          } catch (err: any) {
-            console.warn(`⚠ metadata upload error for ${f.filename}: ${err.message}`);
-          }
-        }
-      }
-
-      await runCleanup(projectName, platformUrl, token, branch, allSourceFileKeys);
-    }
-  }
+  // Write manifest file
+  fs.writeFileSync(outputPath, JSON.stringify(manifest, null, 2), 'utf-8');
+  console.log(`\n✅ Manifest generated: ${outputPath}`);
 }
 
 /**
@@ -667,15 +407,10 @@ export async function main() {
     throw new Error('Invalid config: missing project.name');
   }
 
-  const token = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN || process.env.JWT_TOKEN;
-  if (!token) {
-    throw new Error('No token found. Set ACTIONS_ID_TOKEN_REQUEST_TOKEN or JWT_TOKEN');
-  }
+  // Get repository from environment or config
+  const repository = process.env.GITHUB_REPOSITORY || config.project.name;
 
-  // Configurable chunk size (default 10, can be overridden via env var)
-  const chunkSize = parseInt(process.env.UPLOAD_CHUNK_SIZE || '10', 10);
-
-  console.log(`📦 Processing files for ${config.project.name}...`);
+  console.log(`📦 Processing files for ${repository}...`);
 
   const allFiles: TranslationFile[] = [];
 
@@ -771,9 +506,12 @@ export async function main() {
     console.log(`\n⚠ Skipped ${skippedCount} files (unknown or unconfigured languages)`);
   }
 
-  console.log(`\n📤 Uploading ${allFiles.length} files (chunk size: ${chunkSize})...`);
+  console.log(`\n📝 Generating manifest for ${allFiles.length} files...`);
   
-  // Pass all files (including unchanged ones) for proper cleanup tracking
-  await upload(config.project.name, allFiles, config.project.platform_url, token, chunkSize, config.source.language);
-  console.log('✨ Done!');
+  // Generate and write manifest
+  const manifest = generateManifest(repository, config.source.language, allFiles);
+  writeManifest(manifest);
+  
+  console.log('✨ Done! The manifest has been created at .koro-i18n/koro-i18n.repo.generated.json');
+  console.log('💡 Commit this file to your repository for the platform to fetch your translations.');
 }

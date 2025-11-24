@@ -43,15 +43,14 @@ pnpm run deploy
 
 ## Architecture
 
-**New Flow (Recommended):** GitHub → Worker (fetch with user token) → Process & Validate → D1 (metadata). Web UI queries Worker → D1 for web translations.
-
-**Legacy Flow (Deprecated):** GitHub → Client (preprocess) → Worker → R2 (files) + D1 (index). Web UI queries Worker → D1 for web translations.
+**Current Flow:** GitHub → Worker (fetch with user token) → Process & Validate → D1 (metadata). Web UI queries Worker → D1 for web translations.
 
 **Key Concepts:**
 - **Direct GitHub Access:** Files are fetched on-demand from GitHub using user's OAuth token with `public_repo` scope
+- **Manifest-Based:** Repositories generate `.koro-i18n/koro-i18n.repo.generated.json` listing all translation files
 - **Client-side Validation:** Metadata validation is done on the client side
 - **No Manual Upload:** The system automatically fetches the latest files from the repository
-- **R2 for Web Translations Only:** R2 storage is now primarily used for user-submitted web translations
+- **R2 for Web Translations Only:** R2 storage is used primarily for user-submitted web translations
 - Git history preserved in metadata
 - Source validation via hash comparison
 
@@ -95,7 +94,7 @@ Concise docs are in `docs/` — key ones:
 
 ## API Endpoints
 
-### GitHub Integration (New)
+### GitHub Integration
 ```
 GET  /api/projects/:project/files/manifest              # Get generated manifest
 POST /api/projects/:project/files/fetch-from-manifest  # Fetch files using manifest (RECOMMENDED)
@@ -104,7 +103,6 @@ POST /api/projects/:project/files/fetch-from-github    # Legacy: Fetch files wit
 
 ### D1 API - Metadata & Web Translations
 ```
-POST /api/projects/:project/upload  # DEPRECATED: Use fetch-from-manifest instead
 GET  /api/projects/:project/files/list
 GET  /api/translations
 POST /api/translations
