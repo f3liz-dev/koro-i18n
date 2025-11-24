@@ -43,45 +43,29 @@ pnpm run deploy
 
 ## Architecture
 
-**New Flow (Recommended):** GitHub → Worker (fetch with user token) → Process & Validate → D1 (metadata). Web UI queries Worker → D1 for web translations.
-
-**Legacy Flow (Deprecated):** GitHub → Client (preprocess) → Worker → R2 (files) + D1 (index). Web UI queries Worker → D1 for web translations.
+**Current Flow:** GitHub → Worker (fetch with user token) → Process & Validate → D1 (metadata). Web UI queries Worker → D1 for web translations.
 
 **Key Concepts:**
 - **Direct GitHub Access:** Files are fetched on-demand from GitHub using user's OAuth token with `public_repo` scope
+- **Manifest-Based:** Repositories generate `.koro-i18n/koro-i18n.repo.generated.json` listing all translation files
 - **Client-side Validation:** Metadata validation is done on the client side
 - **No Manual Upload:** The system automatically fetches the latest files from the repository
-- **R2 for Web Translations Only:** R2 storage is now primarily used for user-submitted web translations
+- **R2 for Web Translations Only:** R2 storage is used primarily for user-submitted web translations
 - Git history preserved in metadata
 - Source validation via hash comparison
 
 ## Documentation
 
-Concise docs are in `docs/` — key ones:
-- `docs/SETUP.md` — install + Cloudflare setup
-- `docs/FRONTEND.md` — frontend notes
-- `docs/FRONTEND_ARCHITECTURE.md` — architecture and patterns
-- `docs/RUST_WORKER.md` — compute worker details
-- `docs/BACKEND_API.md` — endpoints and examples
+- `docs/SETUP.md` — Installation + Cloudflare setup
+- `docs/API.md` — API reference
+- `docs/ARCHITECTURE.md` — System design
+- `docs/FRONTEND_GUIDE.md` — Frontend development
+- `docs/RUST_WORKER.md` — Compute worker details
+- `docs/CLIENT_LIBRARY.md` — Manifest generation
+- `docs/PRISMA.md` — Database schema
+- `docs/TESTING.md` — Testing guide
 
-**Frontend Documentation:**
-- **[Frontend Guide](docs/FRONTEND.md)** - Complete frontend documentation (SolidJS, routing, state management)
-- **[Frontend Architecture](docs/FRONTEND_ARCHITECTURE.md)** - Deep dive into architectural decisions and patterns
-
-**Backend Documentation:**
-- **[Backend API Reference](docs/BACKEND_API.md)** - Complete API documentation with all endpoints
-- **[Backend Internals](docs/BACKEND_INTERNALS.md)** - Implementation details and architecture
-- **[Backend Deployment](docs/BACKEND_DEPLOYMENT.md)** - Step-by-step deployment guide
-- **[Architecture](docs/ARCHITECTURE.md)** - System design & data flow
-- **[Technical Flows](docs/FLOWS.md)** - Complete flow documentation
-- **[Rust Worker](docs/RUST_WORKER.md)** - Auxiliary compute worker for CPU-intensive operations
-- **[Computation Strategy](docs/COMPUTATION_STRATEGY.md)** - How computation is distributed across components
-- **[Computation Flow](docs/COMPUTATION_FLOW.md)** - Visual diagrams and decision matrices
-
-**Additional Resources:**
-- **[Client Library](docs/CLIENT_LIBRARY.md)** - Client implementation details
-- **[Prisma Guide](docs/PRISMA.md)** - Database schema and ORM usage
-- **[Testing Guide](docs/TESTING.md)** - How to run and write tests
+See [docs/README.md](docs/README.md) for complete index.
 
 ## Tech Stack
 
@@ -95,7 +79,7 @@ Concise docs are in `docs/` — key ones:
 
 ## API Endpoints
 
-### GitHub Integration (New)
+### GitHub Integration
 ```
 GET  /api/projects/:project/files/manifest              # Get generated manifest
 POST /api/projects/:project/files/fetch-from-manifest  # Fetch files using manifest (RECOMMENDED)
@@ -104,7 +88,6 @@ POST /api/projects/:project/files/fetch-from-github    # Legacy: Fetch files wit
 
 ### D1 API - Metadata & Web Translations
 ```
-POST /api/projects/:project/upload  # DEPRECATED: Use fetch-from-manifest instead
 GET  /api/projects/:project/files/list
 GET  /api/translations
 POST /api/translations
