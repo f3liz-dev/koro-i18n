@@ -1,5 +1,6 @@
 import { Octokit } from '@octokit/rest';
 import { PrismaClient } from '../generated/prisma/';
+import { webcrypto } from 'crypto';
 
 /**
  * GitHub repository file fetching service
@@ -91,8 +92,9 @@ export async function fetchTranslationFilesFromGitHub(
         files.push(...subFiles);
       }
     }
-  } catch (error: any) {
-    console.error('Error fetching files from GitHub:', error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error fetching files from GitHub:', errorMessage);
     throw error;
   }
 
@@ -124,10 +126,16 @@ export function extractLanguageFromPath(filePath: string): string {
 
 /**
  * Calculate hash of content for validation
+ * Uses SHA-256 and returns first 16 characters
  */
-export function calculateSourceHash(content: string): string {
-  const crypto = require('crypto');
-  return crypto.createHash('sha256').update(content).digest('hex').substring(0, 16);
+export async function calculateSourceHash(content: string): Promise<string> {
+  // Use Web Crypto API (available in Cloudflare Workers)
+  const encoder = new TextEncoder();
+  const data = encoder.encode(content);
+  const hashBuffer = await webcrypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex.substring(0, 16);
 }
 
 /**
@@ -151,11 +159,12 @@ export async function processGitHubTranslationFiles(
         lang,
         filename,
         contents,
-        sourceHash: calculateSourceHash(file.content),
+        sourceHash: await calculateSourceHash(file.content),
         commitSha,
       });
-    } catch (error: any) {
-      console.error(`Error processing file ${file.path}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Error processing file ${file.path}:`, errorMessage);
     }
   }
 

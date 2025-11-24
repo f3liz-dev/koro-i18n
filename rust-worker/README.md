@@ -1,6 +1,14 @@
 # Koro Compute Worker (Rust)
 
-This is an auxiliary Cloudflare Worker built with Rust that handles the complete upload pipeline and compute-intensive operations for the koro-i18n platform.
+⚠️ **Deprecation Notice**: The upload endpoints (`/upload`, `/upload-misc-git`) in this worker are deprecated. The platform now fetches files directly from GitHub using OAuth tokens instead of requiring manual uploads.
+
+This is an auxiliary Cloudflare Worker built with Rust that handles compute-intensive operations for the koro-i18n platform.
+
+**Current Status:**
+- ✅ Hash computation - Active
+- ✅ Translation validation - Active  
+- ⚠️ Upload pipeline - Deprecated (use GitHub direct access instead)
+- ⚠️ R2 storage - Primarily for web translations only
 
 ## Quick Start
 
@@ -34,7 +42,10 @@ The main koro-i18n worker (TypeScript) has a 10ms CPU limit on the free tier. By
 
 ## Features
 
-### Complete Upload Pipeline (NEW)
+### Complete Upload Pipeline (DEPRECATED)
+
+⚠️ **This functionality is deprecated.** Files are now fetched directly from GitHub using OAuth tokens.
+
 Handle the entire file upload process including R2 storage and D1 indexing.
 
 ```bash

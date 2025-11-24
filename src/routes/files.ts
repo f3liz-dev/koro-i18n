@@ -97,10 +97,13 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
 
         try {
             // Parse repository (format: owner/repo)
-            const [owner, repo] = project.repository.split('/');
-            if (!owner || !repo) {
-                return c.json({ error: 'Invalid repository format. Expected: owner/repo' }, 400);
+            const parts = project.repository.trim().split('/');
+            if (parts.length !== 2 || !parts[0] || !parts[1]) {
+                return c.json({ 
+                    error: 'Invalid repository format. Expected: owner/repo' 
+                }, 400);
             }
+            const [owner, repo] = parts;
 
             // Initialize Octokit with user's token
             const octokit = new Octokit({ auth: githubToken });
@@ -135,10 +138,11 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
                 files: processedFiles,
                 message: 'Files fetched successfully from GitHub. Metadata validation should be done client-side.',
             });
-        } catch (error: any) {
-            console.error('Error fetching from GitHub:', error);
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Error fetching from GitHub:', errorMessage);
             return c.json({ 
-                error: `Failed to fetch files from GitHub: ${error.message}` 
+                error: `Failed to fetch files from GitHub: ${errorMessage}` 
             }, 500);
         }
     });
