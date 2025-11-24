@@ -32,6 +32,21 @@ export interface TranslationFile {
   sourceHash: string;
 }
 
+export interface ManifestFile {
+  filename: string;
+  sourceFilename: string;
+  lastUpdated: string;
+  commitHash: string;
+  language: string;
+}
+
+export interface GeneratedManifest {
+  repository: string;
+  sourceLanguage: string;
+  configVersion: number;
+  files: ManifestFile[];
+}
+
 /**
  * Hash a value for validation
  */
@@ -356,8 +371,8 @@ export function generateManifest(
   repository: string,
   sourceLanguage: string,
   files: TranslationFile[]
-): any {
-  const manifestFiles = files.map(file => ({
+): GeneratedManifest {
+  const manifestFiles: ManifestFile[] = files.map(file => ({
     filename: file.filename,
     sourceFilename: file.filename, // Full path with directory structure
     lastUpdated: new Date().toISOString(),
@@ -376,7 +391,7 @@ export function generateManifest(
 /**
  * Write manifest to .koro-i18n/koro-i18n.repo.generated.json
  */
-function writeManifest(manifest: any): void {
+function writeManifest(manifest: GeneratedManifest): void {
   const outputDir = '.koro-i18n';
   const outputPath = path.join(outputDir, 'koro-i18n.repo.generated.json');
 
