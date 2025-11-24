@@ -29,7 +29,8 @@ export interface FetchedTranslationFile {
  */
 export interface GeneratedManifest {
   repository: string;
-  configVersion: string;
+  sourceLanguage: string;
+  configVersion: number;
   files: ManifestFileEntry[];
 }
 

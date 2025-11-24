@@ -1,6 +1,7 @@
 {
   "repository": "f3liz-dev/example-project",
-  "configVersion": "1.0.0",
+  "sourceLanguage": "en",
+  "configVersion": 1,
   "files": [
     {
       "filename": "common.json",

@@ -13,21 +13,18 @@ Instead of using glob patterns and directory traversal, koro-i18n now supports m
 
 ### 1. Repository Config (Root Level)
 
-Create `koro-i18n.repo.config.json` in the root of your repository:
+Use the existing `.koro-i18n.repo.config.toml` in the root of your repository:
 
-```json
-{
-  "project": {
-    "name": "your-project-name",
-    "platformUrl": "https://koro.f3liz.workers.dev"
-  },
-  "source": {
-    "language": "en"
-  },
-  "target": {
-    "languages": ["ja", "es", "fr", "de", "zh"]
-  }
-}
+```toml
+[project]
+name = "your-project-name"
+platform_url = "https://koro.f3liz.workers.dev"
+
+[source]
+language = "en"
+
+[target]
+languages = ["ja", "es", "fr", "de", "zh"]
 ```
 
 ### 2. Generated Manifest (GitHub Actions)
@@ -37,7 +34,8 @@ The GitHub Action should generate `.koro-i18n/koro-i18n.repo.generated.json`:
 ```json
 {
   "repository": "owner/repo",
-  "configVersion": "1.0.0",
+  "sourceLanguage": "en",
+  "configVersion": 1,
   "files": [
     {
       "filename": "common.json",
@@ -60,7 +58,8 @@ The GitHub Action should generate `.koro-i18n/koro-i18n.repo.generated.json`:
 #### Manifest Fields
 
 - **repository**: The GitHub repository in `owner/repo` format
-- **configVersion**: Version of the config format (currently `1.0.0`)
+- **sourceLanguage**: The source language code (e.g., `en`)
+- **configVersion**: Version of the config format as an integer (currently `1`)
 - **files**: Array of file entries with:
   - **filename**: Target filename (e.g., `common.json`)
   - **sourceFilename**: Full path to the source file in the repository (e.g., `locales/en/common.json`)
@@ -85,7 +84,8 @@ Authorization: ******
   "success": true,
   "manifest": {
     "repository": "owner/repo",
-    "configVersion": "1.0.0",
+    "sourceLanguage": "en",
+    "configVersion": 1,
     "files": [...]
   }
 }
@@ -140,7 +140,7 @@ on:
   push:
     paths:
       - 'locales/**/*.json'
-      - 'koro-i18n.repo.config.json'
+      - '.koro-i18n.repo.config.toml'
 
 jobs:
   generate-manifest:
@@ -158,8 +158,10 @@ jobs:
           const fs = require('fs');
           const path = require('path');
           const { execSync } = require('child_process');
+          const toml = require('toml');
           
-          const config = JSON.parse(fs.readFileSync('koro-i18n.repo.config.json', 'utf8'));
+          const configContent = fs.readFileSync('.koro-i18n.repo.config.toml', 'utf8');
+          const config = toml.parse(configContent);
           const files = [];
           
           // Find all translation files
@@ -191,7 +193,8 @@ jobs:
           
           const manifest = {
             repository: process.env.GITHUB_REPOSITORY,
-            configVersion: '1.0.0',
+            sourceLanguage: config.source.language,
+            configVersion: 1,
             files: files
           };
           
@@ -247,12 +250,12 @@ const { files } = await filesRes.json();
 4. **Metadata**: Includes commit hashes and update timestamps
 5. **Simplicity**: No glob pattern matching needed
 
-## Migration from TOML Config
+## Using Existing TOML Config
 
-If you currently use `.koro-i18n.repo.config.toml` with glob patterns, you can migrate to the manifest-based approach by:
+The manifest-based approach works with your existing `.koro-i18n.repo.config.toml` file. Simply:
 
-1. Converting your TOML config to JSON format
-2. Setting up a GitHub Action to generate the manifest
-3. Using the new `/fetch-from-manifest` endpoint
+1. Keep your TOML config file in the repository root
+2. Set up a GitHub Action to generate the manifest (see example above)
+3. Use the new `/fetch-from-manifest` endpoint
 
 The old `/fetch-from-github` endpoint with directory traversal is still available but is now considered legacy.
