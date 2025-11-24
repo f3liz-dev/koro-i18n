@@ -466,9 +466,67 @@ Remove project member.
 
 ### Project File Routes
 
-Base path: `/api/projects/:projectName`
+Base path: `/api/projects/:projectName/files`
 
-#### `POST /api/projects/:projectName/upload`
+#### `POST /api/projects/:projectName/files/fetch-from-github` ⭐ NEW RECOMMENDED
+
+Fetch translation files directly from a GitHub repository using the user's stored access token.
+
+**Authentication:** Required (JWT)
+
+**Authorization Header:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Request Body:**
+```json
+{
+  "path": "locales",  // Optional, default: "locales"
+  "branch": "main"    // Optional, default: "main"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "repository": "owner/repo",
+  "branch": "main",
+  "commitSha": "abc123def456",
+  "filesFound": 5,
+  "files": [
+    {
+      "lang": "en",
+      "filename": "common.json",
+      "contents": {
+        "key1": "value1",
+        "key2": "value2"
+      },
+      "sourceHash": "file-content-hash",
+      "commitSha": "abc123def456"
+    }
+  ],
+  "message": "Files fetched successfully from GitHub. Metadata validation should be done client-side."
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - GitHub access token not found or expired
+- `404 Not Found` - Project or files not found
+- `500 Internal Server Error` - Failed to fetch from GitHub
+
+**Notes:**
+- This endpoint automatically uses the latest commit from the specified branch
+- Files are fetched on-demand, not stored in R2
+- The user must have re-authenticated after the `public_repo` scope was added
+- Metadata validation is done client-side
+
+---
+
+#### `POST /api/projects/:projectName/files/upload` ⚠️ DEPRECATED
+
+> **Warning:** This endpoint is deprecated. Use `/fetch-from-github` instead to fetch files directly from GitHub.
 
 Upload translation files to R2 (GitHub imports).
 

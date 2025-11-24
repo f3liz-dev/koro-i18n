@@ -13,28 +13,38 @@ koro-i18n is a lightweight i18n platform using Cloudflare Workers, D1, and R2.
 
 ### Storage Strategy
 
-**R2 (GitHub Imports - Mutable)**
+**GitHub Direct Access (Recommended - NEW)**
+- Files fetched on-demand from GitHub using user's OAuth token
+- No R2 storage needed for source files
+- Metadata validation done client-side
+- Always up-to-date with repository
+
+**R2 (Web Translations & Legacy GitHub Imports)**
 - Key format: `[project]-[lang]-[filename]`
-- Files overwritten on each upload
-- Git history preserved in metadata
+- Primarily used for web translations
 - MessagePack compressed
+- ⚠️ GitHub imports via R2 are deprecated
 
 **D1 (Metadata & Web Translations)**
-- `R2File`: Lightweight index pointing to R2
+- `R2File`: Lightweight index (primarily for web translations)
 - `WebTranslation`: User translations with validation
 - `WebTranslationHistory`: Full audit trail
+- `User`: Stores `githubAccessToken` for repository access
 
 ### Data Flow
 
 ```
-GitHub Upload:
+GitHub Source Files (NEW):
+  UI → Worker (with user token) → GitHub API → Parse & Return
+  
+Legacy GitHub Upload (DEPRECATED):
   Client (git blame + MessagePack) → Worker → R2 + D1 index
 
 Web Translation:
   User → Worker → D1 only
 
 Display:
-  UI → R2 API (GitHub) + D1 API (Web) → Merge in UI
+  UI → GitHub API (source) + D1 API (web translations) → Merge in UI
 ```
 
 **For detailed flow documentation**, see [FLOWS.md](FLOWS.md)
@@ -51,9 +61,10 @@ Display:
 - Cloudflare R2 (S3-compatible object storage)
 
 **Authentication:**
-- GitHub OAuth for web UI
+- GitHub OAuth for web UI (with `public_repo` scope)
+- GitHub access tokens stored in D1 for repository access
 - JWT tokens (HS256, 24-hour expiration)
-- GitHub OIDC for Actions (10-minute tokens, no secrets)
+- GitHub OIDC for Actions (10-minute tokens, no secrets) - ⚠️ Still supported but not required
 
 **Serialization:**
 - MessagePack for R2 files (binary format, smaller than JSON)
@@ -73,11 +84,11 @@ The backend separates concerns into distinct API layers:
 - Member management (invitations, approvals)
 - Access control (whitelist/blacklist)
 
-### File Upload API (`/api/projects/:project`)
-- Chunked file uploads with OIDC authentication
+### File Access API (`/api/projects/:project/files`)
+- **NEW:** Fetch files directly from GitHub using user's token
+- ⚠️ DEPRECATED: Chunked file uploads with OIDC authentication
 - Differential upload (skip unchanged files)
 - Automatic cleanup of orphaned files
-- Batch D1 operations for performance
 
 ### R2 File API (`/api/r2`)
 - Direct R2 file retrieval

@@ -19,6 +19,8 @@ pnpm run prisma:migrate:local
 
 3. Configure secrets (GitHub OAuth, JWT) with `wrangler secret put`.
 
+   **Important:** When creating your GitHub OAuth App, ensure it requests the `public_repo` scope. This allows the platform to fetch translation files directly from users' repositories.
+
 4. Development (local):
 
 ```pwsh
