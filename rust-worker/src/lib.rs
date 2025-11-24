@@ -1,4 +1,3 @@
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use hex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -117,7 +116,7 @@ pub fn sort_items(items: &mut Vec<serde_json::Value>, sort_by: &str, order: &str
 }
 
 #[event(fetch)]
-async fn main(mut req: Request, env: Env, ctx: Context) -> Result<Response> {
+async fn main(mut req: Request, _env: Env, _ctx: Context) -> Result<Response> {
     let url = req.url()?;
     match (req.method(), url.path()) {
         (Method::Post, "/hash") => {
