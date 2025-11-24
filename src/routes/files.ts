@@ -14,6 +14,8 @@ import {
     fetchTranslationFilesFromGitHub,
     processGitHubTranslationFiles,
     getLatestCommitSha,
+    fetchGeneratedManifest,
+    fetchFilesFromManifest,
 } from '../lib/github-repo-fetcher';
 
 interface Env {
@@ -69,7 +71,154 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
     // Hono's app.route preserves params if configured correctly, but usually we need to access it carefully.
     // If mounted as app.route('/:projectName/files', filesApp), then :projectName is a param.
 
-    // Fetch files from GitHub repository (NEW PREFERRED METHOD)
+    // Fetch the generated manifest from the repository
+    // This endpoint returns the manifest file that lists all translation files
+    app.get('/manifest', authMiddleware, async (c) => {
+        const user = c.get('user');
+        const projectName = c.req.param('projectName');
+        const branch = c.req.query('branch') || 'main';
+
+        const project = await prisma.project.findUnique({
+            where: { name: projectName },
+            select: { id: true, userId: true, repository: true },
+        });
+
+        if (!project) return c.json({ error: 'Project not found' }, 404);
+
+        // Check access
+        const hasAccess = await checkProjectAccess(prisma, project.id, user.userId);
+        if (!hasAccess) return c.json({ error: 'Forbidden' }, 403);
+
+        // Get user's GitHub access token
+        const githubToken = await getUserGitHubToken(prisma, user.userId);
+        if (!githubToken) {
+            return c.json({ 
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            }, 401);
+        }
+
+        try {
+            const parts = project.repository.trim().split('/');
+            if (parts.length !== 2 || !parts[0] || !parts[1]) {
+                return c.json({ 
+                    error: 'Invalid repository format. Expected: owner/repo' 
+                }, 400);
+            }
+            const [owner, repo] = parts;
+
+            const octokit = new Octokit({ auth: githubToken });
+
+            // Fetch the generated manifest
+            const manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
+
+            if (!manifest) {
+                return c.json({ 
+                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.json exists in your repository.' 
+                }, 404);
+            }
+
+            return c.json({
+                success: true,
+                manifest,
+            });
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Error fetching manifest:', errorMessage);
+            return c.json({ 
+                error: `Failed to fetch manifest: ${errorMessage}` 
+            }, 500);
+        }
+    });
+
+    // Fetch files using the generated manifest (RECOMMENDED METHOD)
+    // This endpoint uses the pre-generated manifest to fetch specific files
+    app.post('/fetch-from-manifest', authMiddleware, async (c) => {
+        const user = c.get('user');
+        const projectName = c.req.param('projectName');
+        const { branch = 'main' } = await c.req.json().catch(() => ({}));
+
+        const project = await prisma.project.findUnique({
+            where: { name: projectName },
+            select: { id: true, userId: true, repository: true, sourceLanguage: true },
+        });
+
+        if (!project) return c.json({ error: 'Project not found' }, 404);
+
+        // Check access
+        const hasAccess = await checkProjectAccess(prisma, project.id, user.userId);
+        if (!hasAccess) return c.json({ error: 'Forbidden' }, 403);
+
+        // Get user's GitHub access token
+        const githubToken = await getUserGitHubToken(prisma, user.userId);
+        if (!githubToken) {
+            return c.json({ 
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            }, 401);
+        }
+
+        try {
+            const parts = project.repository.trim().split('/');
+            if (parts.length !== 2 || !parts[0] || !parts[1]) {
+                return c.json({ 
+                    error: 'Invalid repository format. Expected: owner/repo' 
+                }, 400);
+            }
+            const [owner, repo] = parts;
+
+            const octokit = new Octokit({ auth: githubToken });
+
+            // Fetch the generated manifest
+            const manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
+
+            if (!manifest) {
+                return c.json({ 
+                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.json exists in your repository.' 
+                }, 404);
+            }
+
+            // Get latest commit SHA
+            const commitSha = await getLatestCommitSha(octokit, owner, repo, branch);
+
+            // Fetch files listed in the manifest
+            const githubFiles = await fetchFilesFromManifest(octokit, owner, repo, manifest, branch);
+
+            if (githubFiles.length === 0) {
+                return c.json({ 
+                    error: 'No translation files found from manifest' 
+                }, 404);
+            }
+
+            // Process files with metadata (git blame fetched from GitHub)
+            const processedFiles = await processGitHubTranslationFiles(
+                octokit,
+                owner,
+                repo,
+                githubFiles,
+                commitSha,
+                branch
+            );
+
+            // Important: Never expose the GitHub token to the client
+            return c.json({
+                success: true,
+                repository: project.repository,
+                branch,
+                commitSha,
+                filesFound: processedFiles.length,
+                files: processedFiles,
+                manifest: manifest,
+                message: 'Files fetched successfully using generated manifest.',
+            });
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Error fetching from manifest:', errorMessage);
+            return c.json({ 
+                error: `Failed to fetch files from manifest: ${errorMessage}` 
+            }, 500);
+        }
+    });
+
+    // Fetch files from GitHub repository (LEGACY METHOD - uses directory traversal)
     // This endpoint replaces the need for manual uploads
     app.post('/fetch-from-github', authMiddleware, async (c) => {
         const user = c.get('user');

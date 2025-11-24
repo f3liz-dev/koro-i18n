@@ -1,0 +1,12 @@
+{
+  "project": {
+    "name": "example-project",
+    "platformUrl": "http://localhost:8787"
+  },
+  "source": {
+    "language": "en"
+  },
+  "target": {
+    "languages": ["ja", "es", "fr", "de", "zh"]
+  }
+}

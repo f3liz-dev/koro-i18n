@@ -24,6 +24,24 @@ export interface FetchedTranslationFile {
 }
 
 /**
+ * Structure of the generated manifest file
+ * Located at .koro-i18n/koro-i18n.repo.generated.json
+ */
+export interface GeneratedManifest {
+  repository: string;
+  configVersion: string;
+  files: ManifestFileEntry[];
+}
+
+export interface ManifestFileEntry {
+  filename: string;        // Target filename (e.g., "common.json")
+  sourceFilename: string;  // Source file path in repo (e.g., "locales/en/common.json")
+  lastUpdated: string;     // ISO date string
+  commitHash: string;      // Git commit hash
+  language: string;        // Language code (e.g., "en", "ja")
+}
+
+/**
  * Get user's GitHub access token from database
  */
 export async function getUserGitHubToken(
@@ -375,4 +393,80 @@ export async function getLatestCommitSha(
   });
 
   return data.commit.sha;
+}
+
+/**
+ * Fetch the generated manifest file from the repository
+ * Path: .koro-i18n/koro-i18n.repo.generated.json
+ */
+export async function fetchGeneratedManifest(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string = 'main'
+): Promise<GeneratedManifest | null> {
+  try {
+    const manifestPath = '.koro-i18n/koro-i18n.repo.generated.json';
+    
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: manifestPath,
+      ref: branch,
+    });
+
+    if (!('content' in data)) {
+      console.warn(`[manifest] Generated manifest not found at ${manifestPath}`);
+      return null;
+    }
+
+    // Decode base64 content
+    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+    const manifest = JSON.parse(content) as GeneratedManifest;
+
+    return manifest;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.warn(`[manifest] Failed to fetch generated manifest:`, errorMessage);
+    return null;
+  }
+}
+
+/**
+ * Fetch specific files listed in the manifest
+ */
+export async function fetchFilesFromManifest(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  manifest: GeneratedManifest,
+  branch: string = 'main'
+): Promise<GitHubFile[]> {
+  const files: GitHubFile[] = [];
+
+  for (const entry of manifest.files) {
+    try {
+      const { data: fileData } = await octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path: entry.sourceFilename,
+        ref: branch,
+      });
+
+      if ('content' in fileData && fileData.content) {
+        const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
+        
+        files.push({
+          path: entry.sourceFilename,
+          content,
+          sha: fileData.sha,
+        });
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Error fetching file ${entry.sourceFilename}:`, errorMessage);
+    }
+  }
+
+  return files;
 }

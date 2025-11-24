@@ -97,12 +97,14 @@ Concise docs are in `docs/` — key ones:
 
 ### GitHub Integration (New)
 ```
-POST /api/projects/:project/files/fetch-from-github  # Fetch files directly from GitHub
+GET  /api/projects/:project/files/manifest              # Get generated manifest
+POST /api/projects/:project/files/fetch-from-manifest  # Fetch files using manifest (RECOMMENDED)
+POST /api/projects/:project/files/fetch-from-github    # Legacy: Fetch files with directory traversal
 ```
 
 ### D1 API - Metadata & Web Translations
 ```
-POST /api/projects/:project/upload  # DEPRECATED: Use fetch-from-github instead
+POST /api/projects/:project/upload  # DEPRECATED: Use fetch-from-manifest instead
 GET  /api/projects/:project/files/list
 GET  /api/translations
 POST /api/translations
