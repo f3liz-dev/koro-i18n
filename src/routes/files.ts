@@ -421,18 +421,32 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             });
         }
 
-        // Batch query: Get translation counts for all files at once using groupBy
-        // This avoids N+1 query pattern by fetching all counts in a single query
-        const translationCounts = files.length > 0 ? await prisma.webTranslation.groupBy({
-            by: ['language', 'filename'],
-            where: {
-                projectId: project.repository,
-                status: { in: ['approved', 'committed'] },
-                // Only include files we care about
-                OR: files.map(f => ({ language: f.lang, filename: f.filename })),
-            },
-            _count: { id: true },
-        }) : [];
+        // Batch query: Get translation counts for files using groupBy
+        // SQLite/D1 has a limit on SQL variables (SQLITE_MAX_VARIABLE_NUMBER defaults to 999),
+        // so we batch the queries to avoid "too many SQL variables" error when there are many files.
+        // Each file adds 2 variables (language, filename), plus 3 for projectId and status IN clause,
+        // so batch size of 50 uses ~103 variables per batch, staying well under the limit.
+        const BATCH_SIZE = 50;
+        const translationCounts: { language: string; filename: string; _count: { id: number } }[] = [];
+        
+        if (files.length > 0) {
+            // Process files in batches to avoid SQLite variable limit
+            for (let i = 0; i < files.length; i += BATCH_SIZE) {
+                const batch = files.slice(i, i + BATCH_SIZE);
+                if (batch.length === 0) continue;
+                const batchResults = await prisma.webTranslation.groupBy({
+                    by: ['language', 'filename'],
+                    where: {
+                        projectId: project.repository,
+                        status: { in: ['approved', 'committed'] },
+                        // Only include files in this batch
+                        OR: batch.map(f => ({ language: f.lang, filename: f.filename })),
+                    },
+                    _count: { id: true },
+                });
+                translationCounts.push(...batchResults);
+            }
+        }
 
         // Create a lookup map for quick access: "lang:filename" -> count
         const countMap = new Map<string, number>();
