@@ -449,6 +449,9 @@ function writeProgressTranslated(
     for (const file of langFiles) {
       // Replace the actual language code with <lang> placeholder in the filepath
       // e.g., "locales/ja/common.json" -> "locales/<lang>/common.json"
+      // Note: This replaces the first occurrence of the language code as a path segment.
+      // For patterns where the language appears in multiple positions, only the first is replaced.
+      // This is sufficient for typical patterns like "locales/{lang}/**/*.json".
       const filepathWithPlaceholder = file.filename.replace(
         new RegExp(`(^|/)${escapeRegExp(lang)}(/|$)`),
         '$1<lang>$2'
