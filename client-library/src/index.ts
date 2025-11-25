@@ -479,18 +479,138 @@ function writeProgressTranslated(
 }
 
 /**
+ * Translation entry status
+ */
+export type TranslationStatus = 'verified' | 'outdated' | 'pending';
+
+/**
+ * Store entry for a single translation key
+ */
+export interface StoreEntry {
+  src: string;      // Git commit hash (short) of the source line
+  tgt: string;      // Git commit hash (short) of the target/translated line
+  updated: number;  // Unix timestamp (seconds) from git blame
+  status: TranslationStatus;
+}
+
+/**
  * Store data structure
- * Maps filepath (with <lang> placeholder) to {key: sourceValue} for source validation
+ * Maps filepath (with <lang> placeholder) to {key: StoreEntry}
  */
 export interface StoreData {
-  [filepathWithLangPlaceholder: string]: Record<string, string>;
+  [filepathWithLangPlaceholder: string]: Record<string, StoreEntry>;
+}
+
+/**
+ * Find line number for a nested key in JSON content
+ * Handles nested structures like "buttons.save" properly
+ */
+function findKeyLineInJson(
+  lines: string[],
+  keyPath: string
+): number {
+  // Track the current path of parent keys
+  const pathStack: string[] = [];
+  let braceDepth = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    // Count braces before processing keys
+    for (const char of line) {
+      if (char === '{') {
+        braceDepth++;
+      } else if (char === '}') {
+        braceDepth--;
+        // When closing a brace, pop the path stack if it's deeper than current depth
+        while (pathStack.length >= braceDepth && pathStack.length > 0) {
+          pathStack.pop();
+        }
+      }
+    }
+    
+    // Check for key pattern: "keyName":
+    const keyMatch = trimmed.match(/^"([^"]+)"\s*:/);
+    if (keyMatch) {
+      const foundKey = keyMatch[1];
+      
+      // Build current path
+      const currentPath = pathStack.length > 0 
+        ? pathStack.join('.') + '.' + foundKey 
+        : foundKey;
+      
+      // Check if this matches our target key path
+      if (currentPath === keyPath) {
+        return i + 1; // 1-indexed line number
+      }
+      
+      // If this key's value is an object (line has { after :), add to path stack
+      const afterColon = trimmed.substring(trimmed.indexOf(':') + 1).trim();
+      if (afterColon.startsWith('{') && !afterColon.includes('}')) {
+        pathStack.push(foundKey);
+      }
+    }
+  }
+  
+  return 0;
+}
+
+/**
+ * Get git blame commit hash for each key in a file
+ * Returns a map of key -> {commit, timestamp}
+ * Uses short commit hashes (7 chars) to reduce file size
+ */
+function getKeyCommitInfo(
+  filePath: string,
+  contents: Record<string, string>
+): Map<string, { commit: string; timestamp: number }> {
+  const result = new Map<string, { commit: string; timestamp: number }>();
+  
+  if (!fs.existsSync(filePath)) {
+    return result;
+  }
+
+  const fileContent = fs.readFileSync(filePath, 'utf-8');
+  const lines = fileContent.split('\n');
+  const blameMap = getGitBlame(filePath);
+  const fileExt = path.extname(filePath).toLowerCase();
+
+  for (const key of Object.keys(contents)) {
+    let lineNumber = 0;
+
+    if (fileExt === '.json') {
+      lineNumber = findKeyLineInJson(lines, key);
+    } else {
+      // Fallback for other formats - look for the leaf key
+      const leafKey = key.split('.').pop() || key;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes(leafKey)) {
+          lineNumber = i + 1;
+          break;
+        }
+      }
+    }
+
+    if (lineNumber > 0) {
+      const blame = blameMap.get(lineNumber);
+      if (blame) {
+        result.set(key, {
+          commit: blame.commit.substring(0, 7), // Short 7-char hash
+          timestamp: Math.floor(new Date(blame.date).getTime() / 1000),
+        });
+      }
+    }
+  }
+
+  return result;
 }
 
 /**
  * Generate and write store files for each target language
  * Creates .koro-i18n/store/[lang].json
- * Content: {[filepath with <lang>]: {key: sourceValue}}
- * This allows koro-i18n to detect when source values change and mark translations as invalid
+ * Content: {[filepath with <lang>]: {key: {src, tgt, updated, status}}}
+ * Uses git commit hashes to track changes in source and target files
  */
 function writeStore(
   files: TranslationFile[],
@@ -503,13 +623,16 @@ function writeStore(
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  // Build a map of source files: filepath (with <lang>) -> {key: value}
-  const sourceFiles = new Map<string, Record<string, string>>();
+  // Build maps of source files
+  const sourceFiles = new Map<string, { filepath: string; contents: Record<string, string> }>();
   for (const file of files) {
     if (file.lang !== sourceLanguage) continue;
     
     const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, sourceLanguage);
-    sourceFiles.set(filepathWithPlaceholder, file.contents);
+    sourceFiles.set(filepathWithPlaceholder, {
+      filepath: file.filename,
+      contents: file.contents,
+    });
   }
 
   // Group target files by language
@@ -524,30 +647,78 @@ function writeStore(
 
   // Generate store file for each target language
   for (const [lang, langFiles] of filesByLang.entries()) {
+    const outputPath = path.join(outputDir, `${lang}.json`);
+    
+    // Load existing store data if it exists (to preserve status for unchanged entries)
+    let existingData: StoreData = {};
+    if (fs.existsSync(outputPath)) {
+      try {
+        existingData = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
+      } catch {
+        // If parsing fails, start fresh
+        existingData = {};
+      }
+    }
+
     const storeData: StoreData = {};
 
     for (const file of langFiles) {
       const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, lang);
 
       // Get the corresponding source file
-      const sourceContents = sourceFiles.get(filepathWithPlaceholder);
-      if (!sourceContents) continue;
+      const sourceFile = sourceFiles.get(filepathWithPlaceholder);
+      if (!sourceFile) continue;
 
-      // Store only the keys that exist in the target file, with their source values
-      const sourceValuesForKeys: Record<string, string> = {};
+      // Get git blame info for both source and target files
+      const sourceCommitInfo = getKeyCommitInfo(sourceFile.filepath, sourceFile.contents);
+      const targetCommitInfo = getKeyCommitInfo(file.filename, file.contents);
+
+      const existingFileData = existingData[filepathWithPlaceholder] || {};
+      const entriesForFile: Record<string, StoreEntry> = {};
+
       for (const key of Object.keys(file.contents)) {
-        if (Object.hasOwn(sourceContents, key)) {
-          sourceValuesForKeys[key] = sourceContents[key];
+        if (!Object.hasOwn(sourceFile.contents, key)) continue;
+
+        const srcInfo = sourceCommitInfo.get(key);
+        const tgtInfo = targetCommitInfo.get(key);
+        
+        if (!srcInfo || !tgtInfo) continue;
+
+        const existingEntry = existingFileData[key];
+
+        let status: TranslationStatus;
+
+        if (existingEntry) {
+          // Compare with existing entry to determine status
+          if (existingEntry.src !== srcInfo.commit) {
+            // Source changed - translation is outdated
+            status = 'outdated';
+          } else if (existingEntry.tgt !== tgtInfo.commit) {
+            // Target changed but source unchanged - assume latest translation is verified
+            status = 'verified';
+          } else {
+            // No changes - preserve existing status
+            status = existingEntry.status;
+          }
+        } else {
+          // New entry - mark as verified (git is source of truth)
+          status = 'verified';
         }
+
+        entriesForFile[key] = {
+          src: srcInfo.commit,
+          tgt: tgtInfo.commit,
+          updated: tgtInfo.timestamp,
+          status,
+        };
       }
 
-      if (Object.keys(sourceValuesForKeys).length > 0) {
-        storeData[filepathWithPlaceholder] = sourceValuesForKeys;
+      if (Object.keys(entriesForFile).length > 0) {
+        storeData[filepathWithPlaceholder] = entriesForFile;
       }
     }
 
     // Write the store file for this language
-    const outputPath = path.join(outputDir, `${lang}.json`);
     fs.writeFileSync(outputPath, JSON.stringify(storeData, null, 2), 'utf-8');
     console.log(`  ✓ Store: ${outputPath} (${langFiles.length} files)`);
   }

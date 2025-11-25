@@ -139,20 +139,34 @@ The filepath uses `<lang>` as a placeholder for the language code, and the value
 
 ### Store Files
 
-The action also generates `.koro-i18n/store/[lang].json` files for each target language. These files store the original source values for each translated key, enabling koro-i18n to detect when source content changes and mark translations as potentially invalid:
+The action also generates `.koro-i18n/store/[lang].json` files for each target language. These files track git commit hashes for source and target translations, enabling koro-i18n to detect when either changes:
 
 ```json
 {
   "locales/<lang>/common.json": {
-    "welcome": "Welcome to our app",
-    "goodbye": "Goodbye",
-    "buttons.save": "Save",
-    "buttons.cancel": "Cancel"
+    "welcome": {
+      "src": "abc1234",
+      "tgt": "def5678",
+      "updated": 1732521600,
+      "status": "verified"
+    },
+    "buttons.save": {
+      "src": "abc1234",
+      "tgt": "def5678",
+      "updated": 1732521600,
+      "status": "verified"
+    }
   }
 }
 ```
 
-When the source language value changes, koro-i18n can compare the stored value with the current source to identify translations that need review.
+Each entry contains:
+- `src`: Short git commit hash (7 chars) of the source line
+- `tgt`: Short git commit hash (7 chars) of the target/translated line
+- `updated`: Unix timestamp from git blame
+- `status`: Translation status - `"verified"`, `"outdated"`, or `"pending"`
+
+When the source commit changes but target hasn't been updated, the status is marked as `"outdated"`. When target is updated after source, status returns to `"verified"`.
 
 ## How It Works
 
@@ -160,7 +174,7 @@ When the source language value changes, koro-i18n can compare the stored value w
 2. Scans for translation files matching the configured patterns
 3. Generates metadata including file paths, languages, and commit hashes
 4. Generates progress-translated files for each target language
-5. Generates store files with source values for translation validation
+5. Generates store files with git commit tracking for translation validation
 6. Commits the metadata files to your repository (if enabled)
 
 The koro-i18n platform can then fetch this metadata to use your GitHub repository as a realtime translation source.
