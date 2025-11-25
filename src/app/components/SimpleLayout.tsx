@@ -1,25 +1,25 @@
 import { ParentComponent, Show } from 'solid-js';
-import { A, useLocation } from '@solidjs/router';
+import { A } from '@solidjs/router';
 import { useAuth } from '../auth';
 import '../styles/minimal.css';
 
 export const SimpleLayout: ParentComponent = (props) => {
   const { user, login, logout } = useAuth();
-  const location = useLocation();
 
   return (
-    <div class="min-h-screen bg-surface">
+    <div class="page">
       <header class="header">
-        <div class="container inner">
+        <div class="inner">
           <A href="/" class="brand">
-            <div style={{"font-size":"20px"}}>🌐</div>
+            <span style={{ "font-size": "1.25rem" }}>🌐</span>
             <span>koro i18n</span>
           </A>
 
           <nav class="nav">
-            <A href="/projects" class="small">Projects</A>
-            <A href="/docs" class="small">Docs</A>
-            <Show when={!user()} fallback={<button onClick={() => logout()} class="btn ghost">Sign Out</button>}>
+            <A href="/projects">Projects</A>
+            <Show when={!user()} fallback={
+              <button onClick={() => logout()} class="btn ghost">Sign Out</button>
+            }>
               <button onClick={() => login()} class="btn primary">Sign In</button>
             </Show>
           </nav>
@@ -33,7 +33,7 @@ export const SimpleLayout: ParentComponent = (props) => {
       </main>
 
       <footer class="footer">
-        © {new Date().getFullYear()} • Made with ❤️ by f3liz-dev
+        © {new Date().getFullYear()} koro i18n
       </footer>
     </div>
   );

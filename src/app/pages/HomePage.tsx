@@ -9,59 +9,77 @@ export default function HomePage() {
   const { t } = useI18n();
 
   return (
-    <div class="flex flex-col items-center justify-center min-h-[80vh] relative">
-      <div class="absolute top-4 right-4">
+    <div style={{ 
+      display: 'flex', 
+      'flex-direction': 'column', 
+      'align-items': 'center', 
+      'justify-content': 'center', 
+      'min-height': '70vh',
+      'text-align': 'center',
+      padding: '2rem 1rem'
+    }}>
+      <div style={{ position: 'absolute', top: '1rem', right: '1rem' }}>
         <LanguageSelector />
       </div>
 
-      <div class="text-center max-w-2xl mx-auto animate-fade-in-up">
-        <div class="mb-8 flex justify-center">
-          <div class="p-8 bg-white rounded-full shadow-lg border-4 border-primary-100 transform hover:scale-105 transition-transform duration-300">
-            <div class="text-8xl filter drop-shadow-md">🐱</div>
-          </div>
+      <div class="animate-fade-in" style={{ 'max-width': '32rem' }}>
+        <div style={{ 
+          'font-size': '4rem', 
+          'margin-bottom': '1.5rem',
+          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+        }}>
+          🌐
         </div>
 
-        <h1 class="text-5xl md:text-6xl font-serif font-bold mb-6 text-neutral-800 tracking-tight">
-          <span class="text-primary-500">Koro</span> i18n
+        <h1 style={{ 
+          'font-size': '2.5rem', 
+          'font-weight': '700', 
+          'margin-bottom': '1rem',
+          color: 'var(--text)'
+        }}>
+          Koro i18n
         </h1>
 
-        <p class="text-xl text-neutral-600 mb-10 leading-relaxed max-w-lg mx-auto">
-          {t('home.subtitle') || 'The cutest way to manage your translations. Simple, fast, and purr-fectly organized.'}
+        <p style={{ 
+          'font-size': '1.125rem', 
+          color: 'var(--text-secondary)', 
+          'margin-bottom': '2rem',
+          'line-height': '1.6'
+        }}>
+          {t('home.subtitle') || 'Simple and intuitive translation management for your projects.'}
         </p>
 
-        <div class="flex flex-col items-center gap-4">
+        <div style={{ display: 'flex', 'flex-direction': 'column', 'align-items': 'center', gap: '1rem' }}>
           {user() ? (
             <button
               onClick={() => navigate('/dashboard')}
-              class="btn-primary text-lg px-8 py-4 shadow-xl shadow-primary-200 hover:shadow-primary-300 transform hover:-translate-y-1"
+              class="btn primary"
+              style={{ padding: '0.75rem 2rem', 'font-size': '1rem' }}
             >
-              <span>{t('home.goToDashboard')}</span>
-              <div class="i-carbon-arrow-right" />
+              {t('home.goToDashboard') || 'Go to Dashboard'} →
             </button>
           ) : (
             <button
               onClick={() => navigate('/login')}
-              class="btn-primary text-lg px-8 py-4 shadow-xl shadow-primary-200 hover:shadow-primary-300 transform hover:-translate-y-1"
+              class="btn primary"
+              style={{ padding: '0.75rem 2rem', 'font-size': '1rem' }}
             >
-              <div class="i-carbon-logo-github text-xl" />
-              <span>{t('home.signInWithGitHub')}</span>
+              {t('home.signInWithGitHub') || 'Sign in with GitHub'}
             </button>
           )}
+        </div>
 
-          <div class="mt-8 flex gap-8 text-neutral-400">
-            <div class="flex flex-col items-center gap-2">
-              <div class="i-carbon-flash text-2xl text-primary-300" />
-              <span class="text-xs font-medium">Fast</span>
-            </div>
-            <div class="flex flex-col items-center gap-2">
-              <div class="i-carbon-cloud text-2xl text-primary-300" />
-              <span class="text-xs font-medium">Cloudflare</span>
-            </div>
-            <div class="flex flex-col items-center gap-2">
-              <div class="i-carbon-favorite text-2xl text-primary-300" />
-              <span class="text-xs font-medium">Free</span>
-            </div>
-          </div>
+        <div style={{ 
+          'margin-top': '3rem', 
+          display: 'flex', 
+          'justify-content': 'center', 
+          gap: '2rem',
+          color: 'var(--text-muted)',
+          'font-size': '0.875rem'
+        }}>
+          <span>⚡ Fast</span>
+          <span>☁️ Cloud-native</span>
+          <span>🆓 Free</span>
         </div>
       </div>
     </div>

@@ -38,7 +38,6 @@ export default function TranslationEditorPage() {
   const language = () => params.language || 'en';
   const filename = () => params.filename ? decodeURIComponent(params.filename) : 'common.json';
 
-  // Create display filename with {lang} placeholder
   const displayFilename = () => {
     const fname = filename();
     const lang = language();
@@ -52,7 +51,6 @@ export default function TranslationEditorPage() {
   const [searchQuery, setSearchQuery] = createSignal('');
   const [filterStatus, setFilterStatus] = createSignal<'all' | 'valid' | 'invalid'>('all');
 
-  // Initialize sort method from URL, handling array case
   const sortFromUrl = Array.isArray(searchParams.sort) ? searchParams.sort[0] : searchParams.sort;
   const [sortMethod, setSortMethod] = createSignal<SortMethod>(
     (sortFromUrl && ['priority', 'alphabetical', 'completion'].includes(sortFromUrl) ? sortFromUrl : 'priority') as SortMethod
@@ -64,7 +62,6 @@ export default function TranslationEditorPage() {
   const [isLoading, setIsLoading] = createSignal(true);
   const [isSaving, setIsSaving] = createSignal(false);
 
-  // Fetch project info
   async function loadProject() {
     try {
       const response = await authFetch('/api/projects', { credentials: 'include' });
@@ -81,46 +78,33 @@ export default function TranslationEditorPage() {
     }
   }
 
-  // Load translations from R2 + D1
   async function loadTranslations() {
     const proj = project();
     if (!proj) return;
 
     setIsLoading(true);
     try {
-      // Determine source and target filenames
       const sourceLang = proj.sourceLanguage;
       const targetLang = language();
       const targetFilename = filename();
 
-      // For language-specific filenames, compute the source filename
       const sourceFilename = targetFilename.replace(
         new RegExp(targetLang.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
         sourceLang
       );
 
-      // Fetch source file from R2 (for sourceValue)
       const sourceR2Data = await fetchR2File(proj.name, sourceLang, sourceFilename);
-
-      // Fetch target file from R2 (for existing translations)
       const targetR2Data = await fetchR2File(proj.name, targetLang, targetFilename);
+      const webTrans = await fetchWebTranslations(proj.name, targetLang, targetFilename);
 
-      // Fetch from D1 (web translations - overrides)
-  const webTrans = await fetchWebTranslations(proj.name, targetLang, targetFilename);
-
-      // If the BFF returned 304 / "no change" for the source R2 file, translationApi
-      // returns null. In that case we should avoid wiping the current UI state —
-      // simply skip updating translations so the existing cached state remains visible.
       if (sourceR2Data === null) {
-        console.debug('[Translations] Source file unchanged (ETag 304) — skipping update');
+        console.debug('[Translations] Source file unchanged — skipping update');
         return;
       }
 
-      // Merge: use source for sourceValue, target for currentValue, web for overrides
       const merged = mergeTranslationsWithSource(sourceR2Data, targetR2Data, webTrans);
       setTranslations(merged);
 
-      // Restore selected key from URL or auto-select first key
       const keyFromUrl = Array.isArray(searchParams.key) ? searchParams.key[0] : searchParams.key;
       if (keyFromUrl && merged.find(t => t.key === keyFromUrl)) {
         handleSelectKey(keyFromUrl);
@@ -134,14 +118,13 @@ export default function TranslationEditorPage() {
     }
   }
 
-  // Load suggestions for selected key
   async function loadSuggestions(force = false) {
     const proj = project();
     const key = selectedKey();
     if (!proj || !key) return;
 
     try {
-  const suggs = await fetchSuggestions(proj.name, language(), filename(), key, force);
+      const suggs = await fetchSuggestions(proj.name, language(), filename(), key, force);
       setSuggestions(suggs);
     } catch (error) {
       console.error('Failed to load suggestions:', error);
@@ -158,14 +141,12 @@ export default function TranslationEditorPage() {
     loadProject();
   });
 
-  // Load translations when project is ready
   createEffect(() => {
     if (project()) {
       loadTranslations();
     }
   });
 
-  // Load suggestions when key changes
   createEffect(() => {
     if (selectedKey()) {
       loadSuggestions();
@@ -176,10 +157,6 @@ export default function TranslationEditorPage() {
     const query = searchQuery().toLowerCase();
     const status = filterStatus();
 
-    // Frontend filtering: Lightweight operation for UX
-    // Typical dataset size: <100 translations per file
-    // Performance: O(n) filter + O(n log n) sort, ~1-5ms
-    // For larger datasets (>100 items), consider backend filtering
     const filtered = translations().filter(t => {
       const matchesSearch = !query ||
         t.key.toLowerCase().includes(query) ||
@@ -193,34 +170,23 @@ export default function TranslationEditorPage() {
       return true;
     });
 
-    // Frontend sorting: Multiple sort methods for better UX
-    // Rationale: Users want different ways to organize their work
-    // Performance: O(n log n), acceptable for <100 items
-    // For >100 items, use Rust worker's /sort endpoint
     const method = sortMethod();
     return filtered.sort((a, b) => {
       if (method === 'priority') {
-        // Priority sort: empty first, then outdated, then alphabetical
         const aEmpty = !a.currentValue || a.currentValue === '';
         const bEmpty = !b.currentValue || b.currentValue === '';
         const aOutdated = !a.isValid;
         const bOutdated = !b.isValid;
 
-        // Empty keys first
         if (aEmpty && !bEmpty) return -1;
         if (!aEmpty && bEmpty) return 1;
-
-        // Then outdated keys
         if (aOutdated && !bOutdated) return -1;
         if (!aOutdated && bOutdated) return 1;
 
-        // Otherwise maintain alphabetical order by key
         return a.key.localeCompare(b.key);
       } else if (method === 'alphabetical') {
-        // Simple alphabetical sort by key
         return a.key.localeCompare(b.key);
       } else if (method === 'completion') {
-        // Completion sort: incomplete first, then alphabetical
         const aComplete = a.currentValue !== '' && a.isValid;
         const bComplete = b.currentValue !== '' && b.isValid;
 
@@ -230,15 +196,12 @@ export default function TranslationEditorPage() {
         return a.key.localeCompare(b.key);
       }
 
-      // Default to alphabetical
       return a.key.localeCompare(b.key);
     });
   };
 
   const handleSelectKey = (key: string) => {
     setSelectedKey(key);
-
-    // Update URL with selected key
     setSearchParams({ key, sort: sortMethod() });
 
     const translation = translations().find(t => t.key === key);
@@ -249,8 +212,6 @@ export default function TranslationEditorPage() {
 
   const handleSortMethodChange = (method: SortMethod) => {
     setSortMethod(method);
-
-    // Update URL with new sort method
     setSearchParams({ key: selectedKey() || undefined, sort: method });
   };
 
@@ -261,19 +222,9 @@ export default function TranslationEditorPage() {
 
     setIsSaving(true);
     try {
-      await submitTranslation(
-        proj.name,
-        language(),
-        filename(),
-        key,
-        translationValue()
-      );
-
-      // Reload translations
+      await submitTranslation(proj.name, language(), filename(), key, translationValue());
       await loadTranslations();
-      // force a fresh revalidation to avoid browser cached suggestions
       await loadSuggestions(true);
-
       alert('Translation saved successfully!');
     } catch (error) {
       console.error('Failed to save:', error);
@@ -334,26 +285,14 @@ export default function TranslationEditorPage() {
     const proj = project();
 
     if (!proj || total === 0) return 0;
+    if (language() === proj.sourceLanguage) return 0;
 
-    // For source language files, nothing is "translated" (they are the source)
-    if (language() === proj.sourceLanguage) {
-      return 0;
-    }
-
-    // For target language files:
-    // A key is "translated" (approved) if:
-    // 1. It has a non-empty translation
-    // 2. The translation is valid (not invalidated)
-    const completed = translations().filter(t => {
-      // Must have a non-empty translation and be valid
-      return t.currentValue !== '' && t.isValid;
-    }).length;
-
+    const completed = translations().filter(t => t.currentValue !== '' && t.isValid).length;
     return Math.round((completed / total) * 100);
   };
 
   return (
-    <div style="min-height: 100vh; background: var(--color-white);">
+    <div class="page animate-fade-in">
       <TranslationEditorHeader
         projectId={projectName()}
         language={language()}
@@ -379,28 +318,24 @@ export default function TranslationEditorPage() {
         onSortMethodChange={handleSortMethodChange}
       />
 
-      <div style="
-        max-width: 90rem;
-        margin: 0 auto;
-        padding: 1rem;
-        height: calc(100vh - 80px);
-      ">
-        <div style="
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-          height: 100%;
-        ">
+      <div class="container" style={{ 'padding-top': '1rem' }}>
+        <div style={{
+          display: 'grid',
+          'grid-template-columns': '1fr',
+          gap: '1rem'
+        }}>
           <style>{`
             @media (min-width: 1024px) {
-              .editor-layout {
-                display: grid;
-                grid-template-columns: 400px 1fr;
-                gap: 1rem;
+              .editor-grid {
+                grid-template-columns: 400px 1fr !important;
               }
             }
           `}</style>
-          <div class="editor-layout">
+          <div class="editor-grid" style={{
+            display: 'grid',
+            'grid-template-columns': '1fr',
+            gap: '1rem'
+          }}>
             <TranslationEditorPanel
               selectedKey={selectedKey()}
               translations={translations()}
@@ -422,28 +357,21 @@ export default function TranslationEditorPage() {
               onNext={handleNext}
             />
 
-            <div style="display: none;">
-              <style>{`
-                @media (min-width: 1024px) {
-                  .editor-layout > div:last-child {
-                    display: block;
-                  }
-                }
-              `}</style>
+            <div class="hidden lg:block">
+              <TranslationList
+                translationStrings={filteredTranslations()}
+                selectedKey={selectedKey()}
+                language={language()}
+                isLoading={isLoading()}
+                searchQuery={searchQuery()}
+                filterStatus={filterStatus()}
+                sortMethod={sortMethod()}
+                onSelectKey={handleSelectKey}
+                onSearchChange={setSearchQuery}
+                onFilterChange={setFilterStatus}
+                onSortMethodChange={handleSortMethodChange}
+              />
             </div>
-            <TranslationList
-              translationStrings={filteredTranslations()}
-              selectedKey={selectedKey()}
-              language={language()}
-              isLoading={isLoading()}
-              searchQuery={searchQuery()}
-              filterStatus={filterStatus()}
-              sortMethod={sortMethod()}
-              onSelectKey={handleSelectKey}
-              onSearchChange={setSearchQuery}
-              onFilterChange={setFilterStatus}
-              onSortMethodChange={handleSortMethodChange}
-            />
           </div>
         </div>
       </div>

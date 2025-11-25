@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from '@solidjs/router';
-import { createSignal, onMount, For, Show, createResource } from 'solid-js';
+import { createSignal, For, Show, createResource } from 'solid-js';
 import { projects, createFetchMembersQuery, refreshProjects } from '../utils/store';
 import { authFetch } from '../utils/authFetch';
 
@@ -13,20 +13,17 @@ interface Member {
   createdAt: string;
 }
 
-// Project type is available via store's Project interface; this local type removed
-
 export default function ProjectSettingsPage() {
   const navigate = useNavigate();
   const params = useParams();
 
   const project = () => (projects() || []).find((p: any) => p.name === params.projectName) || null;
-  // Public identifier (slug) used in routes and APIs
   const projectName = () => project()?.name || params.projectName || '';
 
   const fetchMembersQuery = createFetchMembersQuery();
   const [membersKey, setMembersKey] = createSignal(0);
   const [members] = createResource(
-  () => ({ projectName: projectName(), key: membersKey() }),
+    () => ({ projectName: projectName(), key: membersKey() }),
     async ({ projectName }) => {
       if (!projectName) return { members: [] };
       return fetchMembersQuery(projectName);
@@ -40,9 +37,8 @@ export default function ProjectSettingsPage() {
   const [errorMessage, setErrorMessage] = createSignal('');
   const [actionInProgress, setActionInProgress] = createSignal<string | null>(null);
 
-
   const handleApprove = async (memberId: string, status: 'approved' | 'rejected') => {
-  const pid = projectName();
+    const pid = projectName();
     if (!pid) return;
 
     setActionInProgress(memberId);
@@ -50,7 +46,7 @@ export default function ProjectSettingsPage() {
     setErrorMessage('');
 
     try {
-  const res = await authFetch(`/api/projects/${pid}/members/${memberId}/approve`, {
+      const res = await authFetch(`/api/projects/${pid}/members/${memberId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -77,7 +73,7 @@ export default function ProjectSettingsPage() {
 
   const handleRemove = async (memberId: string) => {
     if (!confirm('Remove this member?')) return;
-  const pid = projectName();
+    const pid = projectName();
     if (!pid) return;
 
     setActionInProgress(memberId);
@@ -85,7 +81,7 @@ export default function ProjectSettingsPage() {
     setErrorMessage('');
 
     try {
-  const res = await authFetch(`/api/projects/${pid}/members/${memberId}`, {
+      const res = await authFetch(`/api/projects/${pid}/members/${memberId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -109,14 +105,14 @@ export default function ProjectSettingsPage() {
   };
 
   const handleAccessControlChange = async (accessControl: 'whitelist' | 'blacklist') => {
-  const pid = projectName();
+    const pid = projectName();
     if (!pid) return;
 
     setSuccessMessage('');
     setErrorMessage('');
 
     try {
-  const res = await authFetch(`/api/projects/${pid}`, {
+      const res = await authFetch(`/api/projects/${pid}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -140,7 +136,7 @@ export default function ProjectSettingsPage() {
   };
 
   const handleDeleteProject = async () => {
-  const pid = projectName();
+    const pid = projectName();
     if (!pid) return;
     if (!confirm('Delete this project? This cannot be undone.')) return;
 
@@ -162,71 +158,60 @@ export default function ProjectSettingsPage() {
     }
   };
 
-  onMount(() => {
-    // Resources will auto-fetch
-  });
-
   const filteredMembers = () => (membersList() as Member[]).filter(m => m.status === activeTab());
 
   return (
-    <div class="page min-h-screen">
+    <div class="page animate-fade-in">
       {/* Header */}
-  <div class="panel border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div class="flex items-center gap-3">
-
-            <button
-
-              onClick={() => navigate(`/projects/${params.projectName}`)}
-              class="btn ghost"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </button>
-            <div>
-              <h1 class="text-xl font-semibold text-gray-900">Project Settings</h1>
-              <div class="text-sm text-gray-500">{project()?.name}</div>
-            </div>
-          </div>
+      <div style={{
+        display: 'flex',
+        'align-items': 'center',
+        gap: '0.75rem',
+        'margin-bottom': '2rem'
+      }}>
+        <button onClick={() => navigate(`/projects/${params.projectName}`)} class="btn ghost">
+          ←
+        </button>
+        <div>
+          <h1 style={{ 'font-size': '1.5rem', 'font-weight': '600' }}>Project Settings</h1>
+          <div style={{ 'font-size': '0.875rem', color: 'var(--text-secondary)' }}>{project()?.name}</div>
         </div>
       </div>
 
-      {/* Content */}
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div style={{ 'max-width': '48rem' }}>
         <Show when={project()}>
           <Show when={successMessage()}>
-            <div class="mb-6">
-              <div class="message success">{successMessage()}</div>
-            </div>
+            <div class="message success mb-4">{successMessage()}</div>
           </Show>
 
           <Show when={errorMessage()}>
-            <div class="mb-6">
-              <div class="message error">{errorMessage()}</div>
-            </div>
+            <div class="message error mb-4">{errorMessage()}</div>
           </Show>
 
           {/* Access Control */}
-          <div class="card mb-6">
-            <h2 class="text-lg font-semibold mb-4">Access Control</h2>
-            <div class="flex flex-col sm:flex-row gap-3">
+          <div class="card mb-4">
+            <h2 style={{ 'font-size': '1.125rem', 'font-weight': '600', 'margin-bottom': '1rem' }}>Access Control</h2>
+            <div style={{ display: 'flex', gap: '0.75rem', 'flex-wrap': 'wrap' }}>
               <button
                 onClick={() => handleAccessControlChange('whitelist')}
-                class={`btn ${project()!.accessControl === 'whitelist' ? 'selected' : 'ghost'}`}
+                class={`btn ${project()!.accessControl === 'whitelist' ? 'selected' : ''}`}
               >
-                <div class="font-medium">Whitelist</div>
-                <div class="text-xs opacity-80">Approve users to join</div>
+                <div>
+                  <div style={{ 'font-weight': '500' }}>Whitelist</div>
+                  <div style={{ 'font-size': '0.75rem', opacity: '0.8' }}>Approve users to join</div>
+                </div>
               </button>
               <button
                 onClick={() => handleAccessControlChange('blacklist')}
-                class={`btn ${project()!.accessControl === 'blacklist' ? 'selected' : 'ghost'}`}
+                class={`btn ${project()!.accessControl === 'blacklist' ? 'selected' : ''}`}
               >
-                <div class="font-medium">Blacklist</div>
-                <div class="text-xs opacity-80">Block specific users</div>
+                <div>
+                  <div style={{ 'font-weight': '500' }}>Blacklist</div>
+                  <div style={{ 'font-size': '0.75rem', opacity: '0.8' }}>Block specific users</div>
+                </div>
               </button>
             </div>
-            <p class="text-sm text-gray-500 mt-3">
+            <p style={{ 'font-size': '0.875rem', color: 'var(--text-secondary)', 'margin-top': '0.75rem' }}>
               {project()!.accessControl === 'whitelist'
                 ? 'Only approved users can access this project'
                 : 'All users can access except blocked ones'}
@@ -234,34 +219,49 @@ export default function ProjectSettingsPage() {
           </div>
 
           {/* Members */}
-          <div class="card mb-6">
-            <h2 class="text-lg font-semibold mb-4">Members</h2>
+          <div class="card mb-4">
+            <h2 style={{ 'font-size': '1.125rem', 'font-weight': '600', 'margin-bottom': '1rem' }}>Members</h2>
 
-            <div class="flex gap-2 mb-4 border-b">
+            <div style={{ display: 'flex', gap: '0.5rem', 'margin-bottom': '1rem', 'border-bottom': '1px solid var(--border)' }}>
               <button
                 onClick={() => setActiveTab('approved')}
-                class={`px-4 py-2 text-sm transition ${activeTab() === 'approved'
-                  ? 'border-b-2 border-gray-900 font-medium text-gray-900'
-                  : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
-                  }`}
+                style={{
+                  padding: '0.5rem 1rem',
+                  'font-size': '0.875rem',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  'border-bottom': activeTab() === 'approved' ? '2px solid var(--accent)' : '2px solid transparent',
+                  color: activeTab() === 'approved' ? 'var(--text)' : 'var(--text-secondary)'
+                }}
               >
                 Approved ({(membersList() as Member[]).filter(m => m.status === 'approved').length})
               </button>
               <button
                 onClick={() => setActiveTab('pending')}
-                class={`px-4 py-2 text-sm transition ${activeTab() === 'pending'
-                  ? 'border-b-2 border-gray-900 font-medium text-gray-900'
-                  : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
-                  }`}
+                style={{
+                  padding: '0.5rem 1rem',
+                  'font-size': '0.875rem',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  'border-bottom': activeTab() === 'pending' ? '2px solid var(--accent)' : '2px solid transparent',
+                  color: activeTab() === 'pending' ? 'var(--text)' : 'var(--text-secondary)'
+                }}
               >
                 Pending ({(membersList() as Member[]).filter(m => m.status === 'pending').length})
               </button>
               <button
                 onClick={() => setActiveTab('rejected')}
-                class={`px-4 py-2 text-sm transition ${activeTab() === 'rejected'
-                  ? 'border-b-2 border-gray-900 font-medium text-gray-900'
-                  : 'text-gray-500 hover:text-gray-700 active:text-gray-800'
-                  }`}
+                style={{
+                  padding: '0.5rem 1rem',
+                  'font-size': '0.875rem',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  'border-bottom': activeTab() === 'rejected' ? '2px solid var(--accent)' : '2px solid transparent',
+                  color: activeTab() === 'rejected' ? 'var(--text)' : 'var(--text-secondary)'
+                }}
               >
                 Rejected ({(membersList() as Member[]).filter(m => m.status === 'rejected').length})
               </button>
@@ -270,29 +270,29 @@ export default function ProjectSettingsPage() {
             <div class="space-y-2">
               <For each={filteredMembers()}>
                 {(member) => (
-                  <div class="card sm flex items-center justify-between hover-lift">
-                    <div class="flex items-center gap-3">
-                      <img src={member.avatarUrl} alt={member.username} class="w-10 h-10 rounded-full" />
+                  <div class="panel" style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'space-between' }}>
+                    <div style={{ display: 'flex', 'align-items': 'center', gap: '0.75rem' }}>
+                      <img src={member.avatarUrl} alt={member.username} style={{ width: '2.5rem', height: '2.5rem', 'border-radius': '50%' }} />
                       <div>
-                        <div class="font-medium text-gray-900">{member.username}</div>
-                        <div class="text-xs text-gray-500">{member.role}</div>
+                        <div style={{ 'font-weight': '500' }}>{member.username}</div>
+                        <div style={{ 'font-size': '0.75rem', color: 'var(--text-secondary)' }}>{member.role}</div>
                       </div>
                     </div>
-                    <div class="flex gap-2">
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <Show when={member.status === 'pending'}>
                         <button
                           onClick={() => handleApprove(member.id, 'approved')}
                           disabled={actionInProgress() !== null}
                           class="btn success"
                         >
-                          {actionInProgress() === member.id ? 'Processing...' : 'Approve'}
+                          {actionInProgress() === member.id ? '...' : 'Approve'}
                         </button>
                         <button
                           onClick={() => handleApprove(member.id, 'rejected')}
                           disabled={actionInProgress() !== null}
                           class="btn ghost"
                         >
-                          {actionInProgress() === member.id ? 'Processing...' : 'Reject'}
+                          {actionInProgress() === member.id ? '...' : 'Reject'}
                         </button>
                       </Show>
                       <Show when={member.status === 'approved'}>
@@ -301,7 +301,7 @@ export default function ProjectSettingsPage() {
                           disabled={actionInProgress() !== null}
                           class="btn danger"
                         >
-                          {actionInProgress() === member.id ? 'Removing...' : 'Remove'}
+                          {actionInProgress() === member.id ? '...' : 'Remove'}
                         </button>
                       </Show>
                       <Show when={member.status === 'rejected'}>
@@ -310,14 +310,14 @@ export default function ProjectSettingsPage() {
                           disabled={actionInProgress() !== null}
                           class="btn ghost"
                         >
-                          {actionInProgress() === member.id ? 'Processing...' : 'Approve'}
+                          {actionInProgress() === member.id ? '...' : 'Approve'}
                         </button>
                         <button
                           onClick={() => handleRemove(member.id)}
                           disabled={actionInProgress() !== null}
                           class="btn danger"
                         >
-                          {actionInProgress() === member.id ? 'Removing...' : 'Remove'}
+                          {actionInProgress() === member.id ? '...' : 'Remove'}
                         </button>
                       </Show>
                     </div>
@@ -325,7 +325,7 @@ export default function ProjectSettingsPage() {
                 )}
               </For>
               <Show when={filteredMembers().length === 0}>
-                <div class="text-center py-8 text-gray-400 text-sm">
+                <div style={{ 'text-align': 'center', padding: '2rem', color: 'var(--text-muted)', 'font-size': '0.875rem' }}>
                   No {activeTab()} members
                 </div>
               </Show>
@@ -333,17 +333,14 @@ export default function ProjectSettingsPage() {
           </div>
 
           {/* Danger Zone */}
-          <div class="card">
-            <h2 class="text-lg font-semibold text-red-600 mb-4">Danger Zone</h2>
-            <div class="flex items-center justify-between">
+          <div class="card" style={{ 'border-color': 'var(--danger-light)' }}>
+            <h2 style={{ 'font-size': '1.125rem', 'font-weight': '600', color: 'var(--danger)', 'margin-bottom': '1rem' }}>Danger Zone</h2>
+            <div style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'space-between' }}>
               <div>
-                <div class="font-medium text-gray-900">Delete Project</div>
-                <div class="text-sm text-gray-500">This action cannot be undone</div>
+                <div style={{ 'font-weight': '500' }}>Delete Project</div>
+                <div style={{ 'font-size': '0.875rem', color: 'var(--text-secondary)' }}>This action cannot be undone</div>
               </div>
-              <button
-                onClick={handleDeleteProject}
-                class="btn danger"
-              >
+              <button onClick={handleDeleteProject} class="btn danger">
                 Delete Project
               </button>
             </div>

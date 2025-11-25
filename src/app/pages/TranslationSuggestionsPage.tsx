@@ -59,12 +59,10 @@ export default function TranslationSuggestionsPage() {
   const suggestionsList = () => (suggestions() as any)?.suggestions || [];
   const isLoading = () => suggestions.loading;
 
-
   const refetch = () => {
     setSuggestionsKey(k => k + 1);
   };
 
-  // Reload when selected language changes
   createEffect(() => {
     selectedLanguage();
     refetch();
@@ -84,13 +82,11 @@ export default function TranslationSuggestionsPage() {
     }
   };
 
-  // Group suggestions by key and language
   const groupedSuggestions = (): GroupedSuggestion[] => {
     const data = suggestionsList();
     const query = searchQuery().toLowerCase();
     const status = filterStatus();
 
-    // Filter first
     const filtered = data.filter((s: TranslationSuggestion) => {
       const matchesSearch = !query ||
         s.key.toLowerCase().includes(query) ||
@@ -102,7 +98,6 @@ export default function TranslationSuggestionsPage() {
       return matchesSearch && matchesStatus;
     });
 
-    // Group by key + language
     const groups = new Map<string, GroupedSuggestion>();
 
     filtered.forEach((s: TranslationSuggestion) => {
@@ -119,7 +114,6 @@ export default function TranslationSuggestionsPage() {
       groups.get(groupKey)!.suggestions.push(s);
     });
 
-    // Sort suggestions within each group by date (newest first)
     groups.forEach(group => {
       group.suggestions.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -150,16 +144,11 @@ export default function TranslationSuggestionsPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'pending':
-        return 'badge warning';
-      case 'approved':
-        return 'badge success';
-      case 'committed':
-        return 'badge';
-      case 'rejected':
-        return 'badge danger';
-      default:
-        return 'badge';
+      case 'pending': return 'badge warning';
+      case 'approved': return 'badge success';
+      case 'committed': return 'badge';
+      case 'rejected': return 'badge danger';
+      default: return 'badge';
     }
   };
 
@@ -183,7 +172,6 @@ export default function TranslationSuggestionsPage() {
     return date.toLocaleDateString();
   };
 
-  // Get unique languages from suggestions
   const availableLanguages = () => {
     const data = suggestionsList();
     const langs = new Set(data.map((s: TranslationSuggestion) => s.language));
@@ -197,260 +185,246 @@ export default function TranslationSuggestionsPage() {
   };
 
   return (
-    <div class="page min-h-screen">
+    <div class="page animate-fade-in">
       {/* Header */}
-  <div class="panel border-b sticky top-0 z-30">
-        <div class="max-w-7xl mx-auto px-4 py-4">
-          <div class="flex items-center justify-between mb-4">
-            <div>
-              <h1 class="text-2xl font-bold text-gray-900">Translation Suggestions</h1>
-              <p class="text-sm text-gray-600">
-                {projectName()} • Public contributions
-              </p>
-            </div>
-            <button
-              onClick={() => navigate('/dashboard')}
-              class="btn ghost"
-            >
-              Back to Dashboard
-            </button>
-          </div>
+      <div style={{
+        display: 'flex',
+        'align-items': 'center',
+        'justify-content': 'space-between',
+        'margin-bottom': '1.5rem',
+        'flex-wrap': 'wrap',
+        gap: '1rem'
+      }}>
+        <div>
+          <h1 style={{ 'font-size': '1.5rem', 'font-weight': '600', 'margin-bottom': '0.25rem' }}>
+            Translation Suggestions
+          </h1>
+          <p style={{ 'font-size': '0.875rem', color: 'var(--text-secondary)' }}>
+            {projectName()} • Public contributions
+          </p>
+        </div>
+        <button onClick={() => navigate('/dashboard')} class="btn ghost">
+          ← Back to Dashboard
+        </button>
+      </div>
 
-          {/* Filters */}
-          <div class="flex flex-wrap gap-4">
-            <input
-              type="text"
-              placeholder="Search by key, value, or username..."
-              value={searchQuery()}
-              onInput={(e) => setSearchQuery(e.currentTarget.value)}
-              class="input"
-            />
+      {/* Filters */}
+      <div class="card mb-4">
+        <div style={{ display: 'flex', 'flex-wrap': 'wrap', gap: '0.75rem' }}>
+          <input
+            type="text"
+            placeholder="Search by key, value, or username..."
+            value={searchQuery()}
+            onInput={(e) => setSearchQuery(e.currentTarget.value)}
+            class="input"
+            style={{ flex: '1', 'min-width': '200px' }}
+          />
 
-            <select
-              value={selectedLanguage()}
-              onChange={(e) => setSelectedLanguage(e.currentTarget.value)}
-              class="input"
-            >
-              <option value="all">All Languages</option>
-              <For each={availableLanguages()}>
-                {(lang) => <option value={String(lang)}>{String(lang).toUpperCase()}</option>}
-              </For>
-            </select>
+          <select
+            value={selectedLanguage()}
+            onChange={(e) => setSelectedLanguage(e.currentTarget.value)}
+            class="input"
+            style={{ width: 'auto' }}
+          >
+            <option value="all">All Languages</option>
+            <For each={availableLanguages()}>
+              {(lang) => <option value={String(lang)}>{String(lang).toUpperCase()}</option>}
+            </For>
+          </select>
 
-            <select
-              value={filterStatus()}
-              onChange={(e) => setFilterStatus(e.currentTarget.value as any)}
-              class="input"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-            </select>
+          <select
+            value={filterStatus()}
+            onChange={(e) => setFilterStatus(e.currentTarget.value as any)}
+            class="input"
+            style={{ width: 'auto' }}
+          >
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+          </select>
 
-            <select
-              value={viewMode()}
-              onChange={(e) => setViewMode(e.currentTarget.value as any)}
-              class="input"
-            >
-              <option value="grouped">Grouped by Key</option>
-              <option value="flat">Flat List</option>
-            </select>
-          </div>
+          <select
+            value={viewMode()}
+            onChange={(e) => setViewMode(e.currentTarget.value as any)}
+            class="input"
+            style={{ width: 'auto' }}
+          >
+            <option value="grouped">Grouped by Key</option>
+            <option value="flat">Flat List</option>
+          </select>
         </div>
       </div>
 
       {/* Content */}
-      <div class="max-w-7xl mx-auto px-4 py-6">
-        <Show when={isLoading()}>
-          <div class="card">
-            <SkeletonListItem />
-            <SkeletonListItem />
-            <SkeletonListItem />
-            <SkeletonListItem />
-            <SkeletonListItem />
+      <Show when={isLoading()}>
+        <div class="card">
+          <SkeletonListItem />
+          <SkeletonListItem />
+          <SkeletonListItem />
+        </div>
+      </Show>
+
+      <Show when={error()}>
+        <div class="message error">
+          Failed to load suggestions. Please try again.
+        </div>
+      </Show>
+
+      <Show when={!isLoading() && !error()}>
+        <div class="card">
+          <div style={{ padding: '1rem', 'border-bottom': '1px solid var(--border)' }}>
+            <h2 style={{ 'font-size': '1rem', 'font-weight': '600' }}>
+              {totalSuggestions()} Suggestion{totalSuggestions() !== 1 ? 's' : ''}
+              <Show when={viewMode() === 'grouped'}>
+                {' '}in {groupedSuggestions().length} key{groupedSuggestions().length !== 1 ? 's' : ''}
+              </Show>
+            </h2>
           </div>
-        </Show>
 
-        <Show when={error()}>
-          <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
-            Failed to load suggestions. Please try again.
-          </div>
-        </Show>
-
-        <Show when={!isLoading() && !error()}>
-          <div class="card">
-            <div class="p-4 border-b">
-              <h2 class="text-lg font-semibold">
-                {totalSuggestions()} Suggestion{totalSuggestions() !== 1 ? 's' : ''}
-                <Show when={viewMode() === 'grouped'}>
-                  {' '}in {groupedSuggestions().length} key{groupedSuggestions().length !== 1 ? 's' : ''}
-                </Show>
-              </h2>
-            </div>
-
-            {/* Grouped View */}
-            <Show when={viewMode() === 'grouped'}>
-              <Show when={groupedSuggestions().length === 0}>
-                <div class="p-12 text-center text-gray-500">
-                  <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/* Grouped View */}
+          <Show when={viewMode() === 'grouped'}>
+            <Show when={groupedSuggestions().length === 0}>
+              <div class="empty-state">
+                <div class="icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                   </svg>
-                  <p class="text-lg mb-2">No suggestions found</p>
-                  <p class="text-sm">Try adjusting your filters or search query</p>
                 </div>
-              </Show>
+                <div class="title">No suggestions found</div>
+                <div class="description">Try adjusting your filters or search query</div>
+              </div>
+            </Show>
 
-              <div class="divide-y">
-                <For each={groupedSuggestions()}>
-                  {(group: GroupedSuggestion) => (
-                    <div class="p-4">
-                      {/* Key header */}
-                        <div class="mb-3 pb-2 border-b">
-                        <div class="flex items-center gap-2 mb-1">
-                          <span class="badge info">
-                            {group.language.toUpperCase()}
-                          </span>
-                          <code class="text-sm font-mono text-gray-700 code-chip">
-                            {group.key}
-                          </code>
-                        </div>
-                        <p class="text-xs text-gray-500">
-                          {group.suggestions.length} suggestion{group.suggestions.length !== 1 ? 's' : ''}
-                        </p>
+            <div class="divide-y">
+              <For each={groupedSuggestions()}>
+                {(group: GroupedSuggestion) => (
+                  <div style={{ padding: '1rem' }}>
+                    <div style={{ 'margin-bottom': '0.75rem', 'padding-bottom': '0.5rem', 'border-bottom': '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', 'align-items': 'center', gap: '0.5rem', 'margin-bottom': '0.25rem' }}>
+                        <span class="badge info">{group.language.toUpperCase()}</span>
+                        <code class="code-chip">{group.key}</code>
                       </div>
+                      <p style={{ 'font-size': '0.75rem', color: 'var(--text-muted)' }}>
+                        {group.suggestions.length} suggestion{group.suggestions.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
 
-                      {/* All suggestions for this key */}
-                        <div class="space-y-3">
-                        <For each={group.suggestions}>
-                          {(suggestion: TranslationSuggestion, index) => (
-                            <div class={`pl-4 border-l-2 ${index() === 0 ? 'border-blue-400' : 'border-gray-200'}`}>
-                              <div class="flex items-start justify-between gap-4">
-                                <div class="flex-1 min-w-0">
-                                  {/* User info and status */}
-                                  <div class="flex items-center gap-2 mb-2">
-                                    <img
-                                      src={suggestion.avatarUrl || `https://ui-avatars.com/api/?name=${suggestion.username}`}
-                                      alt={suggestion.username}
-                                      class="w-6 h-6 rounded-full"
-                                    />
-                                    <span class="font-medium text-sm text-gray-900">{suggestion.username}</span>
-                                    <span class={`text-xs px-2 py-0.5 rounded ${getStatusBadge(suggestion.status)}`}>
-                                      {suggestion.status}
-                                    </span>
-                                    <span class="text-xs text-gray-500">
-                                      {formatRelativeTime(suggestion.createdAt)}
-                                    </span>
-                                    <Show when={index() === 0 && group.suggestions.length > 1}>
-                                      <span class="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">
-                                        Latest
-                                      </span>
-                                    </Show>
-                                  </div>
-
-                                  {/* Translation value */}
-                                  <div class="card sm">
-                                    <p class="text-gray-900 break-words">{suggestion.value}</p>
-                                  </div>
+                    <div class="space-y-3">
+                      <For each={group.suggestions}>
+                        {(suggestion: TranslationSuggestion, index) => (
+                          <div style={{
+                            'padding-left': '1rem',
+                            'border-left': `2px solid ${index() === 0 ? 'var(--accent)' : 'var(--border)'}`
+                          }}>
+                            <div style={{ display: 'flex', 'align-items': 'flex-start', 'justify-content': 'space-between', gap: '1rem' }}>
+                              <div style={{ flex: '1', 'min-width': '0' }}>
+                                <div style={{ display: 'flex', 'align-items': 'center', gap: '0.5rem', 'margin-bottom': '0.5rem', 'flex-wrap': 'wrap' }}>
+                                  <img
+                                    src={suggestion.avatarUrl || `https://ui-avatars.com/api/?name=${suggestion.username}`}
+                                    alt={suggestion.username}
+                                    style={{ width: '1.5rem', height: '1.5rem', 'border-radius': '50%' }}
+                                  />
+                                  <span style={{ 'font-weight': '500', 'font-size': '0.875rem' }}>{suggestion.username}</span>
+                                  <span class={getStatusBadge(suggestion.status)}>{suggestion.status}</span>
+                                  <span style={{ 'font-size': '0.75rem', color: 'var(--text-muted)' }}>
+                                    {formatRelativeTime(suggestion.createdAt)}
+                                  </span>
+                                  <Show when={index() === 0 && group.suggestions.length > 1}>
+                                    <span class="badge info">Latest</span>
+                                  </Show>
                                 </div>
 
-                                {/* Actions */}
-                                <Show when={user()?.id === suggestion.userId && suggestion.status === 'pending'}>
-                                  <button
-                                    onClick={() => handleDelete(suggestion.id)}
-                                    class="btn danger"
-                                    title="Delete your suggestion"
-                                  >
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                  </button>
-                                </Show>
+                                <div class="panel" style={{ display: 'inline-block' }}>
+                                  <p style={{ 'word-break': 'break-word' }}>{suggestion.value}</p>
+                                </div>
                               </div>
+
+                              <Show when={user()?.id === suggestion.userId && suggestion.status === 'pending'}>
+                                <button
+                                  onClick={() => handleDelete(suggestion.id)}
+                                  class="btn danger"
+                                  title="Delete your suggestion"
+                                  aria-label="Delete suggestion"
+                                >
+                                  🗑️
+                                </button>
+                              </Show>
                             </div>
-                          )}
-                        </For>
-                      </div>
+                          </div>
+                        )}
+                      </For>
                     </div>
-                  )}
-                </For>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+
+          {/* Flat View */}
+          <Show when={viewMode() === 'flat'}>
+            <Show when={flatSuggestions().length === 0}>
+              <div class="empty-state">
+                <div class="icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                  </svg>
+                </div>
+                <div class="title">No suggestions found</div>
+                <div class="description">Try adjusting your filters or search query</div>
               </div>
             </Show>
 
-            {/* Flat View */}
-            <Show when={viewMode() === 'flat'}>
-              <Show when={flatSuggestions().length === 0}>
-                <div class="p-12 text-center text-gray-500">
-                  <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                  <p class="text-lg mb-2">No suggestions found</p>
-                  <p class="text-sm">Try adjusting your filters or search query</p>
-                </div>
-              </Show>
-
-              <div class="divide-y">
-                <For each={flatSuggestions()}>
-                  {(suggestion: TranslationSuggestion) => (
-                    <div class="p-4 hover-lift transition-all">
-                      <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1 min-w-0">
-                          {/* Header with user info and status */}
-                          <div class="flex items-center gap-3 mb-2">
-                            <img
-                              src={suggestion.avatarUrl || `https://ui-avatars.com/api/?name=${suggestion.username}`}
-                              alt={suggestion.username}
-                              class="w-8 h-8 rounded-full"
-                            />
-                            <div class="flex-1">
-                              <div class="flex items-center gap-2 flex-wrap">
-                                <span class="font-medium text-gray-900">{suggestion.username}</span>
-                                <span class={`text-xs px-2 py-1 rounded ${getStatusBadge(suggestion.status)}`}>
-                                  {suggestion.status}
-                                </span>
-                                <span class="badge info">
-                                  {suggestion.language.toUpperCase()}
-                                </span>
-                              </div>
-                              <div class="text-xs text-gray-500">
-                                {formatDate(suggestion.createdAt)}
-                              </div>
+            <div class="divide-y">
+              <For each={flatSuggestions()}>
+                {(suggestion: TranslationSuggestion) => (
+                  <div style={{ padding: '1rem' }}>
+                    <div style={{ display: 'flex', 'align-items': 'flex-start', 'justify-content': 'space-between', gap: '1rem' }}>
+                      <div style={{ flex: '1', 'min-width': '0' }}>
+                        <div style={{ display: 'flex', 'align-items': 'center', gap: '0.75rem', 'margin-bottom': '0.5rem' }}>
+                          <img
+                            src={suggestion.avatarUrl || `https://ui-avatars.com/api/?name=${suggestion.username}`}
+                            alt={suggestion.username}
+                            style={{ width: '2rem', height: '2rem', 'border-radius': '50%' }}
+                          />
+                          <div style={{ flex: '1' }}>
+                            <div style={{ display: 'flex', 'align-items': 'center', gap: '0.5rem', 'flex-wrap': 'wrap' }}>
+                              <span style={{ 'font-weight': '500' }}>{suggestion.username}</span>
+                              <span class={getStatusBadge(suggestion.status)}>{suggestion.status}</span>
+                              <span class="badge info">{suggestion.language.toUpperCase()}</span>
                             </div>
-                          </div>
-
-                          {/* Translation key */}
-                          <div class="mb-2">
-                            <code class="text-sm font-mono text-gray-700 code-chip">
-                              {suggestion.key}
-                            </code>
-                          </div>
-
-                          {/* Translation value */}
-                          <div class="card sm">
-                            <p class="text-gray-900 break-words">{suggestion.value}</p>
+                            <div style={{ 'font-size': '0.75rem', color: 'var(--text-muted)' }}>
+                              {formatDate(suggestion.createdAt)}
+                            </div>
                           </div>
                         </div>
 
-                        {/* Actions */}
-                        <Show when={user()?.id === suggestion.userId && suggestion.status === 'pending'}>
-                          <button
-                            onClick={() => handleDelete(suggestion.id)}
-                            class="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded border border-red-200 transition flex-shrink-0"
-                            title="Delete your suggestion"
-                          >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </Show>
+                        <div style={{ 'margin-bottom': '0.5rem' }}>
+                          <code class="code-chip">{suggestion.key}</code>
+                        </div>
+
+                        <div class="panel" style={{ display: 'inline-block' }}>
+                          <p style={{ 'word-break': 'break-word' }}>{suggestion.value}</p>
+                        </div>
                       </div>
+
+                      <Show when={user()?.id === suggestion.userId && suggestion.status === 'pending'}>
+                        <button
+                          onClick={() => handleDelete(suggestion.id)}
+                          class="btn danger"
+                          title="Delete your suggestion"
+                          aria-label="Delete suggestion"
+                        >
+                          🗑️
+                        </button>
+                      </Show>
                     </div>
-                  )}
-                </For>
-              </div>
-            </Show>
-          </div>
-        </Show>
-      </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+        </div>
+      </Show>
     </div>
   );
 }

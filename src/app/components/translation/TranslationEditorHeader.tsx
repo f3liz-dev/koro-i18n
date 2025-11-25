@@ -1,7 +1,7 @@
 import { useNavigate } from '@solidjs/router';
 
 interface TranslationEditorHeaderProps {
-  projectId: string; // legacy name; used across many components — we keep this prop name to minimize changes
+  projectId: string;
   language: string;
   filename?: string;
   completionPercentage: number;
@@ -13,41 +13,34 @@ export function TranslationEditorHeader(props: TranslationEditorHeaderProps) {
   const navigate = useNavigate();
 
   return (
-  <div class="panel border-b sticky top-0 z-30">
-      <div class="max-w-7xl mx-auto px-4 py-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            {/* Hamburger Menu Button - Mobile Only */}
-            <button
-              onClick={props.onMenuToggle}
-              class="lg:hidden p-2 btn ghost transition"
-              aria-label="Menu"
-            >
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <div>
-              <h1 class="text-xl lg:text-2xl font-bold text-gray-900">Translation Editor</h1>
-              <p class="text-xs lg:text-sm text-gray-600">
-                {props.projectId} • {props.language.toUpperCase()}
-                {props.filename && <span> • <code class="text-xs code-chip">{props.filename}</code></span>}
-              </p>
-            </div>
+    <div class="panel border-b" style={{ position: 'sticky', top: '0', 'z-index': '30', 'border-radius': '0' }}>
+      <div class="container" style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'space-between', padding: '0.75rem 0' }}>
+        <div style={{ display: 'flex', 'align-items': 'center', gap: '0.75rem' }}>
+          {/* Mobile menu button */}
+          <button
+            onClick={props.onMenuToggle}
+            class="btn ghost lg:hidden"
+            style={{ padding: '0.5rem' }}
+            aria-label="Menu"
+          >
+            ☰
+          </button>
+          <div>
+            <h1 style={{ 'font-size': '1.125rem', 'font-weight': '600' }}>Translation Editor</h1>
+            <p style={{ 'font-size': '0.75rem', color: 'var(--text-secondary)' }}>
+              {props.projectId} • {props.language.toUpperCase()}
+              {props.filename && <span> • <code class="code-chip">{props.filename}</code></span>}
+            </p>
           </div>
-          <div class="flex items-center gap-2 lg:gap-4">
-            <div class="text-right">
-              <div class="text-xs lg:text-sm text-gray-600">Progress</div>
-              <div class="text-lg lg:text-2xl font-bold" style="color: var(--color-accent-peach)">{props.completionPercentage}%</div>
-            </div>
-            <button
-              onClick={() => navigate('/dashboard')}
-              class="btn ghost"
-            >
-              <span class="hidden sm:inline">Back to Dashboard</span>
-              <span class="sm:hidden">Back</span>
-            </button>
+        </div>
+        <div style={{ display: 'flex', 'align-items': 'center', gap: '1rem' }}>
+          <div style={{ 'text-align': 'right' }}>
+            <div style={{ 'font-size': '0.75rem', color: 'var(--text-secondary)' }}>Progress</div>
+            <div style={{ 'font-size': '1.25rem', 'font-weight': '700', color: 'var(--accent)' }}>{props.completionPercentage}%</div>
           </div>
+          <button onClick={() => navigate('/dashboard')} class="btn ghost">
+            Back
+          </button>
         </div>
       </div>
     </div>
