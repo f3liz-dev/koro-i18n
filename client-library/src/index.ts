@@ -409,6 +409,18 @@ function writeManifest(manifest: GeneratedManifest): void {
 }
 
 /**
+ * Replace the language code in a filepath with <lang> placeholder
+ * e.g., "locales/ja/common.json" -> "locales/<lang>/common.json"
+ * Note: This replaces the first occurrence of the language code as a path segment.
+ */
+function replaceLanguageWithPlaceholder(filename: string, language: string): string {
+  return filename.replace(
+    new RegExp(`(^|/)${escapeRegExp(language)}(/|$)`),
+    '$1<lang>$2'
+  );
+}
+
+/**
  * Progress translated data structure
  * Maps filepath (with <lang> placeholder) to array of translated key names
  */
@@ -447,15 +459,7 @@ function writeProgressTranslated(
     const progressData: ProgressTranslated = {};
 
     for (const file of langFiles) {
-      // Replace the actual language code with <lang> placeholder in the filepath
-      // e.g., "locales/ja/common.json" -> "locales/<lang>/common.json"
-      // Note: This replaces the first occurrence of the language code as a path segment.
-      // For patterns where the language appears in multiple positions, only the first is replaced.
-      // This is sufficient for typical patterns like "locales/{lang}/**/*.json".
-      const filepathWithPlaceholder = file.filename.replace(
-        new RegExp(`(^|/)${escapeRegExp(lang)}(/|$)`),
-        '$1<lang>$2'
-      );
+      const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, lang);
 
       // Get all translated key names (keys from the contents)
       const translatedKeys = Object.keys(file.contents);
@@ -504,12 +508,7 @@ function writeStore(
   for (const file of files) {
     if (file.lang !== sourceLanguage) continue;
     
-    // Replace the actual language code with <lang> placeholder
-    const filepathWithPlaceholder = file.filename.replace(
-      new RegExp(`(^|/)${escapeRegExp(sourceLanguage)}(/|$)`),
-      '$1<lang>$2'
-    );
-    
+    const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, sourceLanguage);
     sourceFiles.set(filepathWithPlaceholder, file.contents);
   }
 
@@ -528,11 +527,7 @@ function writeStore(
     const storeData: StoreData = {};
 
     for (const file of langFiles) {
-      // Replace the actual language code with <lang> placeholder
-      const filepathWithPlaceholder = file.filename.replace(
-        new RegExp(`(^|/)${escapeRegExp(lang)}(/|$)`),
-        '$1<lang>$2'
-      );
+      const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, lang);
 
       // Get the corresponding source file
       const sourceContents = sourceFiles.get(filepathWithPlaceholder);
@@ -541,7 +536,7 @@ function writeStore(
       // Store only the keys that exist in the target file, with their source values
       const sourceValuesForKeys: Record<string, string> = {};
       for (const key of Object.keys(file.contents)) {
-        if (sourceContents[key] !== undefined) {
+        if (Object.hasOwn(sourceContents, key)) {
           sourceValuesForKeys[key] = sourceContents[key];
         }
       }
