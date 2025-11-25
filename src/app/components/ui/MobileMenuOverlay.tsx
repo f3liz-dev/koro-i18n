@@ -22,35 +22,51 @@ interface MobileMenuOverlayProps {
 export function MobileMenuOverlay(props: MobileMenuOverlayProps) {
   const handleSelectKey = (key: string) => {
     props.onSelectKey(key);
-    props.onClose(); // Close menu after selection on mobile
+    props.onClose();
   };
 
   return (
     <Show when={props.show}>
       {/* Backdrop */}
       <div
-        class="lg:hidden fixed inset-0 bg-black bg-opacity-30 z-40"
+        style={{
+          position: 'fixed',
+          inset: '0',
+          background: 'rgba(0,0,0,0.3)',
+          'z-index': '40'
+        }}
         onClick={props.onClose}
       />
 
       {/* Slide-in Menu */}
-  <div class="lg:hidden fixed top-0 left-0 bottom-0 w-[95%] max-w-sm z-50 flex flex-col panel" style="backdrop-filter: blur(4px);">
+      <div class="panel animate-slide-down" style={{
+        position: 'fixed',
+        top: '0',
+        left: '0',
+        bottom: '0',
+        width: '90%',
+        'max-width': '20rem',
+        'z-index': '50',
+        display: 'flex',
+        'flex-direction': 'column',
+        'border-radius': '0'
+      }}>
         {/* Header */}
-        <div class="flex items-center justify-between p-4 border-b border-transparent">
-          <h2 class="text-lg font-semibold">翻訳文字列</h2>
-          <button
-            onClick={props.onClose}
-            class="btn ghost p-2 rounded transition"
-            aria-label="閉じる"
-          >
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+        <div style={{
+          display: 'flex',
+          'align-items': 'center',
+          'justify-content': 'space-between',
+          padding: '1rem',
+          'border-bottom': '1px solid var(--border)'
+        }}>
+          <h2 style={{ 'font-size': '1.125rem', 'font-weight': '600' }}>Translation Keys</h2>
+          <button onClick={props.onClose} class="btn ghost" style={{ padding: '0.5rem' }} aria-label="Close">
+            ✕
           </button>
         </div>
 
         {/* List Content */}
-        <div class="flex-1 overflow-hidden">
+        <div style={{ flex: '1', overflow: 'hidden' }}>
           <TranslationList
             translationStrings={props.translationStrings}
             selectedKey={props.selectedKey}

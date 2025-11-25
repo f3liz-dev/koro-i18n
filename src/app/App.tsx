@@ -19,11 +19,10 @@ const JoinProjectPage = lazy(() => import('./pages/JoinProjectPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function RootLayout(props: RouteSectionProps) {
-  // Use the `SimpleLayout` for a modern, minimalistic UI.
   return (
     <SimpleLayout>
       <Suspense fallback={
-        <div class="flex items-center justify-center min-h-[50vh]">
+        <div style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'center', 'min-height': '50vh' }}>
           <LoadingSpinner />
         </div>
       }>
@@ -37,7 +36,6 @@ export default function App() {
   return (
     <I18nProvider>
       <ErrorBoundary>
-        {/* Use SimpleLayout to provide a leaner, modern look */}
         <Router root={RootLayout}>
           <Route path="/" component={HomePage} />
           <Route path="/login" component={LoginPage} />

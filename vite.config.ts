@@ -1,11 +1,9 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import solid from 'vite-plugin-solid';
-import UnoCSS from 'unocss/vite';
 
 export default defineConfig({
   plugins: [
-    UnoCSS(),
     solid({ ssr: false }),
   ],
   root: 'src/app',

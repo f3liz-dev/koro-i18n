@@ -1,27 +1,17 @@
 interface SkeletonProps {
   width?: string;
   height?: string;
-  className?: string;
-  rounded?: 'none' | 'sm' | 'md' | 'lg' | 'full';
 }
 
 export function Skeleton(props: SkeletonProps) {
-  const roundedClass = {
-    'none': '',
-    'sm': 'rounded-sm',
-    'md': 'rounded',
-    'lg': 'rounded-lg',
-    'full': 'rounded-full',
-  }[props.rounded || 'md'];
-
   return (
     <div
-      class={`animate-pulse ${roundedClass} ${props.className || ''}`}
+      class="animate-pulse"
       style={{
         width: props.width || '100%',
         height: props.height || '1rem',
-        background: 'var(--color-cream)',
-        'border-radius': props.rounded === 'full' ? '50%' : props.rounded === 'lg' ? 'var(--radius-lg)' : props.rounded === 'md' ? 'var(--radius)' : props.rounded === 'sm' ? 'var(--radius)' : '0',
+        background: 'var(--surface)',
+        'border-radius': 'var(--radius)'
       }}
     />
   );
@@ -29,13 +19,12 @@ export function Skeleton(props: SkeletonProps) {
 
 interface SkeletonTextProps {
   lines?: number;
-  className?: string;
 }
 
 export function SkeletonText(props: SkeletonTextProps) {
   const lines = props.lines || 1;
   return (
-    <div class={`space-y-2 ${props.className || ''}`}>
+    <div class="space-y-2">
       {Array.from({ length: lines }).map((_, i) => (
         <Skeleton width={i === lines - 1 && lines > 1 ? '80%' : '100%'} height="0.875rem" />
       ))}
@@ -43,84 +32,72 @@ export function SkeletonText(props: SkeletonTextProps) {
   );
 }
 
-interface SkeletonCardProps {
-  className?: string;
-}
-
-export function SkeletonCard(props: SkeletonCardProps) {
+export function SkeletonCard() {
   return (
-    <div class={`card ${props.className || ''}`} style="padding: 1.5rem;">
-      <div style="margin-bottom: 1rem;">
-        <Skeleton width="60%" height="1.25rem" className="mb-2" />
+    <div class="card" style={{ padding: '1.25rem' }}>
+      <div style={{ 'margin-bottom': '1rem' }}>
+        <Skeleton width="60%" height="1.25rem" />
+        <div style={{ height: '0.5rem' }} />
         <Skeleton width="80%" height="0.75rem" />
       </div>
-      <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-        <Skeleton width="3rem" height="1.5rem" rounded="sm" />
-        <Skeleton width="3rem" height="1.5rem" rounded="sm" />
-        <Skeleton width="3rem" height="1.5rem" rounded="sm" />
+      <div style={{ display: 'flex', 'flex-wrap': 'wrap', gap: '0.5rem' }}>
+        <Skeleton width="3rem" height="1.5rem" />
+        <Skeleton width="3rem" height="1.5rem" />
+        <Skeleton width="3rem" height="1.5rem" />
       </div>
     </div>
   );
 }
 
-interface SkeletonListItemProps {
-  className?: string;
-}
-
-export function SkeletonListItem(props: SkeletonListItemProps) {
+export function SkeletonListItem() {
   return (
-    <div class={`p-3 lg:p-4 ${props.className || ''}`}>
-      <div class="flex items-start justify-between mb-2">
+    <div style={{ padding: '1rem' }}>
+      <div style={{ display: 'flex', 'align-items': 'flex-start', 'justify-content': 'space-between', 'margin-bottom': '0.5rem' }}>
         <Skeleton width="70%" height="0.875rem" />
-        <Skeleton width="1.5rem" height="1.5rem" rounded="sm" />
+        <Skeleton width="1.5rem" height="1.5rem" />
       </div>
-      <Skeleton width="90%" height="0.875rem" className="mb-1" />
+      <Skeleton width="90%" height="0.875rem" />
+      <div style={{ height: '0.25rem' }} />
       <Skeleton width="85%" height="0.875rem" />
     </div>
   );
 }
 
-interface SkeletonPanelProps {
-  className?: string;
-}
-
-export function SkeletonPanel(props: SkeletonPanelProps) {
+export function SkeletonPanel() {
   return (
-    <div class={`panel p-4 ${props.className || ''}`}>
-      <Skeleton width="50%" height="1rem" className="mb-4" />
+    <div class="panel" style={{ padding: '1rem' }}>
+      <Skeleton width="50%" height="1rem" />
+      <div style={{ height: '1rem' }} />
       <div class="space-y-3">
         <div>
-          <Skeleton width="30%" height="0.875rem" className="mb-2" />
-          <Skeleton width="100%" height="6rem" rounded="md" />
+          <Skeleton width="30%" height="0.875rem" />
+          <div style={{ height: '0.5rem' }} />
+          <Skeleton width="100%" height="6rem" />
         </div>
         <div>
-          <Skeleton width="30%" height="0.875rem" className="mb-2" />
-          <Skeleton width="100%" height="8rem" rounded="md" />
+          <Skeleton width="30%" height="0.875rem" />
+          <div style={{ height: '0.5rem' }} />
+          <Skeleton width="100%" height="8rem" />
         </div>
       </div>
     </div>
   );
 }
 
-interface SkeletonTableRowProps {
-  columns?: number;
-  className?: string;
-}
-
-export function SkeletonTableRow(props: SkeletonTableRowProps) {
-  const columns = props.columns || 3;
+export function SkeletonTableRow() {
   return (
-    <div class={`card p-4 flex items-center justify-between ${props.className || ''}`}>
-      <div class="flex items-center gap-3 flex-1">
-        <Skeleton width="2.5rem" height="2.5rem" rounded="full" />
-        <div class="flex-1">
-          <Skeleton width="40%" height="1rem" className="mb-1" />
+    <div class="card" style={{ padding: '1rem', display: 'flex', 'align-items': 'center', 'justify-content': 'space-between' }}>
+      <div style={{ display: 'flex', 'align-items': 'center', gap: '0.75rem', flex: '1' }}>
+        <Skeleton width="2.5rem" height="2.5rem" />
+        <div style={{ flex: '1' }}>
+          <Skeleton width="40%" height="1rem" />
+          <div style={{ height: '0.25rem' }} />
           <Skeleton width="30%" height="0.75rem" />
         </div>
       </div>
-      <div class="flex gap-2">
-        <Skeleton width="4rem" height="1.875rem" rounded="sm" />
-        <Skeleton width="4rem" height="1.875rem" rounded="sm" />
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <Skeleton width="4rem" height="1.875rem" />
+        <Skeleton width="4rem" height="1.875rem" />
       </div>
     </div>
   );

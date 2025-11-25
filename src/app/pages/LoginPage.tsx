@@ -40,39 +40,60 @@ export default function LoginPage() {
   };
 
   return (
-    <div class="flex flex-col items-center justify-center min-h-[80vh] relative">
-      <div class="absolute top-4 right-4">
+    <div style={{ 
+      display: 'flex', 
+      'flex-direction': 'column', 
+      'align-items': 'center', 
+      'justify-content': 'center', 
+      'min-height': '70vh',
+      padding: '2rem 1rem'
+    }}>
+      <div style={{ position: 'absolute', top: '1rem', right: '1rem' }}>
         <LanguageSelector />
       </div>
 
-      <div class="w-full max-w-md animate-fade-in-up">
-        <div class="card bg-white/80 backdrop-blur-sm border border-white shadow-xl rounded-3xl p-8 md:p-12">
-          <div class="mb-8 flex justify-center">
-            <div class="p-4 bg-primary-50 rounded-full">
-              <div class="text-5xl">🐱</div>
-            </div>
-          </div>
+      <div class="card animate-fade-in" style={{ 
+        'max-width': '24rem', 
+        width: '100%',
+        'text-align': 'center',
+        padding: '2.5rem'
+      }}>
+        <div style={{ 'font-size': '3rem', 'margin-bottom': '1.5rem' }}>
+          🌐
+        </div>
 
-          <h1 class="text-2xl font-bold text-center mb-8 text-neutral-800">
-            {t('login.title')}
-          </h1>
+        <h1 style={{ 
+          'font-size': '1.5rem', 
+          'font-weight': '600', 
+          'margin-bottom': '2rem',
+          color: 'var(--text)'
+        }}>
+          {t('login.title') || 'Sign in to Koro i18n'}
+        </h1>
 
+        <button
+          onClick={handleLogin}
+          class="btn"
+          style={{ 
+            width: '100%', 
+            padding: '0.875rem 1.5rem',
+            background: '#24292e',
+            color: 'white',
+            border: 'none',
+            'font-size': '1rem'
+          }}
+        >
+          {t('login.continueWithGitHub') || 'Continue with GitHub'}
+        </button>
+
+        <div style={{ 'margin-top': '1.5rem' }}>
           <button
-            onClick={handleLogin}
-            class="w-full flex items-center justify-center gap-3 px-6 py-4 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            onClick={() => navigate('/')}
+            class="btn ghost"
+            style={{ 'font-size': '0.875rem' }}
           >
-            <div class="i-carbon-logo-github text-xl" />
-            <span>{t('login.continueWithGitHub')}</span>
+            {t('login.backToHome') || '← Back to Home'}
           </button>
-
-          <div class="mt-6 text-center">
-            <button
-              onClick={() => navigate('/')}
-              class="text-sm text-neutral-500 hover:text-primary-500 transition-colors"
-            >
-              {t('login.backToHome')}
-            </button>
-          </div>
         </div>
       </div>
     </div>

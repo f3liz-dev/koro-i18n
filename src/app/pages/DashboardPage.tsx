@@ -17,89 +17,105 @@ export default function DashboardPage() {
   refreshProjects();
 
   return (
-    <div class="flex flex-col gap-8">
-      <div class="flex items-center justify-between flex-wrap gap-4">
+    <div class="animate-fade-in">
+      {/* Header */}
+      <div style={{ 
+        display: 'flex', 
+        'align-items': 'center', 
+        'justify-content': 'space-between', 
+        'flex-wrap': 'wrap',
+        gap: '1rem',
+        'margin-bottom': '2rem'
+      }}>
         <div>
-          <h2 class="text-3xl font-serif font-bold text-neutral-800 mb-2">
-            {t('dashboard.title')}
+          <h2 style={{ 'font-size': '1.75rem', 'font-weight': '600', 'margin-bottom': '0.5rem' }}>
+            {t('dashboard.title') || 'Projects'}
           </h2>
-          <p class="text-neutral-500">
-            {t('dashboard.subtitle')}
+          <p style={{ color: 'var(--text-secondary)' }}>
+            {t('dashboard.subtitle') || 'Manage your translation projects'}
           </p>
         </div>
-        <div class="flex items-center gap-3">
+        <div style={{ display: 'flex', 'align-items': 'center', gap: '0.75rem' }}>
           <LanguageSelector />
-          <button
-            onClick={() => navigate('/projects/create')}
-            class="btn-primary"
-          >
-            <div class="i-carbon-add text-lg" />
-            <span>{t('dashboard.newProject')}</span>
+          <button onClick={() => navigate('/projects/create')} class="btn primary">
+            + {t('dashboard.newProject') || 'New Project'}
           </button>
         </div>
       </div>
 
+      {/* Loading State */}
       <Show when={projects.loading}>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-auto">
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
         </div>
       </Show>
 
+      {/* Empty State */}
       <Show when={!projects.loading && (projects() || []).length === 0}>
-        <div class="card flex flex-col items-center justify-center py-16 text-center">
-          <div class="w-24 h-24 bg-neutral-50 rounded-full flex items-center justify-center mb-6">
-            <div class="i-carbon-folder text-4xl text-neutral-300" />
+        <div class="card empty-state">
+          <div class="icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
           </div>
-          <h3 class="text-xl font-bold text-neutral-800 mb-2">{t('dashboard.noProjectsYet')}</h3>
-          <p class="text-neutral-500 mb-8 max-w-md">{t('dashboard.noProjectsDescription')}</p>
-          <button
-            onClick={() => navigate('/projects/create')}
-            class="btn-primary"
+          <div class="title">{t('dashboard.noProjectsYet') || 'No projects yet'}</div>
+          <div class="description">{t('dashboard.noProjectsDescription') || 'Create your first project to get started'}</div>
+          <button 
+            onClick={() => navigate('/projects/create')} 
+            class="btn primary"
+            style={{ 'margin-top': '1.5rem' }}
           >
-            {t('dashboard.createProject')}
+            {t('dashboard.createProject') || 'Create Project'}
           </button>
         </div>
       </Show>
 
+      {/* Projects List */}
       <Show when={!projects.loading && (projects() || []).length > 0}>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-auto">
           <For each={projects()}>
             {(project) => {
               const isOwner = () => project.userId === user()?.id;
 
               return (
                 <div
-                  class="card hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                  class="card hover-lift transition-all"
+                  style={{ cursor: 'pointer' }}
                   onClick={() => navigate(`/projects/${project.name}`)}
                 >
-                  <div class="flex items-start justify-between mb-4">
+                  <div style={{ 
+                    display: 'flex', 
+                    'align-items': 'flex-start', 
+                    'justify-content': 'space-between', 
+                    'margin-bottom': '1rem' 
+                  }}>
                     <div>
-                      <h3 class="text-lg font-bold text-neutral-800 group-hover:text-primary-500 transition-colors mb-1">
+                      <h3 style={{ 'font-size': '1.125rem', 'font-weight': '600', 'margin-bottom': '0.375rem' }}>
                         {project.name}
                       </h3>
-                      <code class="text-xs bg-neutral-100 text-neutral-500 px-2 py-1 rounded border border-neutral-200">
+                      <code class="code-chip" style={{ 'font-size': '0.75rem', color: 'var(--text-secondary)' }}>
                         {project.repository}
                       </code>
                     </div>
-                    <div class="i-carbon-arrow-right text-neutral-300 group-hover:text-primary-400 transition-colors" />
+                    <span style={{ color: 'var(--text-muted)' }}>→</span>
                   </div>
 
-                  <div class="mb-6">
+                  <div style={{ 'margin-bottom': '1rem' }}>
                     <Show when={(project.languages || []).length > 0} fallback={
-                      <div class="text-sm text-neutral-400 italic">{t('dashboard.noFilesUploaded')}</div>
+                      <span style={{ 'font-size': '0.875rem', color: 'var(--text-muted)', 'font-style': 'italic' }}>
+                        {t('dashboard.noFilesUploaded') || 'No files uploaded'}
+                      </span>
                     }>
-                      <div class="flex flex-wrap gap-2">
+                      <div style={{ display: 'flex', 'flex-wrap': 'wrap', gap: '0.375rem' }}>
                         <For each={(project.languages || []).slice(0, 4)}>
                           {(lang) => (
-                            <span class="px-2 py-1 text-xs font-bold rounded-md bg-primary-50 text-primary-600 border border-primary-100">
-                              {lang.toUpperCase()}
-                            </span>
+                            <span class="badge">{lang.toUpperCase()}</span>
                           )}
                         </For>
                         <Show when={(project.languages || []).length > 4}>
-                          <span class="px-2 py-1 text-xs font-medium rounded-md bg-neutral-100 text-neutral-500">
+                          <span class="badge" style={{ background: 'var(--surface)' }}>
                             +{(project.languages || []).length - 4}
                           </span>
                         </Show>
@@ -113,10 +129,10 @@ export default function DashboardPage() {
                         e.stopPropagation();
                         navigate(`/projects/${project.name}/settings`);
                       }}
-                      class="w-full py-2 rounded-xl border border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:text-primary-500 hover:border-primary-200 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                      class="btn ghost w-full"
+                      style={{ 'font-size': '0.875rem' }}
                     >
-                      <div class="i-carbon-settings" />
-                      <span>{t('dashboard.manageProject')}</span>
+                      ⚙️ {t('dashboard.manageProject') || 'Manage'}
                     </button>
                   </Show>
                 </div>

@@ -24,11 +24,6 @@ interface TranslationSuggestionsPanelProps {
 }
 
 export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelProps) {
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-  };
-
   const formatRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -46,138 +41,75 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'pending':
-        return 'badge warning';
-      case 'approved':
-        return 'badge success';
-      case 'committed':
-        return 'badge';
-      case 'rejected':
-        return 'badge danger';
-      case 'deleted':
-        return 'badge';
-      default:
-        return 'badge';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return '⏳';
-      case 'approved':
-        return '✅';
-      case 'committed':
-        return '🚀';
-      case 'rejected':
-        return '❌';
-      case 'deleted':
-        return '🗑️';
-      default:
-        return '•';
+      case 'pending': return 'badge warning';
+      case 'approved': return 'badge success';
+      case 'committed': return 'badge';
+      case 'rejected': return 'badge danger';
+      default: return 'badge';
     }
   };
 
   return (
     <Show when={props.show}>
-      <div class="border-t panel">
-        <div class="p-3 lg:p-4">
-          <h3 class="text-sm font-semibold text-gray-900 mb-3">Translation Suggestions</h3>
-          
-          <Show when={props.isLoading}>
-            <div class="py-3">
-              <SkeletonListItem />
-              <SkeletonListItem />
-              <SkeletonListItem />
-            </div>
-          </Show>
+      <div style={{ 'border-top': '1px solid var(--border)', padding: '1rem' }}>
+        <h3 style={{ 'font-size': '0.875rem', 'font-weight': '600', 'margin-bottom': '0.75rem' }}>Suggestions</h3>
+        
+        <Show when={props.isLoading}>
+          <SkeletonListItem />
+          <SkeletonListItem />
+        </Show>
 
-          <Show when={!props.isLoading && (!props.suggestions || props.suggestions.length === 0)}>
-            <div class="text-center py-6 text-gray-500">
-              <svg class="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <p class="text-sm">No suggestions yet</p>
-              <p class="text-xs mt-1">Submit a translation to start tracking suggestions</p>
-            </div>
-          </Show>
+        <Show when={!props.isLoading && (!props.suggestions || props.suggestions.length === 0)}>
+          <div style={{ 'text-align': 'center', padding: '1.5rem', color: 'var(--text-muted)' }}>
+            <p style={{ 'font-size': '0.875rem' }}>No suggestions yet</p>
+          </div>
+        </Show>
 
-          <Show when={!props.isLoading && props.suggestions && props.suggestions.length > 0}>
-            <div class="space-y-3 max-h-[400px] overflow-y-auto">
-              <For each={props.suggestions}>
-                {(entry, index) => (
-                  <div class={`relative pl-6 pb-3 ${index() < props.suggestions!.length - 1 ? 'border-l-2 border-gray-200' : ''}`}>
-                    {/* Timeline dot */}
-                    <div class="absolute left-0 top-0 -translate-x-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white"></div>
-                    
-                    <div class="card sm">
-                      {/* Main horizontal layout */}
-                      <div class="flex items-start gap-3">
-                        {/* Left side: vertical layout with value and user info */}
-                        <div class="flex flex-col gap-2 flex-1 min-w-0">
-                          {/* Value */}
-                          <Show when={entry.status !== 'deleted'}>
-                            <div class="card sm" style="display:inline-block;">
-                              {entry.value}
-                            </div>
-                          </Show>
-                          
-                          {/* Horizontal layout for profile image, username, and date */}
-                          <div class="flex items-center gap-2">
-                            {/* User Avatar */}
-                            <Show when={entry.username}>
-                              <img
-                                src={entry.avatarUrl || `https://ui-avatars.com/api/?name=${entry.username}`}
-                                alt={entry.username}
-                                class="w-6 h-6 rounded-full flex-shrink-0"
-                              />
-                            </Show>
-                            
-                            {/* Username */}
-                            <Show when={entry.username}>
-                              <span class="text-sm font-medium text-gray-900 truncate">
-                                {entry.username}
-                              </span>
-                            </Show>
-                            
-                            {/* Date */}
-                            <span class="text-xs text-gray-500" title={formatDate(entry.createdAt)}>
-                              {formatRelativeTime(entry.createdAt)}
-                            </span>
-                            
-                            {/* Status icon and badge */}
-                            <span class="icon">{getStatusIcon(entry.status)}</span>
-                            <span class={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${getStatusBadge(entry.status)}`}>
-                              {entry.status}
-                            </span>
-                          </div>
+        <Show when={!props.isLoading && props.suggestions && props.suggestions.length > 0}>
+          <div class="space-y-2" style={{ 'max-height': '300px', 'overflow-y': 'auto' }}>
+            <For each={props.suggestions}>
+              {(entry) => (
+                <div class="panel">
+                  <div style={{ display: 'flex', 'align-items': 'flex-start', gap: '0.75rem' }}>
+                    <div style={{ flex: '1', 'min-width': '0' }}>
+                      <Show when={entry.status !== 'deleted'}>
+                        <div style={{ 'margin-bottom': '0.5rem', 'font-size': '0.9375rem' }}>
+                          {entry.value}
                         </div>
-
-                        {/* Right side: Action buttons for pending suggestions */}
-                        <Show when={entry.status === 'pending' && props.onApprove && props.onReject}>
-                            <div class="flex gap-2 flex-shrink-0">
-                            <button
-                              onClick={() => props.onApprove?.(entry.id)}
-                              class="btn success"
-                            >
-                              ✓ Approve
-                            </button>
-                            <button
-                              onClick={() => props.onReject?.(entry.id)}
-                              class="btn danger"
-                            >
-                              ✗ Reject
-                            </button>
-                          </div>
+                      </Show>
+                      
+                      <div style={{ display: 'flex', 'align-items': 'center', gap: '0.5rem', 'flex-wrap': 'wrap' }}>
+                        <Show when={entry.username}>
+                          <img
+                            src={entry.avatarUrl || `https://ui-avatars.com/api/?name=${entry.username}`}
+                            alt={entry.username}
+                            style={{ width: '1.25rem', height: '1.25rem', 'border-radius': '50%' }}
+                          />
+                          <span style={{ 'font-size': '0.75rem', 'font-weight': '500' }}>{entry.username}</span>
                         </Show>
+                        <span style={{ 'font-size': '0.75rem', color: 'var(--text-muted)' }}>
+                          {formatRelativeTime(entry.createdAt)}
+                        </span>
+                        <span class={getStatusBadge(entry.status)}>{entry.status}</span>
                       </div>
                     </div>
+
+                    <Show when={entry.status === 'pending' && props.onApprove && props.onReject}>
+                      <div style={{ display: 'flex', gap: '0.375rem', 'flex-shrink': '0' }}>
+                        <button onClick={() => props.onApprove?.(entry.id)} class="btn success" style={{ 'font-size': '0.75rem', padding: '0.375rem 0.5rem' }}>
+                          ✓
+                        </button>
+                        <button onClick={() => props.onReject?.(entry.id)} class="btn danger" style={{ 'font-size': '0.75rem', padding: '0.375rem 0.5rem' }}>
+                          ✗
+                        </button>
+                      </div>
+                    </Show>
                   </div>
-                )}
-              </For>
-            </div>
-          </Show>
-        </div>
+                </div>
+              )}
+            </For>
+          </div>
+        </Show>
       </div>
     </Show>
   );
