@@ -120,12 +120,30 @@ The action generates `.koro-i18n/koro-i18n.repo.generated.json` with the followi
 }
 ```
 
+### Progress Translated Files
+
+The action also generates `.koro-i18n/progress-translated/[lang].json` files for each target language. These files pre-calculate which keys have been translated, enabling efficient progress tracking:
+
+```json
+{
+  "locales/<lang>/common.json": [
+    "welcome",
+    "goodbye",
+    "buttons.save",
+    "buttons.cancel"
+  ]
+}
+```
+
+The filepath uses `<lang>` as a placeholder for the language code, and the value is an array of translated key names in dot notation.
+
 ## How It Works
 
 1. Reads your `.koro-i18n.repo.config.toml` configuration
 2. Scans for translation files matching the configured patterns
 3. Generates metadata including file paths, languages, and commit hashes
-4. Commits the metadata file to your repository (if enabled)
+4. Generates progress-translated files for each target language
+5. Commits the metadata files to your repository (if enabled)
 
 The koro-i18n platform can then fetch this metadata to use your GitHub repository as a realtime translation source.
 

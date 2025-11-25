@@ -4,6 +4,7 @@ import { glob } from 'glob';
 import * as toml from 'toml';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
+import { encode } from '@msgpack/msgpack';
 
 export interface Config {
   project: {
@@ -257,9 +258,11 @@ function extractLanguage(filePath: string, includePattern: string, langMarker: s
     let regexPattern = includePattern
       .replace(/[.+?^$|[\]\\]/g, '\\$&')  // Escape special chars (not {} or *)
       .replace(/\{lang\}/g, `___LANG___`)  // Temporarily replace {lang}
-      .replace(/\*\*/g, '___DOUBLESTAR___')  // Temporarily replace **
+      .replace(/\*\*\//g, '___DOUBLESTARSLASH___')  // Replace **/ first (glob: zero or more path segments)
+      .replace(/\*\*/g, '___DOUBLESTAR___')  // Temporarily replace remaining **
       .replace(/\*/g, '___STAR___')  // Temporarily replace *
       .replace(/___LANG___/g, `(${langMarker})`)  // Replace with capture group
+      .replace(/___DOUBLESTARSLASH___/g, '(?:.*/)?')  // **/ → optional path segments with trailing slash
       .replace(/___DOUBLESTAR___/g, '.*')  // ** → .*
       .replace(/___STAR___/g, '[^/]*');  // * → [^/]*
     
@@ -406,6 +409,76 @@ function writeManifest(manifest: GeneratedManifest): void {
 }
 
 /**
+ * Progress translated data structure
+ * Maps filepath (with <lang> placeholder) to array of translated key names
+ */
+export interface ProgressTranslated {
+  [filepathWithLangPlaceholder: string]: string[];
+}
+
+/**
+ * Generate and write progress-translated files for each target language
+ * Creates .koro-i18n/progress-translated/[lang].json
+ * Content: {[filepath with language replaced by <lang>]: [translated-key-names]}
+ */
+function writeProgressTranslated(
+  files: TranslationFile[],
+  sourceLanguage: string
+): void {
+  const outputDir = '.koro-i18n/progress-translated';
+
+  // Create directory if it doesn't exist
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  // Group files by language (exclude source language)
+  const filesByLang = new Map<string, TranslationFile[]>();
+  for (const file of files) {
+    if (file.lang === sourceLanguage) continue;
+    
+    const existing = filesByLang.get(file.lang) || [];
+    existing.push(file);
+    filesByLang.set(file.lang, existing);
+  }
+
+  // Generate progress-translated file for each target language
+  for (const [lang, langFiles] of filesByLang.entries()) {
+    const progressData: ProgressTranslated = {};
+
+    for (const file of langFiles) {
+      // Replace the actual language code with <lang> placeholder in the filepath
+      // e.g., "locales/ja/common.json" -> "locales/<lang>/common.json"
+      const filepathWithPlaceholder = file.filename.replace(
+        new RegExp(`(^|/)${escapeRegExp(lang)}(/|$)`),
+        '$1<lang>$2'
+      );
+
+      // Get all translated key names (keys from the contents)
+      const translatedKeys = Object.keys(file.contents);
+
+      progressData[filepathWithPlaceholder] = translatedKeys;
+    }
+
+    // Write the progress file for this language
+    const outputPath = path.join(outputDir, `${lang}.json`);
+    fs.writeFileSync(outputPath, JSON.stringify(progressData, null, 2), 'utf-8');
+    console.log(`  ✓ Progress translated: ${outputPath} (${langFiles.length} files)`);
+  }
+
+  if (filesByLang.size > 0) {
+    console.log(`\n✅ Progress translated generated for ${filesByLang.size} languages`);
+  }
+}
+
+/**
+ * Escape special regex characters in a string
+ */
+function escapeRegExp(string: string): string {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Main CLI function
  */
 export async function main() {
@@ -526,6 +599,10 @@ export async function main() {
   const manifest = generateManifest(repository, config.source.language, allFiles);
   writeManifest(manifest);
   
-  console.log('✨ Done! The manifest has been created at .koro-i18n/koro-i18n.repo.generated.json');
-  console.log('💡 Commit this file to your repository for the platform to fetch your translations.');
+  // Generate progress-translated files for each target language
+  console.log(`\n📝 Generating progress-translated files...`);
+  writeProgressTranslated(allFiles, config.source.language);
+  
+  console.log('\n✨ Done! The metadata has been created in .koro-i18n/');
+  console.log('💡 Commit these files to your repository for the platform to fetch your translations.');
 }
