@@ -264,6 +264,117 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
 
 
 
+    // Get files summary (translation status overview)
+    // Returns file metadata with translation progress - used for file selection pages
+    app.get('/summary', authMiddleware, async (c) => {
+        const user = c.get('user');
+        const projectName = c.req.param('projectName');
+        const branch = c.req.query('branch') || 'main';
+        let language = c.req.query('lang');
+
+        const project = await prisma.project.findUnique({
+            where: { name: projectName },
+            select: { id: true, repository: true, sourceLanguage: true },
+        });
+
+        if (!project) return c.json({ error: 'Project not found' }, 404);
+
+        // Check access
+        const hasAccess = await checkProjectAccess(prisma, project.id, user.userId);
+        if (!hasAccess) return c.json({ error: 'Forbidden' }, 403);
+
+        // Handle source-language parameter
+        if (language === 'source-language') {
+            // Find what languages are actually uploaded for this project
+            const uploadedLangs = await prisma.r2File.findMany({
+                where: { projectId: project.repository, branch },
+                select: { lang: true },
+                distinct: ['lang'],
+            });
+            
+            const langList = uploadedLangs.map(f => f.lang);
+            
+            // Try exact match first
+            if (langList.includes(project.sourceLanguage)) {
+                language = project.sourceLanguage;
+            } else {
+                // Try to find a variant (e.g., "en-US" when config says "en")
+                const variant = langList.find(l => l.startsWith(project.sourceLanguage + '-'));
+                if (variant) {
+                    language = variant;
+                } else if (langList.length > 0) {
+                    // Fallback to first alphabetically
+                    language = langList.sort()[0];
+                } else {
+                    language = project.sourceLanguage;
+                }
+            }
+        }
+
+        const where: any = { projectId: project.repository, branch };
+        if (language) where.lang = language;
+
+        const files = await prisma.r2File.findMany({
+            where,
+            select: {
+                lang: true,
+                filename: true,
+                totalKeys: true,
+                lastUpdated: true,
+            },
+            orderBy: { filename: 'asc' },
+        });
+
+        // Batch query: Get translation counts for all files at once using groupBy
+        // This avoids N+1 query pattern by fetching all counts in a single query
+        const translationCounts = await prisma.webTranslation.groupBy({
+            by: ['language', 'filename'],
+            where: {
+                projectId: project.repository,
+                status: { in: ['approved', 'committed'] },
+                // Only include files we care about
+                OR: files.map(f => ({ language: f.lang, filename: f.filename })),
+            },
+            _count: { id: true },
+        });
+
+        // Create a lookup map for quick access: "lang:filename" -> count
+        const countMap = new Map<string, number>();
+        for (const tc of translationCounts) {
+            countMap.set(`${tc.language}:${tc.filename}`, tc._count.id);
+        }
+
+        // Build results using the pre-fetched counts
+        const filesWithProgress = files.map((file) => {
+            const translatedCount = countMap.get(`${file.lang}:${file.filename}`) || 0;
+            const totalKeys = file.totalKeys;
+            const translatedKeys = Math.min(translatedCount, totalKeys);
+            const translationPercentage = totalKeys > 0 
+                ? Math.round((translatedKeys / totalKeys) * 100)
+                : 0;
+
+            return {
+                filename: file.filename,
+                lang: file.lang,
+                totalKeys,
+                translatedKeys,
+                translationPercentage,
+            };
+        });
+
+        const latestUpdate = files.length > 0 ? Math.max(...files.map(f => f.lastUpdated.getTime())) : Date.now();
+        const serverETag = `"${latestUpdate}"`;
+
+        if (c.req.header('If-None-Match') === serverETag) {
+            return c.body(null, 304, { 'ETag': serverETag, 'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles) });
+        }
+
+        const response = c.json({ files: filesWithProgress });
+        response.headers.set('ETag', serverETag);
+        response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+        return response;
+    });
+
     // List files
     app.get('/', authMiddleware, async (c) => {
         const projectName = c.req.param('projectName');
