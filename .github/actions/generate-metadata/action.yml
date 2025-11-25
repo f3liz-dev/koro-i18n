@@ -119,6 +119,11 @@ runs:
           if [ -d ".koro-i18n/progress-translated" ]; then
             git add .koro-i18n/progress-translated/
           fi
+          
+          # Also add store files if they exist
+          if [ -d ".koro-i18n/store" ]; then
+            git add .koro-i18n/store/
+          fi
 
           # Check if there are changes to commit
           if git diff --staged --quiet; then

@@ -475,6 +475,94 @@ function writeProgressTranslated(
 }
 
 /**
+ * Store data structure
+ * Maps filepath (with <lang> placeholder) to {key: sourceValue} for source validation
+ */
+export interface StoreData {
+  [filepathWithLangPlaceholder: string]: Record<string, string>;
+}
+
+/**
+ * Generate and write store files for each target language
+ * Creates .koro-i18n/store/[lang].json
+ * Content: {[filepath with <lang>]: {key: sourceValue}}
+ * This allows koro-i18n to detect when source values change and mark translations as invalid
+ */
+function writeStore(
+  files: TranslationFile[],
+  sourceLanguage: string
+): void {
+  const outputDir = '.koro-i18n/store';
+
+  // Create directory if it doesn't exist
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  // Build a map of source files: filepath (with <lang>) -> {key: value}
+  const sourceFiles = new Map<string, Record<string, string>>();
+  for (const file of files) {
+    if (file.lang !== sourceLanguage) continue;
+    
+    // Replace the actual language code with <lang> placeholder
+    const filepathWithPlaceholder = file.filename.replace(
+      new RegExp(`(^|/)${escapeRegExp(sourceLanguage)}(/|$)`),
+      '$1<lang>$2'
+    );
+    
+    sourceFiles.set(filepathWithPlaceholder, file.contents);
+  }
+
+  // Group target files by language
+  const filesByLang = new Map<string, TranslationFile[]>();
+  for (const file of files) {
+    if (file.lang === sourceLanguage) continue;
+    
+    const existing = filesByLang.get(file.lang) || [];
+    existing.push(file);
+    filesByLang.set(file.lang, existing);
+  }
+
+  // Generate store file for each target language
+  for (const [lang, langFiles] of filesByLang.entries()) {
+    const storeData: StoreData = {};
+
+    for (const file of langFiles) {
+      // Replace the actual language code with <lang> placeholder
+      const filepathWithPlaceholder = file.filename.replace(
+        new RegExp(`(^|/)${escapeRegExp(lang)}(/|$)`),
+        '$1<lang>$2'
+      );
+
+      // Get the corresponding source file
+      const sourceContents = sourceFiles.get(filepathWithPlaceholder);
+      if (!sourceContents) continue;
+
+      // Store only the keys that exist in the target file, with their source values
+      const sourceValuesForKeys: Record<string, string> = {};
+      for (const key of Object.keys(file.contents)) {
+        if (sourceContents[key] !== undefined) {
+          sourceValuesForKeys[key] = sourceContents[key];
+        }
+      }
+
+      if (Object.keys(sourceValuesForKeys).length > 0) {
+        storeData[filepathWithPlaceholder] = sourceValuesForKeys;
+      }
+    }
+
+    // Write the store file for this language
+    const outputPath = path.join(outputDir, `${lang}.json`);
+    fs.writeFileSync(outputPath, JSON.stringify(storeData, null, 2), 'utf-8');
+    console.log(`  ✓ Store: ${outputPath} (${langFiles.length} files)`);
+  }
+
+  if (filesByLang.size > 0) {
+    console.log(`\n✅ Store generated for ${filesByLang.size} languages`);
+  }
+}
+
+/**
  * Escape special regex characters in a string
  */
 function escapeRegExp(string: string): string {
@@ -605,6 +693,10 @@ export async function main() {
   // Generate progress-translated files for each target language
   console.log(`\n📝 Generating progress-translated files...`);
   writeProgressTranslated(allFiles, config.source.language);
+  
+  // Generate store files for each target language (source values for validation)
+  console.log(`\n📝 Generating store files...`);
+  writeStore(allFiles, config.source.language);
   
   console.log('\n✨ Done! The metadata has been created in .koro-i18n/');
   console.log('💡 Commit these files to your repository for the platform to fetch your translations.');

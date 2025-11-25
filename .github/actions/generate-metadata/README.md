@@ -137,13 +137,31 @@ The action also generates `.koro-i18n/progress-translated/[lang].json` files for
 
 The filepath uses `<lang>` as a placeholder for the language code, and the value is an array of translated key names in dot notation.
 
+### Store Files
+
+The action also generates `.koro-i18n/store/[lang].json` files for each target language. These files store the original source values for each translated key, enabling koro-i18n to detect when source content changes and mark translations as potentially invalid:
+
+```json
+{
+  "locales/<lang>/common.json": {
+    "welcome": "Welcome to our app",
+    "goodbye": "Goodbye",
+    "buttons.save": "Save",
+    "buttons.cancel": "Cancel"
+  }
+}
+```
+
+When the source language value changes, koro-i18n can compare the stored value with the current source to identify translations that need review.
+
 ## How It Works
 
 1. Reads your `.koro-i18n.repo.config.toml` configuration
 2. Scans for translation files matching the configured patterns
 3. Generates metadata including file paths, languages, and commit hashes
 4. Generates progress-translated files for each target language
-5. Commits the metadata files to your repository (if enabled)
+5. Generates store files with source values for translation validation
+6. Commits the metadata files to your repository (if enabled)
 
 The koro-i18n platform can then fetch this metadata to use your GitHub repository as a realtime translation source.
 
