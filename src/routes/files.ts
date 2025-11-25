@@ -376,15 +376,34 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             }
             
             // Map manifest files to the expected format
-            files = filteredManifestFiles.map(mf => {
-                const r2Data = r2FileMap.get(`${mf.language}:${mf.filename}`);
-                return {
-                    lang: mf.language,
-                    filename: mf.filename,
-                    totalKeys: r2Data?.totalKeys ?? 0,
-                    lastUpdated: r2Data?.lastUpdated ?? new Date(mf.lastUpdated),
-                };
-            });
+            // Note: totalKeys from R2 is required for progress calculation
+            // Files without R2 data are filtered out since totalKeys is needed
+            files = filteredManifestFiles
+                .map(mf => {
+                    const r2Data = r2FileMap.get(`${mf.language}:${mf.filename}`);
+                    // Parse lastUpdated with validation
+                    let lastUpdated: Date;
+                    if (r2Data?.lastUpdated) {
+                        lastUpdated = r2Data.lastUpdated;
+                    } else {
+                        try {
+                            lastUpdated = new Date(mf.lastUpdated);
+                            // Check if date is valid
+                            if (isNaN(lastUpdated.getTime())) {
+                                lastUpdated = new Date();
+                            }
+                        } catch {
+                            lastUpdated = new Date();
+                        }
+                    }
+                    return {
+                        lang: mf.language,
+                        filename: mf.filename,
+                        // Use R2 totalKeys if available, otherwise 0 (will show "sync needed" in UI)
+                        totalKeys: r2Data?.totalKeys ?? 0,
+                        lastUpdated,
+                    };
+                });
         } else {
             // Fallback to R2File table when manifest is not available
             const where: any = { projectId: project.repository, branch };
