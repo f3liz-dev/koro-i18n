@@ -1,0 +1,129 @@
+name: 'Generate koro-i18n Metadata'
+description: 'Generate .koro-i18n/koro-i18n.repo.generated.json metadata file for using GitHub repo as realtime translation source'
+author: 'Koro i18n'
+
+branding:
+  icon: 'file-text'
+  color: 'purple'
+
+inputs:
+  config-path:
+    description: 'Path to .koro-i18n.repo.config.toml configuration file'
+    required: false
+    default: '.koro-i18n.repo.config.toml'
+  commit-changes:
+    description: 'Whether to commit and push the generated metadata file'
+    required: false
+    default: 'true'
+  commit-message:
+    description: 'Commit message for metadata updates'
+    required: false
+    default: 'chore: Update koro-i18n metadata [skip ci]'
+
+outputs:
+  metadata-path:
+    description: 'Path to the generated metadata file'
+    value: ${{ steps.generate.outputs.metadata-path }}
+  files-count:
+    description: 'Number of translation files included in metadata'
+    value: ${{ steps.generate.outputs.files-count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Check for config file
+      id: check-config
+      shell: bash
+      env:
+        CONFIG_PATH: ${{ inputs.config-path }}
+      run: |
+        if [ -f "$CONFIG_PATH" ]; then
+          echo "config_exists=true" >> $GITHUB_OUTPUT
+          echo "✓ Found $CONFIG_PATH"
+        else
+          echo "config_exists=false" >> $GITHUB_OUTPUT
+          echo "::error::Configuration file not found: $CONFIG_PATH"
+          exit 1
+        fi
+
+    - name: Install koro-i18n client
+      id: install-client
+      if: steps.check-config.outputs.config_exists == 'true'
+      shell: bash
+      env:
+        # Use action path to locate the client library within the same repository
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        # Navigate from action path to client-library (action is at .github/actions/generate-metadata)
+        CLIENT_LIB_PATH="$ACTION_PATH/../../../client-library"
+        
+        if [ ! -d "$CLIENT_LIB_PATH" ]; then
+          echo "::error::Client library not found at $CLIENT_LIB_PATH"
+          exit 1
+        fi
+        
+        cd "$CLIENT_LIB_PATH"
+        npm install
+        npm run build
+        
+        # Export the CLI path for subsequent steps
+        CLI_PATH="$CLIENT_LIB_PATH/dist/cli.js"
+        echo "cli-path=$CLI_PATH" >> $GITHUB_OUTPUT
+        echo "✓ koro-i18n client installed and built at $CLI_PATH"
+
+    - name: Generate metadata
+      id: generate
+      if: steps.check-config.outputs.config_exists == 'true'
+      shell: bash
+      env:
+        CONFIG_PATH: ${{ inputs.config-path }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        CLI_PATH: ${{ steps.install-client.outputs.cli-path }}
+      run: |
+        # Run the koro-i18n client to generate metadata
+        node "$CLI_PATH" "$CONFIG_PATH"
+        
+        METADATA_PATH=".koro-i18n/koro-i18n.repo.generated.json"
+        
+        if [ -f "$METADATA_PATH" ]; then
+          # Use Node.js to parse JSON instead of jq for better portability
+          FILES_COUNT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$METADATA_PATH')).files.length)")
+          echo "metadata-path=$METADATA_PATH" >> $GITHUB_OUTPUT
+          echo "files-count=$FILES_COUNT" >> $GITHUB_OUTPUT
+          echo "✓ Metadata generated with $FILES_COUNT files"
+        else
+          echo "::error::Failed to generate metadata file"
+          exit 1
+        fi
+
+    - name: Commit and push metadata
+      if: inputs.commit-changes == 'true' && steps.check-config.outputs.config_exists == 'true'
+      shell: bash
+      env:
+        COMMIT_MESSAGE: ${{ inputs.commit-message }}
+      run: |
+        # Configure git
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        # Check if .koro-i18n directory exists and has the generated file
+        if [ -f ".koro-i18n/koro-i18n.repo.generated.json" ]; then
+          git add .koro-i18n/koro-i18n.repo.generated.json
+
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "ℹ No changes to commit - metadata is up to date"
+          else
+            git commit -m "$COMMIT_MESSAGE"
+            git push
+            echo "✓ Metadata committed and pushed"
+          fi
+        else
+          echo "::error::No metadata file to commit"
+          exit 1
+        fi
