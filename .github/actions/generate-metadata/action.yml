@@ -52,15 +52,29 @@ runs:
         fi
 
     - name: Install koro-i18n client
+      id: install-client
       if: steps.check-config.outputs.config_exists == 'true'
       shell: bash
+      env:
+        # Use action path to locate the client library within the same repository
+        ACTION_PATH: ${{ github.action_path }}
       run: |
-        # Clone the koro-i18n repository to get the client library
-        git clone --depth 1 https://github.com/f3liz-dev/koro-i18n.git /tmp/koro-i18n
-        cd /tmp/koro-i18n/client-library
+        # Navigate from action path to client-library (action is at .github/actions/generate-metadata)
+        CLIENT_LIB_PATH="$ACTION_PATH/../../../client-library"
+        
+        if [ ! -d "$CLIENT_LIB_PATH" ]; then
+          echo "::error::Client library not found at $CLIENT_LIB_PATH"
+          exit 1
+        fi
+        
+        cd "$CLIENT_LIB_PATH"
         npm install
         npm run build
-        echo "✓ koro-i18n client installed and built"
+        
+        # Export the CLI path for subsequent steps
+        CLI_PATH="$CLIENT_LIB_PATH/dist/cli.js"
+        echo "cli-path=$CLI_PATH" >> $GITHUB_OUTPUT
+        echo "✓ koro-i18n client installed and built at $CLI_PATH"
 
     - name: Generate metadata
       id: generate
@@ -69,14 +83,16 @@ runs:
       env:
         CONFIG_PATH: ${{ inputs.config-path }}
         GITHUB_REPOSITORY: ${{ github.repository }}
+        CLI_PATH: ${{ steps.install-client.outputs.cli-path }}
       run: |
         # Run the koro-i18n client to generate metadata
-        node /tmp/koro-i18n/client-library/dist/cli.js "$CONFIG_PATH"
+        node "$CLI_PATH" "$CONFIG_PATH"
         
         METADATA_PATH=".koro-i18n/koro-i18n.repo.generated.json"
         
         if [ -f "$METADATA_PATH" ]; then
-          FILES_COUNT=$(jq '.files | length' "$METADATA_PATH")
+          # Use Node.js to parse JSON instead of jq for better portability
+          FILES_COUNT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$METADATA_PATH')).files.length)")
           echo "metadata-path=$METADATA_PATH" >> $GITHUB_OUTPUT
           echo "files-count=$FILES_COUNT" >> $GITHUB_OUTPUT
           echo "✓ Metadata generated with $FILES_COUNT files"
