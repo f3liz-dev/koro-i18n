@@ -1,35 +1,6 @@
 {
-  "repository": "f3liz-dev/example-project",
+  "repository": "f3liz-dev/koro-i18n",
   "sourceLanguage": "en",
   "configVersion": 1,
-  "files": [
-    {
-      "filename": "common.json",
-      "sourceFilename": "locales/en/common.json",
-      "lastUpdated": "2024-11-24T06:00:00.000Z",
-      "commitHash": "abc123def456",
-      "language": "en"
-    },
-    {
-      "filename": "auth.json",
-      "sourceFilename": "locales/en/auth.json",
-      "lastUpdated": "2024-11-24T06:00:00.000Z",
-      "commitHash": "abc123def456",
-      "language": "en"
-    },
-    {
-      "filename": "common.json",
-      "sourceFilename": "locales/ja/common.json",
-      "lastUpdated": "2024-11-24T06:00:00.000Z",
-      "commitHash": "abc123def456",
-      "language": "ja"
-    },
-    {
-      "filename": "common.json",
-      "sourceFilename": "locales/es/common.json",
-      "lastUpdated": "2024-11-24T06:00:00.000Z",
-      "commitHash": "abc123def456",
-      "language": "es"
-    }
-  ]
+  "files": []
 }
