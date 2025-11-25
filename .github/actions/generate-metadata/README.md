@@ -120,12 +120,62 @@ The action generates `.koro-i18n/koro-i18n.repo.generated.json` with the followi
 }
 ```
 
+### Progress Translated Files
+
+The action also generates `.koro-i18n/progress-translated/[lang].json` files for each target language. These files pre-calculate which keys have been translated, enabling efficient progress tracking:
+
+```json
+{
+  "locales/<lang>/common.json": [
+    "welcome",
+    "goodbye",
+    "buttons.save",
+    "buttons.cancel"
+  ]
+}
+```
+
+The filepath uses `<lang>` as a placeholder for the language code, and the value is an array of translated key names in dot notation.
+
+### Store Files
+
+The action also generates `.koro-i18n/store/[lang].json` files for each target language. These files track git commit hashes for source and target translations, enabling koro-i18n to detect when either changes:
+
+```json
+{
+  "locales/<lang>/common.json": {
+    "welcome": {
+      "src": "abc1234",
+      "tgt": "def5678",
+      "updated": 1732521600,
+      "status": "verified"
+    },
+    "buttons.save": {
+      "src": "abc1234",
+      "tgt": "def5678",
+      "updated": 1732521600,
+      "status": "verified"
+    }
+  }
+}
+```
+
+Each entry contains:
+- `src`: Short git commit hash (7 chars) of the source line
+- `tgt`: Short git commit hash (7 chars) of the target/translated line
+- `updated`: Unix timestamp from git blame
+- `status`: Translation status - `"verified"`, `"outdated"`, or `"pending"`
+
+When the source commit changes but target hasn't been updated, the status is marked as `"outdated"`. When target is updated after source, status returns to `"verified"`.
+
 ## How It Works
 
 1. Reads your `.koro-i18n.repo.config.toml` configuration
 2. Scans for translation files matching the configured patterns
 3. Generates metadata including file paths, languages, and commit hashes
-4. Commits the metadata file to your repository (if enabled)
+4. Generates progress-translated files for each target language
+5. Generates store files with git commit tracking for translation validation
+6. Commits the metadata files to your repository (if enabled)
 
 The koro-i18n platform can then fetch this metadata to use your GitHub repository as a realtime translation source.
 
