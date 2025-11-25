@@ -344,6 +344,7 @@ export default function TranslationSuggestionsPage() {
                                   onClick={() => handleDelete(suggestion.id)}
                                   class="btn danger"
                                   title="Delete your suggestion"
+                                  aria-label="Delete suggestion"
                                 >
                                   🗑️
                                 </button>
@@ -411,6 +412,7 @@ export default function TranslationSuggestionsPage() {
                           onClick={() => handleDelete(suggestion.id)}
                           class="btn danger"
                           title="Delete your suggestion"
+                          aria-label="Delete suggestion"
                         >
                           🗑️
                         </button>

@@ -26,7 +26,7 @@ export function SkeletonText(props: SkeletonTextProps) {
   return (
     <div class="space-y-2">
       {Array.from({ length: lines }).map((_, i) => (
-        <Skeleton width={i === lines - 1 && lines > 1 ? '80%' : '100%'} height="0.875rem" />
+        <Skeleton key={i} width={i === lines - 1 && lines > 1 ? '80%' : '100%'} height="0.875rem" />
       ))}
     </div>
   );
