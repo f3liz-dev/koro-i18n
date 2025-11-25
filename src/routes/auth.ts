@@ -77,10 +77,10 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
       data: { state, timestamp: Date.now(), expiresAt },
     });
 
+    // No scope = read-only access to public information only (user profile, public repository metadata)
     const params = new URLSearchParams({
       client_id: env.GITHUB_CLIENT_ID,
       state,
-      // No scope = read-only access to public information only (user profile, public repos metadata)
     });
 
     return c.redirect(`https://github.com/login/oauth/authorize?${params}`);
