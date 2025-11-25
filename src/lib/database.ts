@@ -39,11 +39,11 @@ export async function checkProjectAccess(
   projectId: string,
   userId: string
 ): Promise<boolean> {
-  const result = await prisma.$queryRaw<Array<{ exists: number }>>`
-    SELECT 1 as exists FROM ProjectMember 
+  const result = await prisma.$queryRaw<Array<{ found: number }>>`
+    SELECT 1 as found FROM ProjectMember 
     WHERE projectId = ${projectId} AND userId = ${userId} AND status = 'approved'
     UNION
-    SELECT 1 as exists FROM Project WHERE id = ${projectId} AND userId = ${userId}
+    SELECT 1 as found FROM Project WHERE id = ${projectId} AND userId = ${userId}
     LIMIT 1
   `;
   return result.length > 0;
