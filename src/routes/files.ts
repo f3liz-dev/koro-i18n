@@ -325,19 +325,28 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             orderBy: { filename: 'asc' },
         });
 
-        // For each file, calculate translation progress
-        // We need to count approved/committed translations for each file
-        const filesWithProgress = await Promise.all(files.map(async (file) => {
-            // Count web translations that are approved or committed for this file
-            const translatedCount = await prisma.webTranslation.count({
-                where: {
-                    projectId: project.repository,
-                    language: file.lang,
-                    filename: file.filename,
-                    status: { in: ['approved', 'committed'] },
-                },
-            });
+        // Batch query: Get translation counts for all files at once using groupBy
+        // This avoids N+1 query pattern by fetching all counts in a single query
+        const translationCounts = await prisma.webTranslation.groupBy({
+            by: ['language', 'filename'],
+            where: {
+                projectId: project.repository,
+                status: { in: ['approved', 'committed'] },
+                // Only include files we care about
+                OR: files.map(f => ({ language: f.lang, filename: f.filename })),
+            },
+            _count: { id: true },
+        });
 
+        // Create a lookup map for quick access: "lang:filename" -> count
+        const countMap = new Map<string, number>();
+        for (const tc of translationCounts) {
+            countMap.set(`${tc.language}:${tc.filename}`, tc._count.id);
+        }
+
+        // Build results using the pre-fetched counts
+        const filesWithProgress = files.map((file) => {
+            const translatedCount = countMap.get(`${file.lang}:${file.filename}`) || 0;
             const totalKeys = file.totalKeys;
             const translatedKeys = Math.min(translatedCount, totalKeys);
             const translationPercentage = totalKeys > 0 
@@ -351,7 +360,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
                 translatedKeys,
                 translationPercentage,
             };
-        }));
+        });
 
         const latestUpdate = files.length > 0 ? Math.max(...files.map(f => f.lastUpdated.getTime())) : Date.now();
         const serverETag = `"${latestUpdate}"`;
