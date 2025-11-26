@@ -4,7 +4,6 @@ import { PrismaClient } from '../generated/prisma/';
 import { authMiddleware } from '../lib/auth';
 import { validate } from '../lib/validator';
 import { applyTranslationsAndCreatePR, getTranslationsDiff } from '../lib/github-pr-service';
-import { checkProjectAccess } from '../lib/database';
 
 interface Env {
   JWT_SECRET: string;
