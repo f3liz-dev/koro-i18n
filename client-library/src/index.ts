@@ -728,34 +728,6 @@ function getKeyCommitInfo(
 
 /**
  * Load existing store data from JSONL file
- * Returns the data in the StoreData format for compatibility
- */
-function loadExistingStoreData(jsonlPath: string): StoreData {
-  const existingData: StoreData = {};
-  
-  if (fs.existsSync(jsonlPath)) {
-    try {
-      const content = fs.readFileSync(jsonlPath, 'utf-8');
-      const lines = content.trim().split('\n');
-      
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const parsed = JSON.parse(line);
-        
-        if (parsed.type === 'file') {
-          existingData[parsed.filepath] = parsed.entries;
-        }
-      }
-    } catch {
-      // If parsing fails, start fresh
-    }
-  }
-  
-  return existingData;
-}
-
-/**
- * Load existing store data from JSONL file
  * Handles both legacy format (type: 'file') and new chunked format (type: 'chunk')
  * Returns the data in the StoreData format for compatibility
  */
