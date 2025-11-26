@@ -32,49 +32,36 @@ export const GitBlameInfo = t.type({
 export type GitBlameInfo = t.TypeOf<typeof GitBlameInfo>;
 
 // ============================================================================
-// R2 Metadata
+// File Metadata (previously R2Metadata)
 // ============================================================================
 
-export const R2Metadata = t.type({
+export const FileMetadata = t.type({
   gitBlame: t.record(t.string, GitBlameInfo),
   charRanges: t.record(t.string, CharRange),
   sourceHashes: t.record(t.string, t.string),
 });
-export type R2Metadata = t.TypeOf<typeof R2Metadata>;
+export type FileMetadata = t.TypeOf<typeof FileMetadata>;
+
+// Alias for backward compatibility
+export const R2Metadata = FileMetadata;
+export type R2Metadata = FileMetadata;
 
 // ============================================================================
-// R2 File Data
+// File Data (previously R2FileData)
 // ============================================================================
 
-export const R2FileData = t.type({
+export const FileData = t.type({
   raw: t.record(t.string, t.any),
-  metadata: R2Metadata,
+  metadata: FileMetadata,
   sourceHash: t.string,
   commitSha: t.string,
   uploadedAt: t.string,
 });
-export type R2FileData = t.TypeOf<typeof R2FileData>;
+export type FileData = t.TypeOf<typeof FileData>;
 
-// ============================================================================
-// Upload Payload
-// ============================================================================
-
-export const UploadFile = t.type({
-  lang: t.string,
-  filename: t.string,
-  contents: t.record(t.string, t.any),
-  metadata: t.string, // Base64-encoded MessagePack
-  sourceHash: t.string,
-});
-export type UploadFile = t.TypeOf<typeof UploadFile>;
-
-export const UploadPayload = t.type({
-  branch: t.string,
-  commitSha: t.string,
-  sourceLanguage: t.string,
-  files: t.array(UploadFile),
-});
-export type UploadPayload = t.TypeOf<typeof UploadPayload>;
+// Alias for backward compatibility
+export const R2FileData = FileData;
+export type R2FileData = FileData;
 
 // ============================================================================
 // Web Translation
@@ -126,31 +113,24 @@ export type MergedTranslation = t.TypeOf<typeof MergedTranslation>;
 // API Responses
 // ============================================================================
 
-export const R2FileResponse = t.type({
+export const FileResponse = t.type({
   contents: t.record(t.string, t.string),
-  metadata: R2Metadata,
+  metadata: FileMetadata,
   sourceHash: t.string,
   commitSha: t.string,
   uploadedAt: t.string,
   totalKeys: t.union([t.number, t.undefined]),
 });
-export type R2FileResponse = t.TypeOf<typeof R2FileResponse>;
+export type FileResponse = t.TypeOf<typeof FileResponse>;
+
+// Alias for backward compatibility
+export const R2FileResponse = FileResponse;
+export type R2FileResponse = FileResponse;
 
 export const WebTranslationsResponse = t.type({
   translations: t.array(WebTranslation),
 });
 export type WebTranslationsResponse = t.TypeOf<typeof WebTranslationsResponse>;
-
-export const UploadResponse = t.type({
-  success: t.boolean,
-  projectId: t.string,
-  commitSha: t.string,
-  filesUploaded: t.number,
-  r2Keys: t.array(t.string),
-  uploadedAt: t.string,
-  invalidationResults: t.union([t.record(t.string, t.any), t.undefined]),
-});
-export type UploadResponse = t.TypeOf<typeof UploadResponse>;
 
 // ============================================================================
 // Validation Helpers

@@ -1,6 +1,5 @@
 import { authFetch } from './authFetch';
 import type {
-  R2FileData,
   GitBlameInfo,
   CharRange,
   WebTranslation as SharedWebTranslation,
@@ -10,105 +9,69 @@ import type {
 // Re-export shared types for convenience
 export type WebTranslation = SharedWebTranslation;
 export type MergedTranslation = SharedMergedTranslation;
-export type { R2FileData, GitBlameInfo, CharRange };
+export type { GitBlameInfo, CharRange };
 
 /**
- * Fetch file from R2 (GitHub import)
- * Uses the file metadata endpoint to get the r2Key, then fetches by key
- * This avoids issues with nested filenames in URL paths
+ * File data structure returned from the API (GitHub-based)
  */
-export async function fetchR2File(
+export interface FileData {
+  raw: Record<string, any>;
+  metadata: {
+    gitBlame: Record<string, GitBlameInfo>;
+    charRanges: Record<string, CharRange>;
+    sourceHashes: Record<string, string>;
+  };
+  sourceHash: string;
+  commitSha: string;
+  fetchedAt: string;
+  totalKeys?: number;
+}
+
+/**
+ * Fetch file from GitHub via the API
+ * Uses the files endpoint which now fetches directly from GitHub
+ */
+export async function fetchFileFromGitHub(
   projectName: string,
   lang: string,
   filename: string
-): Promise<R2FileData | null> {
+): Promise<FileData | null> {
   try {
-    // First, get the file metadata to retrieve the r2Key
-    const params = new URLSearchParams({
-      lang,
-      filename,
-    });
-
-    const metadataResponse = await authFetch(
-      `/api/projects/${encodeURIComponent(projectName)}/files?${params}`,
+    // Fetch file content directly from the API
+    // The backend now fetches from GitHub instead of R2
+    const response = await authFetch(
+      `/api/projects/${encodeURIComponent(projectName)}/files/${encodeURIComponent(lang)}/${encodeURIComponent(filename)}`,
       { credentials: 'include' }
     );
 
     // Handle conditional response (ETag) and standard errors
-    if (!metadataResponse.ok) {
-      if (metadataResponse.status === 404) return null;
-      if (metadataResponse.status === 304) {
-        // Not modified — caller should reuse cached metadata if available.
-        // We return null to indicate "no change" so callers won't mistakenly treat
-        // this as a missing file.
-        return null;
-      }
-      throw new Error('Failed to fetch file metadata');
-    }
-
-    const metadata = await metadataResponse.json() as { files?: Array<{ r2Key: string }> };
-    const fileInfo = metadata.files?.[0];
-
-    if (!fileInfo?.r2Key) {
-      return null;
-    }
-
-    // Now fetch the actual file data using the r2Key
-    const response = await authFetch(
-      `/api/r2/by-key/${encodeURIComponent(fileInfo.r2Key)}`,
-      { credentials: 'include' }
-    );
-
-    // Allow callers to handle 304 (not modified) by returning null so they can
-    // reuse cached R2 content if they maintain one.
     if (!response.ok) {
       if (response.status === 404) return null;
-      if (response.status === 304) return null;
-      throw new Error('Failed to fetch R2 file');
+      if (response.status === 304) {
+        // Not modified — caller should reuse cached data if available.
+        return null;
+      }
+      throw new Error('Failed to fetch file');
     }
 
-    // Parse main file data
-    const fileData = await response.json() as R2FileData;
+    const fileData = await response.json() as FileData;
 
     // Ensure metadata has the required shape when missing
     const emptyMetadata = { gitBlame: {}, charRanges: {}, sourceHashes: {} };
-
-    // Fetch misc metadata separately from /api/r2/misc/:r2Key
-    try {
-      const miscResp = await authFetch(
-        `/api/r2/misc/${encodeURIComponent(fileInfo.r2Key)}`,
-        { credentials: 'include' }
-      );
-      if (miscResp.ok) {
-        const miscJson = await miscResp.json() as { metadata?: any };
-        // Merge misc metadata into existing metadata
-        fileData.metadata = {
-          ...emptyMetadata,
-          ...(fileData.metadata || {}),
-          ...(miscJson.metadata || {})
-        };
-      } else {
-        // Not found or not ok -> use existing metadata if present, otherwise empty shape
-        fileData.metadata = {
-          ...emptyMetadata,
-          ...(fileData.metadata || {})
-        };
-      }
-    } catch (err) {
-      // Network or parse error - preserve main file data and ensure metadata shape
-      fileData.metadata = {
-        ...emptyMetadata,
-        ...(fileData.metadata || {})
-      };
-      console.warn('[R2] Failed to fetch misc metadata:', err);
-    }
+    fileData.metadata = {
+      ...emptyMetadata,
+      ...(fileData.metadata || {})
+    };
 
     return fileData;
   } catch (error) {
-    console.error('[R2] Fetch error:', error);
+    console.error('[GitHub] Fetch error:', error);
     return null;
   }
 }
+
+// Alias for backward compatibility
+export const fetchR2File = fetchFileFromGitHub;
 
 /**
  * Fetch web translations from D1
@@ -120,14 +83,13 @@ export async function fetchWebTranslations(
 ): Promise<WebTranslation[]> {
   try {
     const params = new URLSearchParams({
-      projectName,
       language,
       filename,
       status: 'approved',
     });
 
     const response = await authFetch(
-      `/api/translations?${params}`,
+      `/api/projects/${encodeURIComponent(projectName)}/translations?${params}`,
       { credentials: 'include' }
     );
 
@@ -149,13 +111,13 @@ export async function fetchWebTranslations(
 }
 
 /**
- * Merge R2 and D1 data (legacy - for backward compatibility)
+ * Merge file data and D1 data (legacy - for backward compatibility)
  */
 export function mergeTranslations(
-  r2Data: R2FileData | null,
+  fileData: FileData | null,
   webTranslations: WebTranslation[]
 ): MergedTranslation[] {
-  if (!r2Data) return [];
+  if (!fileData) return [];
 
   const webTransMap = new Map<string, WebTranslation>();
   for (const trans of webTranslations) {
@@ -164,15 +126,15 @@ export function mergeTranslations(
 
   const merged: MergedTranslation[] = [];
 
-  for (const [key, sourceValue] of Object.entries(r2Data.raw)) {
+  for (const [key, sourceValue] of Object.entries(fileData.raw)) {
     const webTrans = webTransMap.get(key);
 
     merged.push({
       key,
       sourceValue: String(sourceValue),
       currentValue: webTrans?.value || String(sourceValue),
-      gitBlame: r2Data.metadata.gitBlame?.[key],
-      charRange: r2Data.metadata.charRanges?.[key],
+      gitBlame: fileData.metadata.gitBlame?.[key],
+      charRange: fileData.metadata.charRanges?.[key],
       webTranslation: webTrans,
       isValid: webTrans?.isValid ?? true,
     });
@@ -182,15 +144,15 @@ export function mergeTranslations(
 }
 
 /**
- * Merge source R2, target R2, and D1 web translations
+ * Merge source file, target file, and D1 web translations
  * This properly handles the case where source and target are different files
  */
 export function mergeTranslationsWithSource(
-  sourceR2Data: R2FileData | null,
-  targetR2Data: R2FileData | null,
+  sourceFileData: FileData | null,
+  targetFileData: FileData | null,
   webTranslations: WebTranslation[]
 ): MergedTranslation[] {
-  if (!sourceR2Data) return [];
+  if (!sourceFileData) return [];
 
   const webTransMap = new Map<string, WebTranslation>();
   for (const trans of webTranslations) {
@@ -198,24 +160,24 @@ export function mergeTranslationsWithSource(
   }
 
   const targetMap = new Map<string, any>();
-  if (targetR2Data) {
-    for (const [key, value] of Object.entries(targetR2Data.raw)) {
+  if (targetFileData) {
+    for (const [key, value] of Object.entries(targetFileData.raw)) {
       targetMap.set(key, value);
     }
   }
 
   const merged: MergedTranslation[] = [];
 
-  for (const [key, sourceValue] of Object.entries(sourceR2Data.raw)) {
+  for (const [key, sourceValue] of Object.entries(sourceFileData.raw)) {
     const webTrans = webTransMap.get(key);
     const targetValue = targetMap.get(key);
 
-    // Priority: web translation > target R2 > empty (don't use source as fallback)
+    // Priority: web translation > target file > empty (don't use source as fallback)
     // If there's no translation, leave it empty so users know to translate it
     const currentValue = webTrans?.value || (targetValue ? String(targetValue) : '');
 
     // isValid flag:
-    // - Git-imported translations (from R2) are always valid
+    // - Git-imported translations are always valid
     // - Web translations use their isValid flag (can be invalidated if source changed)
     // - Empty translations (no translation yet) are still "valid" (just not translated)
     const isValid = webTrans ? webTrans.isValid : true;
@@ -224,8 +186,8 @@ export function mergeTranslationsWithSource(
       key,
       sourceValue: String(sourceValue),
       currentValue,
-      gitBlame: sourceR2Data.metadata.gitBlame?.[key],
-      charRange: sourceR2Data.metadata.charRanges?.[key],
+      gitBlame: sourceFileData.metadata.gitBlame?.[key],
+      charRange: sourceFileData.metadata.charRanges?.[key],
       webTranslation: webTrans,
       isValid,
     });
@@ -244,11 +206,11 @@ export async function submitTranslation(
   key: string,
   value: string
 ): Promise<void> {
-  const response = await authFetch('/api/translations', {
+  const response = await authFetch(`/api/projects/${encodeURIComponent(projectName)}/translations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ projectName, language, filename, key, value }),
+    body: JSON.stringify({ language, filename, key, value }),
   });
 
   if (!response.ok) throw new Error('Failed to submit translation');
@@ -259,8 +221,10 @@ export async function submitTranslation(
  */
 export async function approveSuggestion(id: string): Promise<void> {
   const response = await authFetch(`/api/translations/${id}/approve`, {
-    method: 'POST',
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
+    body: JSON.stringify({ status: 'approved' }),
   });
 
   if (!response.ok) throw new Error('Failed to approve suggestion');
@@ -289,11 +253,11 @@ export async function fetchSuggestions(
   // If true, bypass browser cache and force revalidation
   force = false
 ): Promise<WebTranslation[]> {
-  const params = new URLSearchParams({ projectName, language, filename });
+  const params = new URLSearchParams({ language, filename });
   if (key) params.append('key', key);
 
   const response = await authFetch(
-    `/api/translations/suggestions?${params}`,
+    `/api/projects/${encodeURIComponent(projectName)}/translations/suggestions?${params}`,
     // When force is true, instruct the browser to reload the resource from network
     // (this avoids max-age serving stale responses)
     { credentials: 'include', ...(force ? { cache: 'reload' } : {}) }

@@ -1,9 +1,8 @@
 import { Hono } from 'hono';
 import { PrismaClient } from '../generated/prisma/';
 import { authMiddleware } from '../lib/auth';
-import { getFile } from '../lib/r2-storage';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
-import { resolveActualProjectId, checkProjectAccess } from '../lib/database';
+import { checkProjectAccess } from '../lib/database';
 import { Octokit } from '@octokit/rest';
 import {
     getUserGitHubToken,
@@ -12,12 +11,13 @@ import {
     getLatestCommitSha,
     fetchGeneratedManifest,
     fetchFilesFromManifest,
+    fetchSingleFileFromGitHub,
+    fetchProgressTranslatedFile,
     type GeneratedManifest,
     type ManifestFileEntry,
 } from '../lib/github-repo-fetcher';
 
 interface Env {
-    TRANSLATION_BUCKET: R2Bucket;
     JWT_SECRET: string;
     ENVIRONMENT: string;
     PLATFORM_URL?: string;
@@ -291,14 +291,17 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         
         let manifest: GeneratedManifest | null = null;
         let manifestFiles: ManifestFileEntry[] = [];
+        let owner = '';
+        let repo = '';
+        let octokit: Octokit | null = null;
         
         // Try to fetch manifest from GitHub repository
         if (githubToken) {
             try {
                 const parts = project.repository.trim().split('/');
                 if (parts.length === 2 && parts[0] && parts[1]) {
-                    const [owner, repo] = parts;
-                    const octokit = new Octokit({ auth: githubToken });
+                    [owner, repo] = parts;
+                    octokit = new Octokit({ auth: githubToken });
                     manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
                     if (manifest) {
                         manifestFiles = manifest.files;
@@ -311,153 +314,109 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
 
         // Handle source-language parameter
         if (language === 'source-language') {
-            // First try to get source language from manifest
+            // Get source language from manifest or project config
             if (manifest?.sourceLanguage) {
                 language = manifest.sourceLanguage;
             } else {
-                // Fallback to R2File table for backward compatibility
-                const uploadedLangs = await prisma.r2File.findMany({
-                    where: { projectId: project.repository, branch },
-                    select: { lang: true },
-                    distinct: ['lang'],
-                });
-                
-                const langList = uploadedLangs.map(f => f.lang);
-                
-                // Try exact match first
-                if (langList.includes(project.sourceLanguage)) {
-                    language = project.sourceLanguage;
-                } else {
-                    // Try to find a variant (e.g., "en-US" when config says "en")
-                    const variant = langList.find(l => l.startsWith(project.sourceLanguage + '-'));
-                    if (variant) {
-                        language = variant;
-                    } else if (langList.length > 0) {
-                        // Fallback to first alphabetically
-                        language = langList.sort()[0];
-                    } else {
-                        language = project.sourceLanguage;
-                    }
-                }
+                language = project.sourceLanguage;
             }
         }
 
-        // Build file list from manifest or fallback to R2File table
-        let files: { lang: string; filename: string; totalKeys: number; lastUpdated: Date }[] = [];
-        let r2FileMap = new Map<string, { totalKeys: number; lastUpdated: Date; approvedCount: number; committedCount: number }>();
-        
-        if (manifestFiles.length > 0) {
-            // Filter manifest files by language if specified
-            const filteredManifestFiles = language 
-                ? manifestFiles.filter(f => f.language === language)
-                : manifestFiles;
-            
-            // Get totalKeys from R2File for each manifest file (if available)
-            // Also fetch lastUpdated from R2File for ETag generation
-            // Fetch full R2File rows (includes our new counters)
-            const r2Files = await prisma.r2File.findMany({
-                where: { 
-                    projectId: project.repository, 
-                    branch,
-                    ...(language ? { lang: language } : {}),
-                },
-            });
-
-            const r2FileMap = new Map<string, { totalKeys: number; lastUpdated: Date; approvedCount: number; committedCount: number }>();
-            for (const r2File of r2Files) {
-                r2FileMap.set(`${r2File.lang}:${r2File.filename}`, { 
-                    totalKeys: r2File.totalKeys, 
-                    lastUpdated: r2File.lastUpdated,
-                    approvedCount: (r2File as any).approvedCount ?? 0,
-                    committedCount: (r2File as any).committedCount ?? 0,
-                });
-            }
-            
-            // Map manifest files to the expected format
-            // Note: totalKeys from R2 is required for progress calculation
-            // Files without R2 data are filtered out since totalKeys is needed
-            files = filteredManifestFiles
-                .map(mf => {
-                    const r2Data = r2FileMap.get(`${mf.language}:${mf.filename}`);
-                    // Parse lastUpdated with validation
-                    let lastUpdated: Date;
-                    if (r2Data?.lastUpdated) {
-                        lastUpdated = r2Data.lastUpdated;
-                    } else {
-                        try {
-                            lastUpdated = new Date(mf.lastUpdated);
-                            // Check if date is valid
-                            if (isNaN(lastUpdated.getTime())) {
-                                lastUpdated = new Date();
-                            }
-                        } catch {
-                            lastUpdated = new Date();
-                        }
-                    }
-                    return {
-                        lang: mf.language,
-                        filename: mf.filename,
-                        // Use R2 totalKeys if available, otherwise 0 (will show "sync needed" in UI)
-                        totalKeys: r2Data?.totalKeys ?? 0,
-                        lastUpdated,
-                    };
-                });
-        } else {
-            // Fallback to R2File table when manifest is not available
-            const where: any = { projectId: project.repository, branch };
-            if (language) where.lang = language;
-
-            files = await prisma.r2File.findMany({
-                where,
-                select: {
-                    lang: true,
-                    filename: true,
-                    totalKeys: true,
-                    lastUpdated: true,
-                },
-                orderBy: { filename: 'asc' },
+        if (!manifest || manifestFiles.length === 0) {
+            return c.json({
+                files: [],
+                message: 'No manifest found. Please run the koro-i18n CLI to generate the manifest.',
             });
         }
 
-        // Use precomputed counters on R2File (approvedCount + committedCount)
+        // Filter manifest files by language if specified
+        const filteredManifestFiles = language 
+            ? manifestFiles.filter(f => f.language === language)
+            : manifestFiles;
+
+        // Get translation counts from WebTranslation table
+        // Count approved translations per file
+        const translationCounts = await prisma.webTranslation.groupBy({
+            by: ['language', 'filename'],
+            where: {
+                projectId: project.id,
+                status: 'approved',
+                isValid: true,
+                ...(language ? { language } : {}),
+            },
+            _count: {
+                id: true,
+            },
+        });
+
         const countMap = new Map<string, number>();
-        for (const f of files) {
-            // If `files` came directly from R2File findMany (fallback case), it will include counters
-            const asAny = f as any;
-            if (typeof asAny.approvedCount === 'number' || typeof asAny.committedCount === 'number') {
-                const cnt = (asAny.approvedCount ?? 0) + (asAny.committedCount ?? 0);
-                countMap.set(`${f.lang}:${f.filename}`, cnt);
-                continue;
-            }
-
-            // Otherwise, look up from r2FileMap built earlier (manifest-backed case)
-            const r2Data = r2FileMap.get(`${f.lang}:${f.filename}`);
-            const cnt = (r2Data?.approvedCount ?? 0) + (r2Data?.committedCount ?? 0);
-            countMap.set(`${f.lang}:${f.filename}`, cnt);
+        for (const tc of translationCounts) {
+            countMap.set(`${tc.language}:${tc.filename}`, tc._count.id);
         }
 
-        // Build results using the pre-fetched counts
-        const filesWithProgress = files.map((file) => {
-            const translatedCount = countMap.get(`${file.lang}:${file.filename}`) || 0;
-            const totalKeys = file.totalKeys;
+        // Fetch progress-translated files from source language to get totalKeys
+        // The progress-translated file contains the keys for each file
+        const sourceLanguage = manifest.sourceLanguage;
+        let progressData: Record<string, string[]> | null = null;
+        
+        if (octokit) {
+            try {
+                progressData = await fetchProgressTranslatedFile(
+                    octokit,
+                    owner,
+                    repo,
+                    sourceLanguage,
+                    branch
+                );
+            } catch (error) {
+                console.warn('[summary] Failed to fetch progress-translated file:', error);
+            }
+        }
+
+        // Build file list from manifest with totalKeys from progress-translated
+        const filesWithProgress = filteredManifestFiles.map(mf => {
+            const translatedCount = countMap.get(`${mf.language}:${mf.filename}`) || 0;
+            
+            // Get totalKeys from progress-translated file
+            // The key in progress file has <lang> placeholder, replace it with source language
+            const progressKey = mf.filename.replace(new RegExp(mf.language, 'g'), '<lang>');
+            const keys = progressData?.[progressKey] || [];
+            const totalKeys = keys.length;
+            
+            // Calculate translation percentage
             const translatedKeys = Math.min(translatedCount, totalKeys);
             const translationPercentage = totalKeys > 0 
                 ? Math.round((translatedKeys / totalKeys) * 100)
                 : 0;
+            
+            // Parse lastUpdated with validation
+            let lastUpdated: Date;
+            try {
+                lastUpdated = new Date(mf.lastUpdated);
+                if (isNaN(lastUpdated.getTime())) {
+                    lastUpdated = new Date();
+                }
+            } catch {
+                lastUpdated = new Date();
+            }
 
             return {
-                filename: file.filename,
-                lang: file.lang,
+                filename: mf.filename,
+                lang: mf.language,
                 totalKeys,
                 translatedKeys,
                 translationPercentage,
+                lastUpdated,
+                commitHash: mf.commitHash,
             };
         });
 
         // Sort files by filename for consistent ordering
         filesWithProgress.sort((a, b) => a.filename.localeCompare(b.filename));
 
-        const latestUpdate = files.length > 0 ? Math.max(...files.map(f => f.lastUpdated.getTime())) : Date.now();
+        const latestUpdate = filesWithProgress.length > 0 
+            ? Math.max(...filesWithProgress.map(f => f.lastUpdated.getTime())) 
+            : Date.now();
         const serverETag = `"${latestUpdate}"`;
 
         if (c.req.header('If-None-Match') === serverETag) {
@@ -466,103 +425,176 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
 
         const response = c.json({ 
             files: filesWithProgress,
-            // Include manifest metadata if available
-            ...(manifest ? { sourceLanguage: manifest.sourceLanguage } : {}),
+            sourceLanguage: manifest.sourceLanguage,
         });
         response.headers.set('ETag', serverETag);
         response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
         return response;
     });
 
-    // List files
+    // List files - now uses GitHub manifest
     app.get('/', authMiddleware, async (c) => {
+        const user = c.get('user');
         const projectName = c.req.param('projectName');
         const branch = c.req.query('branch') || 'main';
         let language = c.req.query('language');
 
         const project = await prisma.project.findUnique({
             where: { name: projectName },
-            select: { repository: true, sourceLanguage: true },
+            select: { id: true, userId: true, repository: true, sourceLanguage: true },
         });
 
         if (!project) return c.json({ error: 'Project not found' }, 404);
+
+        // Check access
+        const hasAccess = await checkProjectAccess(prisma, project.id, user.userId);
+        if (!hasAccess) return c.json({ error: 'Forbidden' }, 403);
+
+        // Get user's GitHub access token
+        const githubToken = await getUserGitHubToken(prisma, user.userId);
+        if (!githubToken) {
+            return c.json({ 
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            }, 401);
+        }
 
         if (language === 'source-language') {
             language = project.sourceLanguage;
         }
 
-        const where: any = { projectId: project.repository, branch };
-        if (language) where.lang = language;
+        try {
+            const parts = project.repository.trim().split('/');
+            if (parts.length !== 2 || !parts[0] || !parts[1]) {
+                return c.json({ 
+                    error: 'Invalid repository format. Expected: owner/repo' 
+                }, 400);
+            }
+            const [owner, repo] = parts;
 
-        const files = await prisma.r2File.findMany({
-            where,
-            orderBy: { uploadedAt: 'desc' },
-        });
+            const octokit = new Octokit({ auth: githubToken });
 
-        const latestUpdate = files.length > 0 ? Math.max(...files.map(f => f.lastUpdated.getTime())) : Date.now();
-        const serverETag = `"${latestUpdate}"`;
+            // Fetch manifest from GitHub
+            const manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
+            
+            if (!manifest) {
+                return c.json({
+                    files: [],
+                    message: 'No manifest found. Please run the koro-i18n CLI to generate the manifest.',
+                });
+            }
 
-        if (c.req.header('If-None-Match') === serverETag) {
-            return c.body(null, 304, { 'ETag': serverETag, 'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles) });
+            // Filter by language if specified
+            const manifestFiles = language 
+                ? manifest.files.filter(f => f.language === language)
+                : manifest.files;
+
+            // Generate ETag from latest commit hash
+            const latestCommit = manifestFiles.length > 0 
+                ? manifestFiles.reduce((latest, f) => f.commitHash > latest ? f.commitHash : latest, '')
+                : '';
+            const serverETag = `"${latestCommit || Date.now()}"`;
+
+            if (c.req.header('If-None-Match') === serverETag) {
+                return c.body(null, 304, { 'ETag': serverETag, 'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles) });
+            }
+
+            const response = c.json({
+                files: manifestFiles.map(f => ({
+                    lang: f.language,
+                    filename: f.filename,
+                    commitSha: f.commitHash,
+                    sourceFilename: f.sourceFilename,
+                    lastUpdated: f.lastUpdated,
+                })),
+            });
+            response.headers.set('ETag', serverETag);
+            response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+            return response;
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Error listing files from GitHub:', errorMessage);
+            return c.json({ 
+                error: `Failed to list files from GitHub: ${errorMessage}` 
+            }, 500);
         }
-
-        const response = c.json({
-            files: files.map(f => ({
-                lang: f.lang,
-                filename: f.filename,
-                commitSha: f.commitSha,
-                r2Key: f.r2Key,
-                sourceHash: f.sourceHash,
-                totalKeys: f.totalKeys,
-                uploadedAt: f.uploadedAt,
-            })),
-        });
-        response.headers.set('ETag', serverETag);
-        response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
-        return response;
     });
 
-    // Get file content
+    // Get file content - now fetches directly from GitHub
     app.get('/:lang/:filename', authMiddleware, async (c) => {
+        const user = c.get('user');
         const projectName = c.req.param('projectName');
         const lang = c.req.param('lang');
         const filename = c.req.param('filename');
         const branch = c.req.query('branch') || 'main';
 
-        const actualProjectId = await resolveActualProjectId(prisma, projectName);
-
-        const fileIndex = await prisma.r2File.findUnique({
-            where: {
-                projectId_branch_lang_filename: {
-                    projectId: actualProjectId,
-                    branch,
-                    lang,
-                    filename,
-                },
-            },
+        const project = await prisma.project.findUnique({
+            where: { name: projectName },
+            select: { id: true, userId: true, repository: true },
         });
 
-        if (!fileIndex) return c.json({ error: 'File not found' }, 404);
+        if (!project) return c.json({ error: 'Project not found' }, 404);
 
-        const serverETag = `"${fileIndex.lastUpdated.getTime()}"`;
-        if (c.req.header('If-None-Match') === serverETag) {
-            return c.body(null, 304, { 'ETag': serverETag, 'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles) });
+        // Check access
+        const hasAccess = await checkProjectAccess(prisma, project.id, user.userId);
+        if (!hasAccess) return c.json({ error: 'Forbidden' }, 403);
+
+        // Get user's GitHub access token
+        const githubToken = await getUserGitHubToken(prisma, user.userId);
+        if (!githubToken) {
+            return c.json({ 
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            }, 401);
         }
 
-        const fileData = await getFile(env.TRANSLATION_BUCKET, fileIndex.r2Key);
-        if (!fileData) return c.json({ error: 'File not found in R2' }, 404);
+        try {
+            const parts = project.repository.trim().split('/');
+            if (parts.length !== 2 || !parts[0] || !parts[1]) {
+                return c.json({ 
+                    error: 'Invalid repository format. Expected: owner/repo' 
+                }, 400);
+            }
+            const [owner, repo] = parts;
 
-        const response = c.json({
-            raw: fileData.raw,
-            metadata: fileData.metadata,
-            sourceHash: fileData.sourceHash,
-            commitSha: fileData.commitSha,
-            uploadedAt: fileData.uploadedAt,
-            totalKeys: fileIndex.totalKeys,
-        });
-        response.headers.set('ETag', serverETag);
-        response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
-        return response;
+            const octokit = new Octokit({ auth: githubToken });
+
+            // Fetch the file directly from GitHub
+            const fileData = await fetchSingleFileFromGitHub(
+                octokit,
+                owner,
+                repo,
+                lang,
+                filename,
+                branch
+            );
+
+            if (!fileData) {
+                return c.json({ error: 'File not found in GitHub repository' }, 404);
+            }
+
+            // Generate ETag from commit SHA
+            const serverETag = `"${fileData.commitSha}"`;
+            if (c.req.header('If-None-Match') === serverETag) {
+                return c.body(null, 304, { 'ETag': serverETag, 'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles) });
+            }
+
+            const response = c.json({
+                raw: fileData.contents,
+                metadata: fileData.metadata,
+                sourceHash: fileData.sourceHash,
+                commitSha: fileData.commitSha,
+                fetchedAt: new Date().toISOString(),
+                totalKeys: Object.keys(fileData.contents).length,
+            });
+            response.headers.set('ETag', serverETag);
+            response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.projectFiles));
+            return response;
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Error fetching file from GitHub:', errorMessage);
+            return c.json({ 
+                error: `Failed to fetch file from GitHub: ${errorMessage}` 
+            }, 500);
+        }
     });
 
     return app;

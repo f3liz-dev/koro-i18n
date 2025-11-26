@@ -13,7 +13,6 @@ interface Env {
   JWT_SECRET: string;
   ENVIRONMENT: string;
   ALLOWED_PROJECT_CREATORS?: string;
-  TRANSLATION_BUCKET: R2Bucket;
   Variables: {
     user: any;
   };

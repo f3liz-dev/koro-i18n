@@ -3,12 +3,12 @@ import * as t from 'io-ts';
 import { PrismaClient } from '../generated/prisma/';
 import { authMiddleware } from '../lib/auth';
 import { validate } from '../lib/validator';
-import { getFileByComponents } from '../lib/r2-storage';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 import { generateTranslationsETag, generateHistoryETag, checkETagMatch, create304Response } from '../lib/etag-db';
+import { Octokit } from '@octokit/rest';
+import { getUserGitHubToken, fetchSingleFileFromGitHub } from '../lib/github-repo-fetcher';
 
 interface Env {
-    TRANSLATION_BUCKET: R2Bucket;
     JWT_SECRET: string;
     Variables: {
         user: any;
@@ -39,7 +39,7 @@ const serializeTranslation = (t: any) => ({
     updatedAt: t.updatedAt.toISOString(),
 });
 
-export function createProjectTranslationRoutes(prisma: PrismaClient, env: Env) {
+export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) {
     const app = new Hono<{ Bindings: Env }>();
 
     // Create Translation
@@ -55,19 +55,33 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, env: Env) {
 
         if (!project) return c.json({ error: 'Project not found' }, 404);
 
+        // Get source hash from GitHub to track source version
+        // Note: This makes a GitHub API call per translation submission.
+        // Consider caching source hashes in D1 or using the store files for better performance.
+        // For now, this is acceptable as translations are submitted infrequently.
         let sourceHash: string | undefined;
         try {
-            const sourceFile = await getFileByComponents(
-                env.TRANSLATION_BUCKET,
-                project.repository,
-                project.sourceLanguage,
-                filename
-            );
-            if (sourceFile) {
-                sourceHash = sourceFile.metadata.sourceHashes?.[key];
+            const githubToken = await getUserGitHubToken(prisma, user.userId);
+            if (githubToken) {
+                const parts = project.repository.trim().split('/');
+                if (parts.length === 2 && parts[0] && parts[1]) {
+                    const [owner, repo] = parts;
+                    const octokit = new Octokit({ auth: githubToken });
+                    const sourceFile = await fetchSingleFileFromGitHub(
+                        octokit,
+                        owner,
+                        repo,
+                        project.sourceLanguage,
+                        filename,
+                        'main'
+                    );
+                    if (sourceFile) {
+                        sourceHash = sourceFile.metadata.sourceHashes?.[key];
+                    }
+                }
             }
         } catch (e) {
-            console.warn('Failed to get source hash', e);
+            console.warn('Failed to get source hash from GitHub', e);
         }
 
         const id = crypto.randomUUID();
