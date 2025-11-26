@@ -1,0 +1,5 @@
+{"type":"header","repository":"f3liz-dev/koro-i18n","sourceLanguage":"en","configVersion":1,"totalFiles":4}
+{"type":"file","entry":{"filename":"locales/ja/common.json","sourceFilename":"locales/ja/common.json","lastUpdated":"2025-11-26T12:36:48.257Z","commitHash":"8d77b93ca8721ce189515d76555c4240481676c4","language":"ja"}}
+{"type":"file","entry":{"filename":"locales/es/common.json","sourceFilename":"locales/es/common.json","lastUpdated":"2025-11-26T12:36:48.260Z","commitHash":"8d77b93ca8721ce189515d76555c4240481676c4","language":"es"}}
+{"type":"file","entry":{"filename":"locales/en/common.json","sourceFilename":"locales/en/common.json","lastUpdated":"2025-11-26T12:36:48.263Z","commitHash":"8d77b93ca8721ce189515d76555c4240481676c4","language":"en"}}
+{"type":"file","entry":{"filename":"locales/en/auth.json","sourceFilename":"locales/en/auth.json","lastUpdated":"2025-11-26T12:36:48.266Z","commitHash":"8d77b93ca8721ce189515d76555c4240481676c4","language":"en"}}

@@ -1,0 +1,2 @@
+{"type":"header","language":"ja","totalFiles":1}
+{"type":"file","filepath":"locales/<lang>/common.json","keys":["welcome","goodbye","buttons.save","buttons.cancel","buttons.delete","buttons.edit","messages.success","messages.error","messages.loading","navigation.home","navigation.about","navigation.contact","navigation.settings"]}
