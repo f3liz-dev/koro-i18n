@@ -471,3 +471,73 @@ export async function fetchFilesFromManifest(
 
   return files;
 }
+
+/**
+ * Fetch a single translation file from GitHub
+ * Uses the manifest to find the file path for a given language and filename
+ */
+export async function fetchSingleFileFromGitHub(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  lang: string,
+  filename: string,
+  branch: string = 'main'
+): Promise<FetchedTranslationFile | null> {
+  try {
+    // First, fetch the manifest to find the file path
+    const manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
+    
+    if (!manifest) {
+      console.warn(`[github-fetcher] Manifest not found for ${owner}/${repo}`);
+      return null;
+    }
+
+    // Find the file entry in the manifest
+    const entry = manifest.files.find(f => f.language === lang && f.filename === filename);
+    
+    if (!entry) {
+      console.warn(`[github-fetcher] File not found in manifest: ${lang}/${filename}`);
+      return null;
+    }
+
+    // Fetch the file content
+    const { data: fileData } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: entry.sourceFilename,
+      ref: branch,
+    });
+
+    if (!('content' in fileData) || !fileData.content) {
+      console.warn(`[github-fetcher] No content in file: ${entry.sourceFilename}`);
+      return null;
+    }
+
+    const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
+    const contents = JSON.parse(content);
+    
+    // Build metadata with git blame from GitHub
+    const metadata = await buildMetadataForFile(
+      octokit,
+      owner,
+      repo,
+      entry.sourceFilename,
+      content,
+      branch
+    );
+
+    return {
+      lang,
+      filename,
+      contents,
+      metadata,
+      sourceHash: await calculateSourceHash(content),
+      commitSha: entry.commitHash,
+    };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`[github-fetcher] Error fetching ${lang}/${filename}:`, errorMessage);
+    return null;
+  }
+}

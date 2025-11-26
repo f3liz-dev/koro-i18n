@@ -8,7 +8,6 @@ interface Env {
   JWT_SECRET: string;
   ENVIRONMENT: string;
   ALLOWED_PROJECT_CREATORS?: string;
-  TRANSLATION_BUCKET: R2Bucket;
   Variables: {
     user: any;
   };
@@ -18,7 +17,7 @@ const ApproveTranslationSchema = t.type({
   status: t.union([t.literal('approved'), t.literal('rejected')]),
 });
 
-export function createTranslationRoutes(prisma: PrismaClient, env: Env) {
+export function createTranslationRoutes(prisma: PrismaClient, _env: Env) {
   const app = new Hono<{ Bindings: Env }>();
 
   // Approve/Reject translation

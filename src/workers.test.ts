@@ -16,7 +16,6 @@ const createMockEnv = (environment = 'test') => {
 
   return {
     DB: db as unknown as D1Database,
-      TRANSLATION_BUCKET: {} as unknown as R2Bucket,
     GITHUB_CLIENT_ID: 'test-client-id',
     GITHUB_CLIENT_SECRET: 'test-client-secret',
     JWT_SECRET: 'test-jwt-secret',
@@ -25,105 +24,6 @@ const createMockEnv = (environment = 'test') => {
 };
 
 describe('API Endpoints', () => {
-  describe('POST /api/projects/:projectName/upload-json', () => {
-    it('should require authorization token', async () => {
-      const env = createMockEnv();
-      const app = createWorkerApp(env);
-
-  const req = new Request('http://localhost/api/projects/test-project/upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          branch: 'main',
-          commitSha: 'abc123',
-          language: 'en',
-          files: {
-            'common.json': { welcome: 'Welcome' },
-          },
-        }),
-      });
-
-      const res = await app.fetch(req, env, {} as ExecutionContext);
-  const data = await res.json() as any;
-
-      expect(res.status).toBe(401);
-      expect(data).toHaveProperty('error');
-    });
-
-    it('should require files field', async () => {
-      const env = createMockEnv();
-      const app = createWorkerApp(env);
-
-  const req = new Request('http://localhost/api/projects/test-project/upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer fake-token',
-        },
-        body: JSON.stringify({
-          branch: 'main',
-          commitSha: 'abc123',
-          language: 'en',
-        }),
-      });
-
-      const res = await app.fetch(req, env, {} as ExecutionContext);
-  const data = await res.json() as any;
-
-      expect(res.status).toBe(400);
-      expect(data.error).toContain('files');
-    });
-
-    it('should reject too many files', async () => {
-      const env = createMockEnv();
-      const app = createWorkerApp(env);
-
-      const files: any[] = [];
-      for (let i = 0; i < 501; i++) {
-        files.push({ filename: `file${i}.json`, lang: 'en', packedData: 'e30=' });
-      }
-
-  const req = new Request('http://localhost/api/projects/test-project/upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer fake-token',
-        },
-        body: JSON.stringify({
-          branch: 'main',
-          commitSha: 'abc123',
-          language: 'en',
-          files,
-        }),
-      });
-
-      const res = await app.fetch(req, env, {} as ExecutionContext);
-  const data = await res.json() as any;
-
-      expect(res.status).toBe(400);
-      expect(data.error).toContain('Too many files');
-    });
-  });
-
-  describe('GET /api/projects/:projectName/download', () => {
-    it('should require authorization token', async () => {
-      const env = createMockEnv();
-      const app = createWorkerApp(env);
-
-  const req = new Request('http://localhost/api/projects/test-project/files/list?branch=main', {
-        method: 'GET',
-      });
-
-      const res = await app.fetch(req, env, {} as ExecutionContext);
-      const data = await res.json();
-
-      expect(res.status).toBe(401);
-      expect(data).toHaveProperty('error');
-    });
-  });
-
   describe('JWT Authentication', () => {
     it('should create and verify JWT tokens correctly', async () => {
       const user = { id: 'user-123', username: 'testuser', githubId: 12345 };

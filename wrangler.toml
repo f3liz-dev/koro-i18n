@@ -27,11 +27,6 @@ binding = "DB"
 database_name = "koro-i18n-db"
 database_id = "bed11b2a-88f2-4a83-b0f3-f77ab3ca1050"
 
-# R2 Bucket Configuration (for GitHub imports)
-[[r2_buckets]]
-binding = "TRANSLATION_BUCKET"
-bucket_name = "koro-i18n-bucket"
-
 # # Development Environment
 # [env.development]
 # name = "i18n-platform-dev"

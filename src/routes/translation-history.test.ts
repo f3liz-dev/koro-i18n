@@ -13,7 +13,6 @@ describe('Translation History and Validation', () => {
       JWT_SECRET: 'test-secret',
       ENVIRONMENT: 'test',
       PLATFORM_URL: 'https://test.example.com',
-      TRANSLATION_BUCKET: {} as R2Bucket,
     };
     app = new Hono();
     app.route('/api/projects', createFileRoutes(prisma, env));

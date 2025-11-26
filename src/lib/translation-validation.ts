@@ -1,7 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 import { PrismaClient } from '../generated/prisma/';
-import { getFileByComponents } from './r2-storage';
 import * as crypto from 'crypto';
+import { Octokit } from '@octokit/rest';
+import { fetchSingleFileFromGitHub, getUserGitHubToken } from './github-repo-fetcher';
+import type { FetchedTranslationFile } from './github-repo-fetcher';
 
 /**
  * Hash a string value for comparison
@@ -12,11 +14,10 @@ export function hashValue(value: string): string {
 
 /**
  * Validate if a web translation is still valid against the current source
+ * Now fetches source from GitHub instead of R2
  */
 export async function validateTranslation(
-  bucket: R2Bucket,
-  projectId: string,
-  sourceLanguage: string,
+  sourceFile: FetchedTranslationFile | null,
   translation: {
     language: string;
     filename: string;
@@ -28,14 +29,6 @@ export async function validateTranslation(
   reason?: string;
   currentSourceHash?: string;
 }> {
-  // Get current source file from R2
-  const sourceFile = await getFileByComponents(
-    bucket,
-    projectId,
-    sourceLanguage,
-    translation.filename
-  );
-
   if (!sourceFile) {
     return {
       isValid: false,
@@ -44,7 +37,7 @@ export async function validateTranslation(
   }
 
   // Get current source value for this key
-  const currentSourceValue = sourceFile.raw[translation.key];
+  const currentSourceValue = sourceFile.contents[translation.key];
   
   if (currentSourceValue === undefined) {
     return {
@@ -83,16 +76,18 @@ export async function validateTranslation(
 
 /**
  * Invalidate web translations when source changes
- * Called after uploading new source files
+ * Called when source files are updated
+ * Now fetches source from GitHub instead of R2
  * 
  * OPTIMIZED: Uses Rust worker for batch validation when available
  */
 export async function invalidateOutdatedTranslations(
   prisma: PrismaClient,
-  bucket: R2Bucket,
   projectId: string,
+  projectRepository: string,
   sourceLanguage: string,
   filename: string,
+  userId: string,
   rustWorker?: any // RustComputeWorker instance (optional)
 ): Promise<{
   invalidated: number;
@@ -115,13 +110,32 @@ export async function invalidateOutdatedTranslations(
     return { invalidated: 0, checked: 0 };
   }
 
-  // Get source file to extract current hashes
-  const sourceFile = await import('./r2-storage.js').then(m => 
-    m.getFileByComponents(bucket, projectId, sourceLanguage, filename)
+  // Get source file from GitHub
+  const githubToken = await getUserGitHubToken(prisma, userId);
+  if (!githubToken) {
+    console.warn(`[invalidate] No GitHub token for user ${userId}`);
+    return { invalidated: 0, checked };
+  }
+
+  const parts = projectRepository.trim().split('/');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    console.warn(`[invalidate] Invalid repository format: ${projectRepository}`);
+    return { invalidated: 0, checked };
+  }
+  const [owner, repo] = parts;
+  const octokit = new Octokit({ auth: githubToken });
+
+  const sourceFile = await fetchSingleFileFromGitHub(
+    octokit,
+    owner,
+    repo,
+    sourceLanguage,
+    filename,
+    'main'
   );
 
   if (!sourceFile) {
-    console.warn(`[invalidate] Source file not found: ${projectId}/${sourceLanguage}/${filename}`);
+    console.warn(`[invalidate] Source file not found: ${projectRepository}/${sourceLanguage}/${filename}`);
     return { invalidated: 0, checked };
   }
 
@@ -180,9 +194,7 @@ export async function invalidateOutdatedTranslations(
   // Fallback: Sequential validation (original implementation)
   for (const translation of translations) {
     const validation = await validateTranslation(
-      bucket,
-      projectId,
-      sourceLanguage,
+      sourceFile,
       translation
     );
 
@@ -218,11 +230,10 @@ export async function invalidateOutdatedTranslations(
 
 /**
  * Get validation status for multiple translations
+ * Now requires source file to be passed in (should be fetched from GitHub)
  */
 export async function getValidationStatus(
-  bucket: R2Bucket,
-  projectId: string,
-  sourceLanguage: string,
+  sourceFile: FetchedTranslationFile | null,
   translations: Array<{
     id: string;
     language: string;
@@ -235,9 +246,7 @@ export async function getValidationStatus(
 
   for (const translation of translations) {
     const validation = await validateTranslation(
-      bucket,
-      projectId,
-      sourceLanguage,
+      sourceFile,
       translation
     );
 

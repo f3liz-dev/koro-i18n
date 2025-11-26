@@ -10,7 +10,6 @@ import { etagMiddleware } from './lib/etag-middleware';
 
 interface Env {
   DB: D1Database;
-  TRANSLATION_BUCKET: R2Bucket;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
   JWT_SECRET: string;
