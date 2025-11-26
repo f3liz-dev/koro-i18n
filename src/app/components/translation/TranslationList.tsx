@@ -1,6 +1,6 @@
 import { Show, For } from "solid-js";
 import type { UiMergedTranslation as MergedTranslation } from "../../utils/translationApi";
-import type { SortMethod } from "../../pages/TranslationEditorPage";
+import type { SortMethod } from "../../hooks/useTranslationEditor";
 
 interface TranslationListProps {
   translationStrings: MergedTranslation[];

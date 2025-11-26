@@ -61,15 +61,29 @@ export default function FileSelectionPage() {
       // 2. Fetch progress (total keys) from source language progress file
       const progressMap = new Map<string, number>();
       const progressPromise = (async () => {
-        try {
-          const stream = streamJsonl<ProgressEntry>(`/api/projects/${projectName}/files/progress/stream/${sourceLang}`);
+        const tryStream = async (lang: string) => {
+          const stream = streamJsonl<ProgressEntry>(`/api/projects/${projectName}/files/progress/stream/${lang}`);
           for await (const item of stream) {
             if (item.type === 'file') {
               progressMap.set(item.filepath, item.keys.length);
             }
           }
+        };
+
+        try {
+          await tryStream(sourceLang);
         } catch (e) {
-          console.warn('Failed to stream progress', e);
+          console.warn('Failed to stream progress for', sourceLang, e);
+          // If sourceLang is a region variant (e.g. en-US) attempt to fallback to base lang (en)
+          if (sourceLang.includes('-')) {
+            const base = sourceLang.split('-')[0];
+            try {
+              console.info('Attempting fallback progress stream using base language', base);
+              await tryStream(base);
+            } catch (err) {
+              console.warn('Failed to stream progress for fallback language', base, err);
+            }
+          }
         }
       })();
 

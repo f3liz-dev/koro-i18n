@@ -23,8 +23,30 @@ export interface ProgressEntry {
 
 export async function* streamJsonl<T>(url: string, init?: RequestInit): AsyncGenerator<T> {
     const response = await authFetch(url, { credentials: 'include', ...(init || {}) });
-    if (!response.ok || !response.body) {
-        throw new Error(`Failed to stream from ${url}`);
+    if (!response.ok) {
+        // Try to extract useful error information from the JSON error body
+        const contentType = response.headers.get('Content-Type') || '';
+        let message = `HTTP ${response.status}`;
+        try {
+            if (contentType.includes('application/json')) {
+                const body = await response.clone().json();
+                const jsonBody = body as any;
+                if (jsonBody && typeof jsonBody === 'object') {
+                    if (jsonBody.error) message += ` - ${jsonBody.error}`;
+                    else if (jsonBody.message) message += ` - ${jsonBody.message}`;
+                }
+            } else {
+                const text = await response.clone().text();
+                if (text) message += ` - ${text}`;
+            }
+        } catch (e) {
+            // Ignore parse errors and use generic message
+        }
+        throw new Error(`Failed to stream from ${url}: ${message}`);
+    }
+
+    if (!response.body) {
+        throw new Error(`Failed to stream from ${url}: no response body`);
     }
 
     const reader = response.body.getReader();

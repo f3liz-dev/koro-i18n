@@ -1,7 +1,7 @@
 import { Show } from 'solid-js';
 import { TranslationList } from '../translation';
 import type { UiMergedTranslation as MergedTranslation } from '../../utils/translationApi';
-import type { SortMethod } from '../../pages/TranslationEditorPage';
+import type { SortMethod } from '../../hooks/useTranslationEditor';
 
 interface MobileMenuOverlayProps {
   show: boolean;

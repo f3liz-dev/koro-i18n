@@ -51,4 +51,14 @@ describe('streamJsonl', () => {
     expect(results[1].entry.filename).toBe('common.json');
     expect(results[2].entry.filename).toBe('errors.json');
   });
+
+  it('throws a useful error message when response is non-ok JSON', async () => {
+    // Mock authFetch to return error response
+    (authFetchModule as any).authFetch = async () => new Response(JSON.stringify({ error: 'Progress file not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+
+    const url = '/test/stream/fail';
+    const gen = streamJsonl(url);
+
+    await expect(gen.next()).rejects.toThrow(/Progress file not found/);
+  });
 });
