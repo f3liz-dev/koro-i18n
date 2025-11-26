@@ -5,6 +5,7 @@ import { authMiddleware } from '../lib/auth';
 import { validate } from '../lib/validator';
 import { createFileRoutes } from './files';
 import { createProjectTranslationRoutes } from './project-translations';
+import { createApplyRoutes } from './apply';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 import { generateProjectsETag, checkETagMatch, create304Response } from '../lib/etag-db';
 
@@ -42,6 +43,9 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
 
   // Mount translations routes
   app.route('/:projectName/translations', createProjectTranslationRoutes(prisma, env));
+
+  // Mount apply translations routes
+  app.route('/:projectName/apply', createApplyRoutes(prisma, env));
 
   // Create Project
   app.post('/', authMiddleware, validate('json', CreateProjectSchema), async (c) => {

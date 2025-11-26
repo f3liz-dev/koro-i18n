@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
-import { createProjectFileRoutes } from './project-files';
+import { createFileRoutes } from './files';
 import { PrismaClient } from '../generated/prisma';
 
 describe('Translation History and Validation', () => {
@@ -13,9 +13,10 @@ describe('Translation History and Validation', () => {
       JWT_SECRET: 'test-secret',
       ENVIRONMENT: 'test',
       PLATFORM_URL: 'https://test.example.com',
+      TRANSLATION_BUCKET: {} as R2Bucket,
     };
     app = new Hono();
-    app.route('/api/projects', createProjectFileRoutes(prisma, env));
+    app.route('/api/projects', createFileRoutes(prisma, env));
   });
 
   describe('Upload with History', () => {

@@ -43,6 +43,10 @@ Legacy GitHub Upload (DEPRECATED):
 Web Translation:
   User → Worker → D1 only
 
+Apply Translation (NEW):
+  Preview → GET /apply/preview → D1 approved translations
+  Apply → POST /apply → Create branch → Update files → Create PR → Mark as committed
+
 Display:
   UI → GitHub API (source) + D1 API (web translations) → Merge in UI
 ```

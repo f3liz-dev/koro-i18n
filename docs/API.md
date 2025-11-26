@@ -35,6 +35,10 @@ Three methods:
 - `GET /api/projects/:name/files` - List files for project
 - `GET /api/projects/:name/files/:lang/:filename` - Get specific file content
 
+### Apply Translations (Create Pull Request)
+- `GET /api/projects/:name/apply/preview` - Preview approved translations to be applied
+- `POST /api/projects/:name/apply` - Apply approved translations and create a Pull Request
+
 ### Translations
 - `GET /api/translations` - List web translations (paginated)
 - `POST /api/translations` - Create/update translation
@@ -109,6 +113,20 @@ curl -X POST https://platform.dev/api/translations \
     "key": "welcome",
     "value": "ようこそ"
   }'
+```
+
+### Apply translations and create PR
+
+```bash
+# Preview what will be applied
+curl https://platform.dev/api/projects/my-project/apply/preview \
+  -H "Authorization: Bearer $TOKEN"
+
+# Apply translations and create a Pull Request
+curl -X POST https://platform.dev/api/projects/my-project/apply \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"branch": "main"}'
 ```
 
 For detailed implementation, see `src/routes/`.
