@@ -392,20 +392,64 @@ export function generateManifest(
 }
 
 /**
- * Write manifest to .koro-i18n/koro-i18n.repo.generated.json
+ * Manifest header in JSONL format (first line of the file)
+ */
+export interface ManifestHeaderJsonl {
+  type: 'header';
+  repository: string;
+  sourceLanguage: string;
+  configVersion: number;
+  totalFiles: number;
+}
+
+/**
+ * Manifest file entry wrapper in JSONL format
+ */
+export interface ManifestEntryJsonl {
+  type: 'file';
+  entry: ManifestFile;
+}
+
+/**
+ * Write manifest to .koro-i18n/koro-i18n.repo.generated.jsonl (JSONL format)
+ * JSONL format is more efficient for streaming:
+ * - First line: header with metadata
+ * - Subsequent lines: file entries
  */
 function writeManifest(manifest: GeneratedManifest): void {
   const outputDir = '.koro-i18n';
-  const outputPath = path.join(outputDir, 'koro-i18n.repo.generated.json');
+  const outputPath = path.join(outputDir, 'koro-i18n.repo.generated.jsonl');
 
   // Create directory if it doesn't exist
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  // Write manifest file
-  fs.writeFileSync(outputPath, JSON.stringify(manifest, null, 2), 'utf-8');
-  console.log(`\n✅ Manifest generated: ${outputPath}`);
+  // Build JSONL content
+  const lines: string[] = [];
+  
+  // First line: header
+  const header: ManifestHeaderJsonl = {
+    type: 'header',
+    repository: manifest.repository,
+    sourceLanguage: manifest.sourceLanguage,
+    configVersion: manifest.configVersion,
+    totalFiles: manifest.files.length,
+  };
+  lines.push(JSON.stringify(header));
+  
+  // Subsequent lines: file entries
+  for (const file of manifest.files) {
+    const entry: ManifestEntryJsonl = {
+      type: 'file',
+      entry: file,
+    };
+    lines.push(JSON.stringify(entry));
+  }
+
+  // Write JSONL file
+  fs.writeFileSync(outputPath, lines.join('\n') + '\n', 'utf-8');
+  console.log(`\n✅ Manifest generated: ${outputPath} (${manifest.files.length} files)`);
 }
 
 /**
@@ -429,9 +473,27 @@ export interface ProgressTranslated {
 }
 
 /**
+ * Progress translated header in JSONL format (first line of the file)
+ */
+export interface ProgressHeaderJsonl {
+  type: 'header';
+  language: string;
+  totalFiles: number;
+}
+
+/**
+ * Progress translated file entry in JSONL format
+ */
+export interface ProgressEntryJsonl {
+  type: 'file';
+  filepath: string;  // filepath with <lang> placeholder
+  keys: string[];    // array of translated key names
+}
+
+/**
  * Generate and write progress-translated files for each target language
- * Creates .koro-i18n/progress-translated/[lang].json
- * Content: {[filepath with language replaced by <lang>]: [translated-key-names]}
+ * Creates .koro-i18n/progress-translated/[lang].jsonl
+ * JSONL format: header line followed by file entries
  */
 function writeProgressTranslated(
   files: TranslationFile[],
@@ -456,7 +518,15 @@ function writeProgressTranslated(
 
   // Generate progress-translated file for each target language
   for (const [lang, langFiles] of filesByLang.entries()) {
-    const progressData: ProgressTranslated = {};
+    const lines: string[] = [];
+    
+    // First line: header
+    const header: ProgressHeaderJsonl = {
+      type: 'header',
+      language: lang,
+      totalFiles: langFiles.length,
+    };
+    lines.push(JSON.stringify(header));
 
     for (const file of langFiles) {
       const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, lang);
@@ -464,12 +534,17 @@ function writeProgressTranslated(
       // Get all translated key names (keys from the contents)
       const translatedKeys = Object.keys(file.contents);
 
-      progressData[filepathWithPlaceholder] = translatedKeys;
+      const entry: ProgressEntryJsonl = {
+        type: 'file',
+        filepath: filepathWithPlaceholder,
+        keys: translatedKeys,
+      };
+      lines.push(JSON.stringify(entry));
     }
 
-    // Write the progress file for this language
-    const outputPath = path.join(outputDir, `${lang}.json`);
-    fs.writeFileSync(outputPath, JSON.stringify(progressData, null, 2), 'utf-8');
+    // Write the progress file for this language (JSONL format)
+    const outputPath = path.join(outputDir, `${lang}.jsonl`);
+    fs.writeFileSync(outputPath, lines.join('\n') + '\n', 'utf-8');
     console.log(`  ✓ Progress translated: ${outputPath} (${langFiles.length} files)`);
   }
 
@@ -500,6 +575,51 @@ export interface StoreEntry {
 export interface StoreData {
   [filepathWithLangPlaceholder: string]: Record<string, StoreEntry>;
 }
+
+/**
+ * Default number of keys per chunk in store files
+ * This prevents individual JSONL lines from becoming too large
+ */
+const STORE_KEYS_PER_CHUNK = 100;
+
+/**
+ * Store header in JSONL format (first line of the file)
+ */
+export interface StoreHeaderJsonl {
+  type: 'header';
+  language: string;
+  totalFiles: number;
+  totalKeys: number;  // Total number of keys across all files
+}
+
+/**
+ * Store file header in JSONL format
+ * One per file, before its chunk entries
+ */
+export interface StoreFileHeaderJsonl {
+  type: 'file_header';
+  filepath: string;  // filepath with <lang> placeholder
+  totalKeys: number; // Total number of keys in this file
+}
+
+/**
+ * Store chunk entry in JSONL format
+ * Contains a subset of keys for a file (chunked for streaming)
+ */
+export interface StoreChunkJsonl {
+  type: 'chunk';
+  filepath: string;  // filepath with <lang> placeholder
+  chunkIndex: number;
+  entries: Record<string, StoreEntry>;  // key -> StoreEntry map (limited to STORE_KEYS_PER_CHUNK)
+}
+
+// Legacy type for backward compatibility
+export interface StoreFileEntryJsonl {
+  type: 'file';
+  filepath: string;  // filepath with <lang> placeholder
+  entries: Record<string, StoreEntry>;  // key -> StoreEntry map
+}
+
 
 /**
  * Find line number for a nested key in JSON content
@@ -607,9 +727,97 @@ function getKeyCommitInfo(
 }
 
 /**
+ * Load existing store data from JSONL file
+ * Returns the data in the StoreData format for compatibility
+ */
+function loadExistingStoreData(jsonlPath: string): StoreData {
+  const existingData: StoreData = {};
+  
+  if (fs.existsSync(jsonlPath)) {
+    try {
+      const content = fs.readFileSync(jsonlPath, 'utf-8');
+      const lines = content.trim().split('\n');
+      
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const parsed = JSON.parse(line);
+        
+        if (parsed.type === 'file') {
+          existingData[parsed.filepath] = parsed.entries;
+        }
+      }
+    } catch {
+      // If parsing fails, start fresh
+    }
+  }
+  
+  return existingData;
+}
+
+/**
+ * Load existing store data from JSONL file
+ * Handles both legacy format (type: 'file') and new chunked format (type: 'chunk')
+ * Returns the data in the StoreData format for compatibility
+ */
+function loadExistingStoreData(jsonlPath: string): StoreData {
+  const existingData: StoreData = {};
+  
+  if (fs.existsSync(jsonlPath)) {
+    try {
+      const content = fs.readFileSync(jsonlPath, 'utf-8');
+      const lines = content.trim().split('\n');
+      
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const parsed = JSON.parse(line);
+        
+        // Handle legacy format (entire file in one entry)
+        if (parsed.type === 'file') {
+          existingData[parsed.filepath] = parsed.entries;
+        }
+        // Handle new chunked format
+        else if (parsed.type === 'chunk') {
+          if (!existingData[parsed.filepath]) {
+            existingData[parsed.filepath] = {};
+          }
+          Object.assign(existingData[parsed.filepath], parsed.entries);
+        }
+      }
+    } catch {
+      // If parsing fails, start fresh
+    }
+  }
+  
+  return existingData;
+}
+
+/**
+ * Split entries into chunks of specified size
+ */
+function chunkEntries(
+  entries: Record<string, StoreEntry>,
+  chunkSize: number
+): Record<string, StoreEntry>[] {
+  const keys = Object.keys(entries);
+  const chunks: Record<string, StoreEntry>[] = [];
+  
+  for (let i = 0; i < keys.length; i += chunkSize) {
+    const chunkKeys = keys.slice(i, i + chunkSize);
+    const chunk: Record<string, StoreEntry> = {};
+    for (const key of chunkKeys) {
+      chunk[key] = entries[key];
+    }
+    chunks.push(chunk);
+  }
+  
+  return chunks;
+}
+
+/**
  * Generate and write store files for each target language
- * Creates .koro-i18n/store/[lang].json
- * Content: {[filepath with <lang>]: {key: {src, tgt, updated, status}}}
+ * Creates .koro-i18n/store/[lang].jsonl
+ * JSONL format: header line followed by file headers and chunked entries
+ * Chunks entries by key limit (STORE_KEYS_PER_CHUNK) for streaming support
  * Uses git commit hashes to track changes in source and target files
  */
 function writeStore(
@@ -647,20 +855,15 @@ function writeStore(
 
   // Generate store file for each target language
   for (const [lang, langFiles] of filesByLang.entries()) {
-    const outputPath = path.join(outputDir, `${lang}.json`);
+    const outputPath = path.join(outputDir, `${lang}.jsonl`);
     
     // Load existing store data if it exists (to preserve status for unchanged entries)
-    let existingData: StoreData = {};
-    if (fs.existsSync(outputPath)) {
-      try {
-        existingData = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
-      } catch {
-        // If parsing fails, start fresh
-        existingData = {};
-      }
-    }
+    const existingData = loadExistingStoreData(outputPath);
 
-    const storeData: StoreData = {};
+    // Collect all file entries first, then chunk and write
+    const fileEntriesMap = new Map<string, Record<string, StoreEntry>>();
+    let fileCount = 0;
+    let totalKeys = 0;
 
     for (const file of langFiles) {
       const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, lang);
@@ -714,13 +917,53 @@ function writeStore(
       }
 
       if (Object.keys(entriesForFile).length > 0) {
-        storeData[filepathWithPlaceholder] = entriesForFile;
+        // Store file info for later processing
+        fileEntriesMap.set(filepathWithPlaceholder, entriesForFile);
+        fileCount++;
+        totalKeys += Object.keys(entriesForFile).length;
       }
     }
 
-    // Write the store file for this language
-    fs.writeFileSync(outputPath, JSON.stringify(storeData, null, 2), 'utf-8');
-    console.log(`  ✓ Store: ${outputPath} (${langFiles.length} files)`);
+    // Build the JSONL content with chunked entries
+    const lines: string[] = [];
+
+    // Header with total keys
+    const header: StoreHeaderJsonl = {
+      type: 'header',
+      language: lang,
+      totalFiles: fileCount,
+      totalKeys,
+    };
+    lines.push(JSON.stringify(header));
+
+    // Write file headers and chunked entries
+    for (const [filepath, entries] of fileEntriesMap.entries()) {
+      const keyCount = Object.keys(entries).length;
+      
+      // File header with total keys for this file
+      const fileHeader: StoreFileHeaderJsonl = {
+        type: 'file_header',
+        filepath,
+        totalKeys: keyCount,
+      };
+      lines.push(JSON.stringify(fileHeader));
+
+      // Chunk the entries and write each chunk
+      const chunks = chunkEntries(entries, STORE_KEYS_PER_CHUNK);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk: StoreChunkJsonl = {
+          type: 'chunk',
+          filepath,
+          chunkIndex: i,
+          entries: chunks[i],
+        };
+        lines.push(JSON.stringify(chunk));
+      }
+    }
+
+    // Write the store file for this language (JSONL format)
+    fs.writeFileSync(outputPath, lines.join('\n') + '\n', 'utf-8');
+    console.log(`  ✓ Store: ${outputPath} (${fileCount} files, ${totalKeys} keys)`);
   }
 
   if (filesByLang.size > 0) {
@@ -852,7 +1095,7 @@ export async function main() {
 
   console.log(`\n📝 Generating manifest for ${allFiles.length} files...`);
   
-  // Generate and write manifest
+  // Generate and write manifest (JSONL format for streaming)
   const manifest = generateManifest(repository, config.source.language, allFiles);
   writeManifest(manifest);
   

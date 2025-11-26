@@ -25,7 +25,7 @@ export interface FetchedTranslationFile {
 
 /**
  * Structure of the generated manifest file
- * Located at .koro-i18n/koro-i18n.repo.generated.json
+ * Located at .koro-i18n/koro-i18n.repo.generated.jsonl
  */
 export interface GeneratedManifest {
   repository: string;
@@ -398,7 +398,9 @@ export async function getLatestCommitSha(
 
 /**
  * Fetch the generated manifest file from the repository
- * Path: .koro-i18n/koro-i18n.repo.generated.json
+ * Path: .koro-i18n/koro-i18n.repo.generated.jsonl (JSONL format)
+ * 
+ * Parses the JSONL format and reconstructs the GeneratedManifest object
  */
 export async function fetchGeneratedManifest(
   octokit: Octokit,
@@ -407,7 +409,7 @@ export async function fetchGeneratedManifest(
   branch: string = 'main'
 ): Promise<GeneratedManifest | null> {
   try {
-    const manifestPath = '.koro-i18n/koro-i18n.repo.generated.json';
+    const manifestPath = '.koro-i18n/koro-i18n.repo.generated.jsonl';
     
     const { data } = await octokit.rest.repos.getContent({
       owner,
@@ -421,14 +423,69 @@ export async function fetchGeneratedManifest(
       return null;
     }
 
-    // Decode base64 content
+    // Decode base64 content and parse JSONL
     const content = Buffer.from(data.content, 'base64').toString('utf-8');
-    const manifest = JSON.parse(content) as GeneratedManifest;
+    const lines = content.trim().split('\n');
+    
+    let manifest: GeneratedManifest | null = null;
+    const files: ManifestFileEntry[] = [];
 
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const parsed = JSON.parse(line);
+      
+      if (parsed.type === 'header') {
+        manifest = {
+          repository: parsed.repository,
+          sourceLanguage: parsed.sourceLanguage,
+          configVersion: parsed.configVersion,
+          files: [], // Will be populated below
+        };
+      } else if (parsed.type === 'file') {
+        files.push(parsed.entry);
+      }
+    }
+
+    if (!manifest) {
+      console.warn(`[manifest] JSONL manifest has no header line`);
+      return null;
+    }
+    
+    manifest.files = files;
     return manifest;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.warn(`[manifest] Failed to fetch generated manifest:`, errorMessage);
+    return null;
+  }
+}
+
+/**
+ * Fetch and stream the JSONL manifest directly from the repository
+ * Path: .koro-i18n/koro-i18n.repo.generated.jsonl
+ * 
+ * @returns ReadableStream of the JSONL content, or null if not found
+ */
+export async function fetchManifestJsonlStream(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string = 'main'
+): Promise<ReadableStream<Uint8Array> | null> {
+  try {
+    const jsonlPath = '.koro-i18n/koro-i18n.repo.generated.jsonl';
+    
+    const stream = await streamFileFromGitHub(octokit, owner, repo, jsonlPath, branch);
+    
+    if (stream) {
+      return stream;
+    }
+
+    console.warn('[manifest] JSONL manifest not found');
+    return null;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.warn(`[manifest] Failed to fetch JSONL manifest:`, errorMessage);
     return null;
   }
 }
@@ -544,7 +601,7 @@ export async function fetchSingleFileFromGitHub(
 
 /**
  * Fetch the progress-translated file for a specific language
- * Path: .koro-i18n/progress-translated/[lang].json
+ * Path: .koro-i18n/progress-translated/[lang].jsonl (JSONL format)
  * 
  * Returns a map of filepath (with <lang> placeholder) to array of translated key names
  */
@@ -556,7 +613,7 @@ export async function fetchProgressTranslatedFile(
   branch: string = 'main'
 ): Promise<Record<string, string[]> | null> {
   try {
-    const progressPath = `.koro-i18n/progress-translated/${lang}.json`;
+    const progressPath = `.koro-i18n/progress-translated/${lang}.jsonl`;
     
     const { data } = await octokit.rest.repos.getContent({
       owner,
@@ -569,8 +626,21 @@ export async function fetchProgressTranslatedFile(
       return null;
     }
 
+    // Parse JSONL format
     const content = Buffer.from(data.content, 'base64').toString('utf-8');
-    return JSON.parse(content) as Record<string, string[]>;
+    const lines = content.trim().split('\n');
+    const result: Record<string, string[]> = {};
+    
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const parsed = JSON.parse(line);
+      
+      if (parsed.type === 'file') {
+        result[parsed.filepath] = parsed.keys;
+      }
+    }
+    
+    return result;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.warn(`[github-fetcher] Progress file not found for ${lang}:`, errorMessage);
@@ -580,7 +650,7 @@ export async function fetchProgressTranslatedFile(
 
 /**
  * Fetch the store file for a specific language to get source totalKeys
- * Path: .koro-i18n/store/[lang].json
+ * Path: .koro-i18n/store/[lang].jsonl (JSONL format)
  */
 export async function fetchStoreFile(
   octokit: Octokit,
@@ -590,7 +660,7 @@ export async function fetchStoreFile(
   branch: string = 'main'
 ): Promise<Record<string, Record<string, any>> | null> {
   try {
-    const storePath = `.koro-i18n/store/${lang}.json`;
+    const storePath = `.koro-i18n/store/${lang}.jsonl`;
     
     const { data } = await octokit.rest.repos.getContent({
       owner,
@@ -603,11 +673,123 @@ export async function fetchStoreFile(
       return null;
     }
 
+    // Parse JSONL format (supports both legacy 'file' and new 'chunk' types)
     const content = Buffer.from(data.content, 'base64').toString('utf-8');
-    return JSON.parse(content) as Record<string, Record<string, any>>;
+    const lines = content.trim().split('\n');
+    const result: Record<string, Record<string, any>> = {};
+    
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const parsed = JSON.parse(line);
+      
+      // Handle legacy format (entire file in one entry)
+      if (parsed.type === 'file') {
+        result[parsed.filepath] = parsed.entries;
+      }
+      // Handle new chunked format
+      else if (parsed.type === 'chunk') {
+        if (!result[parsed.filepath]) {
+          result[parsed.filepath] = {};
+        }
+        Object.assign(result[parsed.filepath], parsed.entries);
+      }
+    }
+    
+    return result;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.warn(`[github-fetcher] Store file not found for ${lang}:`, errorMessage);
+    return null;
+  }
+}
+
+/**
+ * Fetch manifest as JSONL and return as streaming Response
+ * Uses Octokit's raw response option for streaming large files
+ * 
+ * @returns A ReadableStream that yields JSONL lines (header first, then file entries)
+ */
+export async function* streamGeneratedManifest(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string = 'main'
+): AsyncGenerator<import('./streaming').ManifestJsonlLine> {
+  const manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
+  
+  if (!manifest) {
+    return;
+  }
+
+  // Yield header first
+  yield {
+    type: 'header' as const,
+    repository: manifest.repository,
+    sourceLanguage: manifest.sourceLanguage,
+    configVersion: manifest.configVersion,
+    totalFiles: manifest.files.length,
+  };
+
+  // Yield each file entry
+  for (const file of manifest.files) {
+    yield {
+      type: 'file' as const,
+      entry: {
+        filename: file.filename,
+        sourceFilename: file.sourceFilename,
+        lastUpdated: file.lastUpdated,
+        commitHash: file.commitHash,
+        language: file.language,
+      },
+    };
+  }
+}
+
+/**
+ * Stream file content directly from GitHub using raw content URL
+ * This avoids base64 decoding overhead for large files
+ * 
+ * @param octokit - Authenticated Octokit instance
+ * @param owner - Repository owner
+ * @param repo - Repository name
+ * @param path - File path in the repository
+ * @param branch - Branch name (default: 'main')
+ * @returns ReadableStream of file content
+ */
+export async function streamFileFromGitHub(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  path: string,
+  branch: string = 'main'
+): Promise<ReadableStream<Uint8Array> | null> {
+  try {
+    // Use Octokit request with parseSuccessResponseBody: false for streaming
+    const response = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+      owner,
+      repo,
+      path,
+      ref: branch,
+      headers: {
+        'Accept': 'application/vnd.github.raw',
+      },
+      request: {
+        parseSuccessResponseBody: false,
+      },
+    });
+
+    // The response is a raw Response object when parseSuccessResponseBody is false
+    const rawResponse = response.data as unknown as Response;
+    
+    if (!rawResponse.body) {
+      console.warn(`[github-fetcher] No body in streaming response for ${path}`);
+      return null;
+    }
+
+    return rawResponse.body;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`[github-fetcher] Error streaming file ${path}:`, errorMessage);
     return null;
   }
 }

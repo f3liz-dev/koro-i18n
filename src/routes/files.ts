@@ -13,6 +13,8 @@ import {
     fetchFilesFromManifest,
     fetchSingleFileFromGitHub,
     fetchProgressTranslatedFile,
+    streamFileFromGitHub,
+    fetchManifestJsonlStream,
     type GeneratedManifest,
     type ManifestFileEntry,
 } from '../lib/github-repo-fetcher';
@@ -72,7 +74,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
 
             if (!manifest) {
                 return c.json({ 
-                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.json exists in your repository.' 
+                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.jsonl exists in your repository.' 
                 }, 404);
             }
 
@@ -85,6 +87,145 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             console.error('Error fetching manifest:', errorMessage);
             return c.json({ 
                 error: `Failed to fetch manifest: ${errorMessage}` 
+            }, 500);
+        }
+    });
+
+    // Stream the manifest as JSONL format
+    // This endpoint returns the manifest in streaming JSONL format for efficient parsing
+    // Each line is a JSON object: first line is header, subsequent lines are file entries
+    app.get('/manifest/stream', authMiddleware, async (c) => {
+        const user = c.get('user');
+        const projectName = c.req.param('projectName');
+        const branch = c.req.query('branch') || 'main';
+
+        const project = await prisma.project.findUnique({
+            where: { name: projectName },
+            select: { id: true, userId: true, repository: true },
+        });
+
+        if (!project) return c.json({ error: 'Project not found' }, 404);
+
+        // Check access
+        const hasAccess = await checkProjectAccess(prisma, project.id, user.userId);
+        if (!hasAccess) return c.json({ error: 'Forbidden' }, 403);
+
+        // Get user's GitHub access token
+        const githubToken = await getUserGitHubToken(prisma, user.userId);
+        if (!githubToken) {
+            return c.json({ 
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            }, 401);
+        }
+
+        try {
+            const parts = project.repository.trim().split('/');
+            if (parts.length !== 2 || !parts[0] || !parts[1]) {
+                return c.json({ 
+                    error: 'Invalid repository format. Expected: owner/repo' 
+                }, 400);
+            }
+            const [owner, repo] = parts;
+
+            const octokit = new Octokit({ auth: githubToken });
+
+            // Try to fetch JSONL directly from GitHub, fallback to JSON conversion
+            const stream = await fetchManifestJsonlStream(octokit, owner, repo, branch);
+
+            if (!stream) {
+                return c.json({ 
+                    error: 'Manifest not found in repository. Please run the koro-i18n CLI to generate the manifest.' 
+                }, 404);
+            }
+
+            return new Response(stream, {
+                headers: {
+                    'Content-Type': 'application/x-ndjson',
+                    'Transfer-Encoding': 'chunked',
+                    'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles),
+                },
+            });
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Error streaming manifest:', errorMessage);
+            return c.json({ 
+                error: `Failed to stream manifest: ${errorMessage}` 
+            }, 500);
+        }
+    });
+
+    // Stream a file directly from GitHub
+    // This endpoint returns raw file content as a stream
+    // Useful for large files that shouldn't be loaded entirely into memory
+    app.get('/stream/:path{.+}', authMiddleware, async (c) => {
+        const user = c.get('user');
+        const projectName = c.req.param('projectName');
+        const filePath = c.req.param('path');
+        const branch = c.req.query('branch') || 'main';
+
+        if (!filePath) {
+            return c.json({ error: 'File path is required' }, 400);
+        }
+
+        const project = await prisma.project.findUnique({
+            where: { name: projectName },
+            select: { id: true, userId: true, repository: true },
+        });
+
+        if (!project) return c.json({ error: 'Project not found' }, 404);
+
+        // Check access
+        const hasAccess = await checkProjectAccess(prisma, project.id, user.userId);
+        if (!hasAccess) return c.json({ error: 'Forbidden' }, 403);
+
+        // Get user's GitHub access token
+        const githubToken = await getUserGitHubToken(prisma, user.userId);
+        if (!githubToken) {
+            return c.json({ 
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            }, 401);
+        }
+
+        try {
+            const parts = project.repository.trim().split('/');
+            if (parts.length !== 2 || !parts[0] || !parts[1]) {
+                return c.json({ 
+                    error: 'Invalid repository format. Expected: owner/repo' 
+                }, 400);
+            }
+            const [owner, repo] = parts;
+
+            const octokit = new Octokit({ auth: githubToken });
+
+            // Stream file directly from GitHub
+            const stream = await streamFileFromGitHub(octokit, owner, repo, filePath, branch);
+
+            if (!stream) {
+                return c.json({ error: 'File not found or could not be streamed' }, 404);
+            }
+
+            // Determine content type based on file extension
+            // Handle files with multiple dots or no extension
+            const extParts = filePath.split('.');
+            const ext = extParts.length > 1 ? extParts.pop()?.toLowerCase() : undefined;
+            let contentType = 'application/octet-stream';
+            if (ext === 'json') contentType = 'application/json';
+            else if (ext === 'jsonl') contentType = 'application/x-ndjson';
+            else if (ext === 'toml') contentType = 'application/toml';
+            else if (ext === 'md') contentType = 'text/markdown';
+
+            return new Response(stream, {
+                headers: {
+                    'Content-Type': contentType,
+                    'Transfer-Encoding': 'chunked',
+                    'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles),
+                },
+            });
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Error streaming file:', errorMessage);
+            return c.json({ 
+                error: `Failed to stream file: ${errorMessage}` 
             }, 500);
         }
     });
@@ -131,7 +272,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
 
             if (!manifest) {
                 return c.json({ 
-                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.json exists in your repository.' 
+                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.jsonl exists in your repository.' 
                 }, 404);
             }
 
