@@ -35,6 +35,11 @@ Three methods:
 - `GET /api/projects/:name/files` - List files for project
 - `GET /api/projects/:name/files/:lang/:filename` - Get specific file content
 
+### Apply Translations (Export for GitHub Action)
+- `GET /api/projects/:name/apply/preview` - Preview approved translations to be applied
+- `GET /api/projects/:name/apply/export` - Export approved translations for GitHub Action
+- `POST /api/projects/:name/apply/committed` - Mark translations as committed after PR is created
+
 ### Translations
 - `GET /api/translations` - List web translations (paginated)
 - `POST /api/translations` - Create/update translation
@@ -110,5 +115,35 @@ curl -X POST https://platform.dev/api/translations \
     "value": "ようこそ"
   }'
 ```
+
+### Apply translations via GitHub Action (OIDC)
+
+The API exports translation data that a GitHub Action in the client repository
+uses to create the PR (since the OAuth token doesn't have write permissions).
+
+**Authentication**: These endpoints support both JWT and OIDC authentication.
+For GitHub Actions, OIDC is recommended as it requires no secrets.
+
+```bash
+# In GitHub Actions, get OIDC token:
+TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+  "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://koro.f3liz.workers.dev" | jq -r .value)
+
+# Preview what will be applied
+curl https://koro.f3liz.workers.dev/api/projects/my-project/apply/preview \
+  -H "Authorization: Bearer $TOKEN"
+
+# Export translations for GitHub Action
+curl https://koro.f3liz.workers.dev/api/projects/my-project/apply/export \
+  -H "Authorization: Bearer $TOKEN"
+
+# Mark translations as committed (called by GitHub Action after PR is created)
+curl -X POST https://koro.f3liz.workers.dev/api/projects/my-project/apply/committed \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"translationIds": ["t1", "t2", "t3"]}'
+```
+
+See `docs/examples/koro-i18n-apply.yml` for a complete GitHub Action workflow.
 
 For detailed implementation, see `src/routes/`.

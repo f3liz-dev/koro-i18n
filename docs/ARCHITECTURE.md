@@ -43,6 +43,16 @@ Legacy GitHub Upload (DEPRECATED):
 Web Translation:
   User → Worker → D1 only
 
+Apply Translation (NEW):
+  1. Preview → GET /apply/preview → D1 approved translations
+  2. Export → GET /apply/export → Full translation data for GitHub Action
+  3. GitHub Action (client repo) → Fetch export → Apply changes → Create PR
+  4. Mark Committed → POST /apply/committed → Update D1 status
+
+Note: The API exports translation data instead of creating PRs directly
+because the OAuth token doesn't have write permissions to user repositories.
+The client repository needs a GitHub Action to create the PR.
+
 Display:
   UI → GitHub API (source) + D1 API (web translations) → Merge in UI
 ```
