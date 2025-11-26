@@ -392,23 +392,6 @@ export function generateManifest(
 }
 
 /**
- * Write manifest to .koro-i18n/koro-i18n.repo.generated.json
- */
-function writeManifest(manifest: GeneratedManifest): void {
-  const outputDir = '.koro-i18n';
-  const outputPath = path.join(outputDir, 'koro-i18n.repo.generated.json');
-
-  // Create directory if it doesn't exist
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-
-  // Write manifest file
-  fs.writeFileSync(outputPath, JSON.stringify(manifest, null, 2), 'utf-8');
-  console.log(`\n✅ Manifest generated: ${outputPath}`);
-}
-
-/**
  * Manifest header in JSONL format (first line of the file)
  */
 export interface ManifestHeaderJsonl {
@@ -433,7 +416,7 @@ export interface ManifestEntryJsonl {
  * - First line: header with metadata
  * - Subsequent lines: file entries
  */
-function writeManifestJsonl(manifest: GeneratedManifest): void {
+function writeManifest(manifest: GeneratedManifest): void {
   const outputDir = '.koro-i18n';
   const outputPath = path.join(outputDir, 'koro-i18n.repo.generated.jsonl');
 
@@ -466,7 +449,7 @@ function writeManifestJsonl(manifest: GeneratedManifest): void {
 
   // Write JSONL file
   fs.writeFileSync(outputPath, lines.join('\n') + '\n', 'utf-8');
-  console.log(`  ✓ Manifest JSONL: ${outputPath} (${manifest.files.length} files)`);
+  console.log(`\n✅ Manifest generated: ${outputPath} (${manifest.files.length} files)`);
 }
 
 /**
@@ -490,9 +473,27 @@ export interface ProgressTranslated {
 }
 
 /**
+ * Progress translated header in JSONL format (first line of the file)
+ */
+export interface ProgressHeaderJsonl {
+  type: 'header';
+  language: string;
+  totalFiles: number;
+}
+
+/**
+ * Progress translated file entry in JSONL format
+ */
+export interface ProgressEntryJsonl {
+  type: 'file';
+  filepath: string;  // filepath with <lang> placeholder
+  keys: string[];    // array of translated key names
+}
+
+/**
  * Generate and write progress-translated files for each target language
- * Creates .koro-i18n/progress-translated/[lang].json
- * Content: {[filepath with language replaced by <lang>]: [translated-key-names]}
+ * Creates .koro-i18n/progress-translated/[lang].jsonl
+ * JSONL format: header line followed by file entries
  */
 function writeProgressTranslated(
   files: TranslationFile[],
@@ -517,7 +518,15 @@ function writeProgressTranslated(
 
   // Generate progress-translated file for each target language
   for (const [lang, langFiles] of filesByLang.entries()) {
-    const progressData: ProgressTranslated = {};
+    const lines: string[] = [];
+    
+    // First line: header
+    const header: ProgressHeaderJsonl = {
+      type: 'header',
+      language: lang,
+      totalFiles: langFiles.length,
+    };
+    lines.push(JSON.stringify(header));
 
     for (const file of langFiles) {
       const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, lang);
@@ -525,12 +534,17 @@ function writeProgressTranslated(
       // Get all translated key names (keys from the contents)
       const translatedKeys = Object.keys(file.contents);
 
-      progressData[filepathWithPlaceholder] = translatedKeys;
+      const entry: ProgressEntryJsonl = {
+        type: 'file',
+        filepath: filepathWithPlaceholder,
+        keys: translatedKeys,
+      };
+      lines.push(JSON.stringify(entry));
     }
 
-    // Write the progress file for this language
-    const outputPath = path.join(outputDir, `${lang}.json`);
-    fs.writeFileSync(outputPath, JSON.stringify(progressData, null, 2), 'utf-8');
+    // Write the progress file for this language (JSONL format)
+    const outputPath = path.join(outputDir, `${lang}.jsonl`);
+    fs.writeFileSync(outputPath, lines.join('\n') + '\n', 'utf-8');
     console.log(`  ✓ Progress translated: ${outputPath} (${langFiles.length} files)`);
   }
 
@@ -560,6 +574,24 @@ export interface StoreEntry {
  */
 export interface StoreData {
   [filepathWithLangPlaceholder: string]: Record<string, StoreEntry>;
+}
+
+/**
+ * Store header in JSONL format (first line of the file)
+ */
+export interface StoreHeaderJsonl {
+  type: 'header';
+  language: string;
+  totalFiles: number;
+}
+
+/**
+ * Store file entry in JSONL format
+ */
+export interface StoreFileEntryJsonl {
+  type: 'file';
+  filepath: string;  // filepath with <lang> placeholder
+  entries: Record<string, StoreEntry>;  // key -> StoreEntry map
 }
 
 /**
@@ -668,9 +700,37 @@ function getKeyCommitInfo(
 }
 
 /**
+ * Load existing store data from JSONL file
+ * Returns the data in the StoreData format for compatibility
+ */
+function loadExistingStoreData(jsonlPath: string): StoreData {
+  const existingData: StoreData = {};
+  
+  if (fs.existsSync(jsonlPath)) {
+    try {
+      const content = fs.readFileSync(jsonlPath, 'utf-8');
+      const lines = content.trim().split('\n');
+      
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const parsed = JSON.parse(line);
+        
+        if (parsed.type === 'file') {
+          existingData[parsed.filepath] = parsed.entries;
+        }
+      }
+    } catch {
+      // If parsing fails, start fresh
+    }
+  }
+  
+  return existingData;
+}
+
+/**
  * Generate and write store files for each target language
- * Creates .koro-i18n/store/[lang].json
- * Content: {[filepath with <lang>]: {key: {src, tgt, updated, status}}}
+ * Creates .koro-i18n/store/[lang].jsonl
+ * JSONL format: header line followed by file entries
  * Uses git commit hashes to track changes in source and target files
  */
 function writeStore(
@@ -708,20 +768,13 @@ function writeStore(
 
   // Generate store file for each target language
   for (const [lang, langFiles] of filesByLang.entries()) {
-    const outputPath = path.join(outputDir, `${lang}.json`);
+    const outputPath = path.join(outputDir, `${lang}.jsonl`);
     
     // Load existing store data if it exists (to preserve status for unchanged entries)
-    let existingData: StoreData = {};
-    if (fs.existsSync(outputPath)) {
-      try {
-        existingData = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
-      } catch {
-        // If parsing fails, start fresh
-        existingData = {};
-      }
-    }
+    const existingData = loadExistingStoreData(outputPath);
 
-    const storeData: StoreData = {};
+    const lines: string[] = [];
+    let fileCount = 0;
 
     for (const file of langFiles) {
       const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, lang);
@@ -775,12 +828,26 @@ function writeStore(
       }
 
       if (Object.keys(entriesForFile).length > 0) {
-        storeData[filepathWithPlaceholder] = entriesForFile;
+        const fileEntry: StoreFileEntryJsonl = {
+          type: 'file',
+          filepath: filepathWithPlaceholder,
+          entries: entriesForFile,
+        };
+        lines.push(JSON.stringify(fileEntry));
+        fileCount++;
       }
     }
 
-    // Write the store file for this language
-    fs.writeFileSync(outputPath, JSON.stringify(storeData, null, 2), 'utf-8');
+    // Prepend header
+    const header: StoreHeaderJsonl = {
+      type: 'header',
+      language: lang,
+      totalFiles: fileCount,
+    };
+    lines.unshift(JSON.stringify(header));
+
+    // Write the store file for this language (JSONL format)
+    fs.writeFileSync(outputPath, lines.join('\n') + '\n', 'utf-8');
     console.log(`  ✓ Store: ${outputPath} (${langFiles.length} files)`);
   }
 
@@ -913,12 +980,9 @@ export async function main() {
 
   console.log(`\n📝 Generating manifest for ${allFiles.length} files...`);
   
-  // Generate and write manifest
+  // Generate and write manifest (JSONL format for streaming)
   const manifest = generateManifest(repository, config.source.language, allFiles);
   writeManifest(manifest);
-  
-  // Also write JSONL version for streaming
-  writeManifestJsonl(manifest);
   
   // Generate progress-translated files for each target language
   console.log(`\n📝 Generating progress-translated files...`);

@@ -88,11 +88,11 @@ runs:
         # Run the koro-i18n client to generate metadata
         node "$CLI_PATH" "$CONFIG_PATH"
         
-        METADATA_PATH=".koro-i18n/koro-i18n.repo.generated.json"
+        METADATA_PATH=".koro-i18n/koro-i18n.repo.generated.jsonl"
         
         if [ -f "$METADATA_PATH" ]; then
-          # Use Node.js to parse JSON instead of jq for better portability
-          FILES_COUNT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$METADATA_PATH')).files.length)")
+          # Count files from JSONL header line
+          FILES_COUNT=$(node -e "const fs=require('fs');const lines=fs.readFileSync('$METADATA_PATH','utf-8').trim().split('\n');const header=JSON.parse(lines[0]);console.log(header.totalFiles)")
           echo "metadata-path=$METADATA_PATH" >> $GITHUB_OUTPUT
           echo "files-count=$FILES_COUNT" >> $GITHUB_OUTPUT
           echo "✓ Metadata generated with $FILES_COUNT files"
@@ -111,21 +111,16 @@ runs:
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
 
-        # Check if .koro-i18n directory exists and has the generated file
-        if [ -f ".koro-i18n/koro-i18n.repo.generated.json" ]; then
-          git add .koro-i18n/koro-i18n.repo.generated.json
+        # Check if .koro-i18n directory exists and has the generated JSONL manifest
+        if [ -f ".koro-i18n/koro-i18n.repo.generated.jsonl" ]; then
+          git add .koro-i18n/koro-i18n.repo.generated.jsonl
           
-          # Also add JSONL manifest for streaming support
-          if [ -f ".koro-i18n/koro-i18n.repo.generated.jsonl" ]; then
-            git add .koro-i18n/koro-i18n.repo.generated.jsonl
-          fi
-          
-          # Also add progress-translated files if they exist
+          # Also add progress-translated JSONL files if they exist
           if [ -d ".koro-i18n/progress-translated" ]; then
             git add .koro-i18n/progress-translated/
           fi
           
-          # Also add store files if they exist
+          # Also add store JSONL files if they exist
           if [ -d ".koro-i18n/store" ]; then
             git add .koro-i18n/store/
           fi

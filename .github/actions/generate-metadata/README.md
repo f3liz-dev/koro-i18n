@@ -101,28 +101,11 @@ languages = ["ja", "es", "fr", "de"]
 
 ## Generated Metadata
 
-The action generates `.koro-i18n/koro-i18n.repo.generated.json` with the following structure:
+All metadata files are generated in [JSON Lines](https://jsonlines.org/) (JSONL) format for efficient streaming. This enables progressive loading and chunked transfer without loading entire files into memory.
 
-```json
-{
-  "repository": "owner/repo",
-  "sourceLanguage": "en",
-  "configVersion": 1,
-  "files": [
-    {
-      "filename": "common.json",
-      "sourceFilename": "locales/en/common.json",
-      "lastUpdated": "2024-01-01T00:00:00.000Z",
-      "commitHash": "abc123...",
-      "language": "en"
-    }
-  ]
-}
-```
+### Manifest File
 
-### JSONL Manifest (for Streaming)
-
-The action also generates `.koro-i18n/koro-i18n.repo.generated.jsonl` in [JSON Lines](https://jsonlines.org/) format for efficient streaming. This is particularly useful when working with large repositories:
+The action generates `.koro-i18n/koro-i18n.repo.generated.jsonl`:
 
 ```jsonl
 {"type":"header","repository":"owner/repo","sourceLanguage":"en","configVersion":1,"totalFiles":2}
@@ -130,49 +113,27 @@ The action also generates `.koro-i18n/koro-i18n.repo.generated.jsonl` in [JSON L
 {"type":"file","entry":{"filename":"errors.json","sourceFilename":"locales/en/errors.json","lastUpdated":"2024-01-01T00:00:00.000Z","commitHash":"def456...","language":"en"}}
 ```
 
-The first line is always a header with metadata, and subsequent lines are file entries. This format enables:
-- **Streaming parsing**: Process files one at a time without loading the entire manifest into memory
-- **Chunked transfer**: Backend can stream to frontend using `Transfer-Encoding: chunked`
-- **Progressive loading**: Frontend can display files as they arrive
+The first line is always a header with metadata, and subsequent lines are file entries.
 
 ### Progress Translated Files
 
-The action also generates `.koro-i18n/progress-translated/[lang].json` files for each target language. These files pre-calculate which keys have been translated, enabling efficient progress tracking:
+The action generates `.koro-i18n/progress-translated/[lang].jsonl` files for each target language. These files pre-calculate which keys have been translated:
 
-```json
-{
-  "locales/<lang>/common.json": [
-    "welcome",
-    "goodbye",
-    "buttons.save",
-    "buttons.cancel"
-  ]
-}
+```jsonl
+{"type":"header","language":"ja","totalFiles":2}
+{"type":"file","filepath":"locales/<lang>/common.json","keys":["welcome","goodbye","buttons.save","buttons.cancel"]}
+{"type":"file","filepath":"locales/<lang>/errors.json","keys":["error.network","error.auth"]}
 ```
 
-The filepath uses `<lang>` as a placeholder for the language code, and the value is an array of translated key names in dot notation.
+The filepath uses `<lang>` as a placeholder for the language code, and `keys` is an array of translated key names in dot notation.
 
 ### Store Files
 
-The action also generates `.koro-i18n/store/[lang].json` files for each target language. These files track git commit hashes for source and target translations, enabling koro-i18n to detect when either changes:
+The action generates `.koro-i18n/store/[lang].jsonl` files for each target language. These files track git commit hashes for source and target translations:
 
-```json
-{
-  "locales/<lang>/common.json": {
-    "welcome": {
-      "src": "abc1234",
-      "tgt": "def5678",
-      "updated": 1732521600,
-      "status": "verified"
-    },
-    "buttons.save": {
-      "src": "abc1234",
-      "tgt": "def5678",
-      "updated": 1732521600,
-      "status": "verified"
-    }
-  }
-}
+```jsonl
+{"type":"header","language":"ja","totalFiles":2}
+{"type":"file","filepath":"locales/<lang>/common.json","entries":{"welcome":{"src":"abc1234","tgt":"def5678","updated":1732521600,"status":"verified"},"buttons.save":{"src":"abc1234","tgt":"def5678","updated":1732521600,"status":"verified"}}}
 ```
 
 Each entry contains:

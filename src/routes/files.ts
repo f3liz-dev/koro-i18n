@@ -13,7 +13,6 @@ import {
     fetchFilesFromManifest,
     fetchSingleFileFromGitHub,
     fetchProgressTranslatedFile,
-    createManifestJsonlStream,
     streamFileFromGitHub,
     fetchManifestJsonlStream,
     type GeneratedManifest,
@@ -75,7 +74,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
 
             if (!manifest) {
                 return c.json({ 
-                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.json exists in your repository.' 
+                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.jsonl exists in your repository.' 
                 }, 404);
             }
 
@@ -273,7 +272,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
 
             if (!manifest) {
                 return c.json({ 
-                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.json exists in your repository.' 
+                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.jsonl exists in your repository.' 
                 }, 404);
             }
 
