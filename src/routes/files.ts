@@ -206,7 +206,9 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             }
 
             // Determine content type based on file extension
-            const ext = filePath.split('.').pop()?.toLowerCase();
+            // Handle files with multiple dots or no extension
+            const extParts = filePath.split('.');
+            const ext = extParts.length > 1 ? extParts.pop()?.toLowerCase() : undefined;
             let contentType = 'application/octet-stream';
             if (ext === 'json') contentType = 'application/json';
             else if (ext === 'jsonl') contentType = 'application/x-ndjson';

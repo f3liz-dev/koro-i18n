@@ -9,7 +9,10 @@
 
 /**
  * TextLineStream implementation (similar to @std/streams/text-line-stream)
- * Transforms a stream of text into a stream of lines
+ * Transforms a stream of text into a stream of lines.
+ * 
+ * Note: Empty lines and whitespace-only lines are filtered out.
+ * This is intentional for JSONL parsing where empty lines should be skipped.
  */
 export class TextLineStream extends TransformStream<string, string> {
   constructor() {
@@ -23,6 +26,7 @@ export class TextLineStream extends TransformStream<string, string> {
         buffer = lines.pop() || '';
         
         for (const line of lines) {
+          // Skip empty/whitespace-only lines (intentional for JSONL parsing)
           if (line.trim()) {
             controller.enqueue(line);
           }
@@ -170,9 +174,18 @@ export function createJsonlResponse<T>(
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const item of items as AsyncIterable<T>) {
-          const line = JSON.stringify(item) + '\n';
-          controller.enqueue(encoder.encode(line));
+        // Handle arrays efficiently without async overhead
+        if (Array.isArray(items)) {
+          for (const item of items) {
+            const line = JSON.stringify(item) + '\n';
+            controller.enqueue(encoder.encode(line));
+          }
+        } else {
+          // Handle async iterables
+          for await (const item of items) {
+            const line = JSON.stringify(item) + '\n';
+            controller.enqueue(encoder.encode(line));
+          }
         }
         controller.close();
       } catch (error) {
