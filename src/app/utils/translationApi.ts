@@ -23,7 +23,7 @@ export interface FileData {
   };
   sourceHash: string;
   commitSha: string;
-  uploadedAt: string;
+  fetchedAt: string;
   totalKeys?: number;
 }
 

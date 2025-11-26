@@ -12,6 +12,7 @@ import {
     fetchGeneratedManifest,
     fetchFilesFromManifest,
     fetchSingleFileFromGitHub,
+    fetchProgressTranslatedFile,
     type GeneratedManifest,
     type ManifestFileEntry,
 } from '../lib/github-repo-fetcher';
@@ -290,14 +291,17 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         
         let manifest: GeneratedManifest | null = null;
         let manifestFiles: ManifestFileEntry[] = [];
+        let owner = '';
+        let repo = '';
+        let octokit: Octokit | null = null;
         
         // Try to fetch manifest from GitHub repository
         if (githubToken) {
             try {
                 const parts = project.repository.trim().split('/');
                 if (parts.length === 2 && parts[0] && parts[1]) {
-                    const [owner, repo] = parts;
-                    const octokit = new Octokit({ auth: githubToken });
+                    [owner, repo] = parts;
+                    octokit = new Octokit({ auth: githubToken });
                     manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
                     if (manifest) {
                         manifestFiles = manifest.files;
@@ -350,12 +354,40 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             countMap.set(`${tc.language}:${tc.filename}`, tc._count.id);
         }
 
-        // Build file list from manifest
+        // Fetch progress-translated files from source language to get totalKeys
+        // The progress-translated file contains the keys for each file
+        const sourceLanguage = manifest.sourceLanguage;
+        let progressData: Record<string, string[]> | null = null;
+        
+        if (octokit) {
+            try {
+                progressData = await fetchProgressTranslatedFile(
+                    octokit,
+                    owner,
+                    repo,
+                    sourceLanguage,
+                    branch
+                );
+            } catch (error) {
+                console.warn('[summary] Failed to fetch progress-translated file:', error);
+            }
+        }
+
+        // Build file list from manifest with totalKeys from progress-translated
         const filesWithProgress = filteredManifestFiles.map(mf => {
-            // For totalKeys, we need to fetch the file to count keys
-            // For now, use 0 and let the UI show "needs sync"
-            // A better approach would be to cache totalKeys in the manifest or D1
             const translatedCount = countMap.get(`${mf.language}:${mf.filename}`) || 0;
+            
+            // Get totalKeys from progress-translated file
+            // The key in progress file has <lang> placeholder, replace it with source language
+            const progressKey = mf.filename.replace(new RegExp(mf.language, 'g'), '<lang>');
+            const keys = progressData?.[progressKey] || [];
+            const totalKeys = keys.length;
+            
+            // Calculate translation percentage
+            const translatedKeys = Math.min(translatedCount, totalKeys);
+            const translationPercentage = totalKeys > 0 
+                ? Math.round((translatedKeys / totalKeys) * 100)
+                : 0;
             
             // Parse lastUpdated with validation
             let lastUpdated: Date;
@@ -371,9 +403,9 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             return {
                 filename: mf.filename,
                 lang: mf.language,
-                totalKeys: 0, // Will need to be computed from file content
-                translatedKeys: translatedCount,
-                translationPercentage: 0, // Will need totalKeys to calculate
+                totalKeys,
+                translatedKeys,
+                translationPercentage,
                 lastUpdated,
                 commitHash: mf.commitHash,
             };
@@ -550,7 +582,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
                 metadata: fileData.metadata,
                 sourceHash: fileData.sourceHash,
                 commitSha: fileData.commitSha,
-                uploadedAt: new Date().toISOString(),
+                fetchedAt: new Date().toISOString(),
                 totalKeys: Object.keys(fileData.contents).length,
             });
             response.headers.set('ETag', serverETag);

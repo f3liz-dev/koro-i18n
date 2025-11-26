@@ -541,3 +541,73 @@ export async function fetchSingleFileFromGitHub(
     return null;
   }
 }
+
+/**
+ * Fetch the progress-translated file for a specific language
+ * Path: .koro-i18n/progress-translated/[lang].json
+ * 
+ * Returns a map of filepath (with <lang> placeholder) to array of translated key names
+ */
+export async function fetchProgressTranslatedFile(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  lang: string,
+  branch: string = 'main'
+): Promise<Record<string, string[]> | null> {
+  try {
+    const progressPath = `.koro-i18n/progress-translated/${lang}.json`;
+    
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: progressPath,
+      ref: branch,
+    });
+
+    if (!('content' in data) || !data.content) {
+      return null;
+    }
+
+    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+    return JSON.parse(content) as Record<string, string[]>;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.warn(`[github-fetcher] Progress file not found for ${lang}:`, errorMessage);
+    return null;
+  }
+}
+
+/**
+ * Fetch the store file for a specific language to get source totalKeys
+ * Path: .koro-i18n/store/[lang].json
+ */
+export async function fetchStoreFile(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  lang: string,
+  branch: string = 'main'
+): Promise<Record<string, Record<string, any>> | null> {
+  try {
+    const storePath = `.koro-i18n/store/${lang}.json`;
+    
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: storePath,
+      ref: branch,
+    });
+
+    if (!('content' in data) || !data.content) {
+      return null;
+    }
+
+    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+    return JSON.parse(content) as Record<string, Record<string, any>>;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.warn(`[github-fetcher] Store file not found for ${lang}:`, errorMessage);
+    return null;
+  }
+}

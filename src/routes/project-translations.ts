@@ -56,6 +56,9 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
         if (!project) return c.json({ error: 'Project not found' }, 404);
 
         // Get source hash from GitHub to track source version
+        // Note: This makes a GitHub API call per translation submission.
+        // Consider caching source hashes in D1 or using the store files for better performance.
+        // For now, this is acceptable as translations are submitted infrequently.
         let sourceHash: string | undefined;
         try {
             const githubToken = await getUserGitHubToken(prisma, user.userId);

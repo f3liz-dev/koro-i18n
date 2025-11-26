@@ -113,14 +113,17 @@ export async function invalidateOutdatedTranslations(
   // Get source file from GitHub
   const githubToken = await getUserGitHubToken(prisma, userId);
   if (!githubToken) {
-    console.warn(`[invalidate] No GitHub token for user ${userId}`);
-    return { invalidated: 0, checked };
+    // Log warning and return - validation cannot proceed without GitHub token
+    // This is intentional: validation is skipped but not considered an error
+    // The caller should ensure the user has a valid GitHub token before calling
+    console.warn(`[invalidate] No GitHub token for user ${userId} - skipping validation`);
+    return { invalidated: 0, checked, skipped: true } as any;
   }
 
   const parts = projectRepository.trim().split('/');
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    console.warn(`[invalidate] Invalid repository format: ${projectRepository}`);
-    return { invalidated: 0, checked };
+    console.warn(`[invalidate] Invalid repository format: ${projectRepository} - skipping validation`);
+    return { invalidated: 0, checked, skipped: true } as any;
   }
   const [owner, repo] = parts;
   const octokit = new Octokit({ auth: githubToken });
