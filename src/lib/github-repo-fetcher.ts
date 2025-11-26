@@ -673,7 +673,7 @@ export async function fetchStoreFile(
       return null;
     }
 
-    // Parse JSONL format
+    // Parse JSONL format (supports both legacy 'file' and new 'chunk' types)
     const content = Buffer.from(data.content, 'base64').toString('utf-8');
     const lines = content.trim().split('\n');
     const result: Record<string, Record<string, any>> = {};
@@ -682,8 +682,16 @@ export async function fetchStoreFile(
       if (!line.trim()) continue;
       const parsed = JSON.parse(line);
       
+      // Handle legacy format (entire file in one entry)
       if (parsed.type === 'file') {
         result[parsed.filepath] = parsed.entries;
+      }
+      // Handle new chunked format
+      else if (parsed.type === 'chunk') {
+        if (!result[parsed.filepath]) {
+          result[parsed.filepath] = {};
+        }
+        Object.assign(result[parsed.filepath], parsed.entries);
       }
     }
     

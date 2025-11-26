@@ -577,22 +577,49 @@ export interface StoreData {
 }
 
 /**
+ * Default number of keys per chunk in store files
+ * This prevents individual JSONL lines from becoming too large
+ */
+const STORE_KEYS_PER_CHUNK = 100;
+
+/**
  * Store header in JSONL format (first line of the file)
  */
 export interface StoreHeaderJsonl {
   type: 'header';
   language: string;
   totalFiles: number;
+  totalKeys: number;  // Total number of keys across all files
 }
 
 /**
- * Store file entry in JSONL format
+ * Store file header in JSONL format
+ * One per file, before its chunk entries
  */
+export interface StoreFileHeaderJsonl {
+  type: 'file_header';
+  filepath: string;  // filepath with <lang> placeholder
+  totalKeys: number; // Total number of keys in this file
+}
+
+/**
+ * Store chunk entry in JSONL format
+ * Contains a subset of keys for a file (chunked for streaming)
+ */
+export interface StoreChunkJsonl {
+  type: 'chunk';
+  filepath: string;  // filepath with <lang> placeholder
+  chunkIndex: number;
+  entries: Record<string, StoreEntry>;  // key -> StoreEntry map (limited to STORE_KEYS_PER_CHUNK)
+}
+
+// Legacy type for backward compatibility
 export interface StoreFileEntryJsonl {
   type: 'file';
   filepath: string;  // filepath with <lang> placeholder
   entries: Record<string, StoreEntry>;  // key -> StoreEntry map
 }
+
 
 /**
  * Find line number for a nested key in JSON content
@@ -728,9 +755,69 @@ function loadExistingStoreData(jsonlPath: string): StoreData {
 }
 
 /**
+ * Load existing store data from JSONL file
+ * Handles both legacy format (type: 'file') and new chunked format (type: 'chunk')
+ * Returns the data in the StoreData format for compatibility
+ */
+function loadExistingStoreData(jsonlPath: string): StoreData {
+  const existingData: StoreData = {};
+  
+  if (fs.existsSync(jsonlPath)) {
+    try {
+      const content = fs.readFileSync(jsonlPath, 'utf-8');
+      const lines = content.trim().split('\n');
+      
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const parsed = JSON.parse(line);
+        
+        // Handle legacy format (entire file in one entry)
+        if (parsed.type === 'file') {
+          existingData[parsed.filepath] = parsed.entries;
+        }
+        // Handle new chunked format
+        else if (parsed.type === 'chunk') {
+          if (!existingData[parsed.filepath]) {
+            existingData[parsed.filepath] = {};
+          }
+          Object.assign(existingData[parsed.filepath], parsed.entries);
+        }
+      }
+    } catch {
+      // If parsing fails, start fresh
+    }
+  }
+  
+  return existingData;
+}
+
+/**
+ * Split entries into chunks of specified size
+ */
+function chunkEntries(
+  entries: Record<string, StoreEntry>,
+  chunkSize: number
+): Record<string, StoreEntry>[] {
+  const keys = Object.keys(entries);
+  const chunks: Record<string, StoreEntry>[] = [];
+  
+  for (let i = 0; i < keys.length; i += chunkSize) {
+    const chunkKeys = keys.slice(i, i + chunkSize);
+    const chunk: Record<string, StoreEntry> = {};
+    for (const key of chunkKeys) {
+      chunk[key] = entries[key];
+    }
+    chunks.push(chunk);
+  }
+  
+  return chunks;
+}
+
+/**
  * Generate and write store files for each target language
  * Creates .koro-i18n/store/[lang].jsonl
- * JSONL format: header line followed by file entries
+ * JSONL format: header line followed by file headers and chunked entries
+ * Chunks entries by key limit (STORE_KEYS_PER_CHUNK) for streaming support
  * Uses git commit hashes to track changes in source and target files
  */
 function writeStore(
@@ -773,8 +860,10 @@ function writeStore(
     // Load existing store data if it exists (to preserve status for unchanged entries)
     const existingData = loadExistingStoreData(outputPath);
 
-    const lines: string[] = [];
+    // Collect all file entries first, then chunk and write
+    const fileEntriesMap = new Map<string, Record<string, StoreEntry>>();
     let fileCount = 0;
+    let totalKeys = 0;
 
     for (const file of langFiles) {
       const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, lang);
@@ -828,27 +917,53 @@ function writeStore(
       }
 
       if (Object.keys(entriesForFile).length > 0) {
-        const fileEntry: StoreFileEntryJsonl = {
-          type: 'file',
-          filepath: filepathWithPlaceholder,
-          entries: entriesForFile,
-        };
-        lines.push(JSON.stringify(fileEntry));
+        // Store file info for later processing
+        fileEntriesMap.set(filepathWithPlaceholder, entriesForFile);
         fileCount++;
+        totalKeys += Object.keys(entriesForFile).length;
       }
     }
 
-    // Prepend header
+    // Build the JSONL content with chunked entries
+    const lines: string[] = [];
+
+    // Header with total keys
     const header: StoreHeaderJsonl = {
       type: 'header',
       language: lang,
       totalFiles: fileCount,
+      totalKeys,
     };
-    lines.unshift(JSON.stringify(header));
+    lines.push(JSON.stringify(header));
+
+    // Write file headers and chunked entries
+    for (const [filepath, entries] of fileEntriesMap.entries()) {
+      const keyCount = Object.keys(entries).length;
+      
+      // File header with total keys for this file
+      const fileHeader: StoreFileHeaderJsonl = {
+        type: 'file_header',
+        filepath,
+        totalKeys: keyCount,
+      };
+      lines.push(JSON.stringify(fileHeader));
+
+      // Chunk the entries and write each chunk
+      const chunks = chunkEntries(entries, STORE_KEYS_PER_CHUNK);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk: StoreChunkJsonl = {
+          type: 'chunk',
+          filepath,
+          chunkIndex: i,
+          entries: chunks[i],
+        };
+        lines.push(JSON.stringify(chunk));
+      }
+    }
 
     // Write the store file for this language (JSONL format)
     fs.writeFileSync(outputPath, lines.join('\n') + '\n', 'utf-8');
-    console.log(`  ✓ Store: ${outputPath} (${langFiles.length} files)`);
+    console.log(`  ✓ Store: ${outputPath} (${fileCount} files, ${totalKeys} keys)`);
   }
 
   if (filesByLang.size > 0) {

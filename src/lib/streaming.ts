@@ -238,3 +238,49 @@ export interface ManifestEntryJsonl {
  * Union type for all JSONL manifest entries
  */
 export type ManifestJsonlLine = ManifestHeaderJsonl | ManifestEntryJsonl;
+
+/**
+ * Store entry for a single translation key
+ */
+export interface StoreEntry {
+  src: string;      // Git commit hash (short) of the source line
+  tgt: string;      // Git commit hash (short) of the target/translated line
+  updated: number;  // Unix timestamp (seconds) from git blame
+  status: 'verified' | 'outdated' | 'pending';
+}
+
+/**
+ * Store header in JSONL format (first line of the file)
+ */
+export interface StoreHeaderJsonl {
+  type: 'header';
+  language: string;
+  totalFiles: number;
+  totalKeys: number;  // Total number of keys across all files
+}
+
+/**
+ * Store file header in JSONL format
+ * One per file, before its chunk entries
+ */
+export interface StoreFileHeaderJsonl {
+  type: 'file_header';
+  filepath: string;  // filepath with <lang> placeholder
+  totalKeys: number; // Total number of keys in this file
+}
+
+/**
+ * Store chunk entry in JSONL format
+ * Contains a subset of keys for a file (chunked for streaming)
+ */
+export interface StoreChunkJsonl {
+  type: 'chunk';
+  filepath: string;  // filepath with <lang> placeholder
+  chunkIndex: number;
+  entries: Record<string, StoreEntry>;  // key -> StoreEntry map
+}
+
+/**
+ * Union type for all JSONL store entries
+ */
+export type StoreJsonlLine = StoreHeaderJsonl | StoreFileHeaderJsonl | StoreChunkJsonl;

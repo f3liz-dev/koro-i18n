@@ -129,12 +129,23 @@ The filepath uses `<lang>` as a placeholder for the language code, and `keys` is
 
 ### Store Files
 
-The action generates `.koro-i18n/store/[lang].jsonl` files for each target language. These files track git commit hashes for source and target translations:
+The action generates `.koro-i18n/store/[lang].jsonl` files for each target language. These files track git commit hashes for source and target translations.
+
+Store files use chunked JSONL format to handle large files efficiently:
 
 ```jsonl
-{"type":"header","language":"ja","totalFiles":2}
-{"type":"file","filepath":"locales/<lang>/common.json","entries":{"welcome":{"src":"abc1234","tgt":"def5678","updated":1732521600,"status":"verified"},"buttons.save":{"src":"abc1234","tgt":"def5678","updated":1732521600,"status":"verified"}}}
+{"type":"header","language":"ja","totalFiles":2,"totalKeys":150}
+{"type":"file_header","filepath":"locales/<lang>/common.json","totalKeys":100}
+{"type":"chunk","filepath":"locales/<lang>/common.json","chunkIndex":0,"entries":{"welcome":{"src":"abc1234","tgt":"def5678","updated":1732521600,"status":"verified"},...}}
+{"type":"chunk","filepath":"locales/<lang>/common.json","chunkIndex":1,"entries":{"buttons.save":{"src":"abc1234","tgt":"def5678","updated":1732521600,"status":"verified"},...}}
+{"type":"file_header","filepath":"locales/<lang>/errors.json","totalKeys":50}
+{"type":"chunk","filepath":"locales/<lang>/errors.json","chunkIndex":0,"entries":{"error.network":{"src":"abc1234","tgt":"def5678","updated":1732521600,"status":"verified"},...}}
 ```
+
+The format includes:
+- **header**: Global header with `totalFiles` and `totalKeys` counts
+- **file_header**: Per-file header with `totalKeys` for that file
+- **chunk**: Entries are chunked (100 keys per chunk by default) for streaming
 
 Each entry contains:
 - `src`: Short git commit hash (7 chars) of the source line
@@ -150,7 +161,7 @@ When the source commit changes but target hasn't been updated, the status is mar
 2. Scans for translation files matching the configured patterns
 3. Generates metadata including file paths, languages, and commit hashes
 4. Generates progress-translated files for each target language
-5. Generates store files with git commit tracking for translation validation
+5. Generates store files with git commit tracking for translation validation (chunked for large files)
 6. Commits the metadata files to your repository (if enabled)
 
 The koro-i18n platform can then fetch this metadata to use your GitHub repository as a realtime translation source.
