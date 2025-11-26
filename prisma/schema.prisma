@@ -101,6 +101,7 @@ model WebTranslation {
   @@index([projectId, language, filename, key])
   @@index([updatedAt])
   @@index([isValid])
+  @@index([projectId, language, status, isValid]) // Optimized for counts query
 }
 
 // Web Translation History (audit trail for web translations only)

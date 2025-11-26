@@ -88,23 +88,36 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     const user = c.get('user');
     const includeLanguages = c.req.query('includeLanguages') === 'true';
 
-    const projects = await prisma.project.findMany({
-      where: {
-        OR: [
-          { userId: user.userId },
-          { members: { some: { userId: user.userId, status: 'approved' } } },
-        ],
-      },
-      include: {
-        members: { where: { userId: user.userId }, select: { role: true } },
-      },
+    // Optimization: Split query to avoid slow OR with relation filter
+    // 1. Fetch projects owned by user
+    // 2. Fetch projects where user is an approved member
+    const [ownedProjects, memberProjects] = await Promise.all([
+      prisma.project.findMany({
+        where: { userId: user.userId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.projectMember.findMany({
+        where: { userId: user.userId, status: 'approved' },
+        include: { project: true },
+        orderBy: { project: { createdAt: 'desc' } },
+      }),
+    ]);
+
+    // Combine and deduplicate (in case user is both owner and member)
+    const projectMap = new Map<string, any>();
+
+    ownedProjects.forEach(p => {
+      projectMap.set(p.id, { ...p, role: 'owner' });
     });
 
-    const result = projects.map(p => ({
-      ...p,
-      role: p.userId === user.userId ? 'owner' : p.members[0]?.role || 'member',
-      members: undefined,
-    }));
+    memberProjects.forEach(mp => {
+      if (!projectMap.has(mp.projectId)) {
+        projectMap.set(mp.projectId, { ...mp.project, role: mp.role });
+      }
+    });
+
+    const result = Array.from(projectMap.values())
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     // ETag logic
     const timestamps = result.map(p => p.createdAt);
