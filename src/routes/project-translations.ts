@@ -2,11 +2,13 @@ import { Hono } from 'hono';
 import * as t from 'io-ts';
 import { PrismaClient } from '../generated/prisma/';
 import { authMiddleware } from '../lib/auth';
+import { createProjectMiddleware } from '../lib/project-middleware';
 import { validate } from '../lib/validator';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 import { generateTranslationsETag, generateHistoryETag, checkETagMatch, create304Response } from '../lib/etag-db';
 import { Octokit } from '@octokit/rest';
 import { getUserGitHubToken, fetchSingleFileFromGitHub } from '../lib/github-repo-fetcher';
+import { ensureUserCanModerateTranslation } from '../lib/translation-access';
 
 interface Env {
     JWT_SECRET: string;
@@ -22,9 +24,9 @@ const CreateTranslationSchema = t.type({
     value: t.string,
 });
 
-const serializeTranslation = (t: any) => ({
+const serializeTranslation = (t: any, projectName?: string) => ({
     id: t.id,
-    projectId: t.projectId,
+    projectName: projectName ?? null,
     language: t.language,
     filename: t.filename,
     key: t.key,
@@ -41,19 +43,14 @@ const serializeTranslation = (t: any) => ({
 
 export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) {
     const app = new Hono<{ Bindings: Env }>();
+    // All translation routes require project context for authorization
+    app.use('*', authMiddleware, createProjectMiddleware(prisma, { requireAccess: true, withOctokit: false }));
 
     // Create Translation
-    app.post('/', authMiddleware, validate('json', CreateTranslationSchema), async (c) => {
-        const user = c.get('user');
-        const projectName = c.req.param('projectName');
+    app.post('/', validate('json', CreateTranslationSchema), async (c) => {
+        const user = (c as any).get('user');
         const { language, filename, key, value } = c.req.valid('json' as never) as t.TypeOf<typeof CreateTranslationSchema>;
-
-        const project = await prisma.project.findFirst({
-            where: { name: projectName },
-            select: { id: true, repository: true, sourceLanguage: true },
-        });
-
-        if (!project) return c.json({ error: 'Project not found' }, 404);
+        const project = (c as any).get('project');
 
         // Get source hash from GitHub to track source version
         // Note: This makes a GitHub API call per translation submission.
@@ -61,7 +58,7 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
         // For now, this is acceptable as translations are submitted infrequently.
         let sourceHash: string | undefined;
         try {
-            const githubToken = await getUserGitHubToken(prisma, user.userId);
+                const githubToken = await getUserGitHubToken(prisma, user.userId);
             if (githubToken) {
                 const parts = project.repository.trim().split('/');
                 if (parts.length === 2 && parts[0] && parts[1]) {
@@ -119,26 +116,17 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
     });
 
     // List Translations
-    app.get('/', authMiddleware, async (c) => {
-        const projectName = c.req.param('projectName');
+    app.get('/', async (c) => {
+        const project = (c as any).get('project');
         const language = c.req.query('language');
         const filename = c.req.query('filename');
         const status = c.req.query('status') || 'approved';
         const isValid = c.req.query('isValid');
 
-        const project = await prisma.project.findFirst({
-            where: { name: projectName },
-            select: { id: true },
-        });
+        if (!project) return c.json({ error: 'Project not found' }, 404);
 
         const where: any = { status };
-        if (project) {
-            where.projectId = project.id;
-        } else {
-            // Fallback if project not found by name (maybe it's an ID?)
-            // But we enforce name now.
-            return c.json({ error: 'Project not found' }, 404);
-        }
+        where.projectId = project.id;
 
         if (language) where.language = language;
         if (filename) where.filename = filename;
@@ -156,15 +144,15 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
             return create304Response(etag, buildCacheControl(CACHE_CONFIGS.translations));
         }
 
-        const response = c.json({ translations: translations.map(serializeTranslation) });
+        const response = c.json({ translations: translations.map(t => serializeTranslation(t, project.name)) });
         response.headers.set('ETag', etag);
         response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translations));
         return response;
     });
 
     // History
-    app.get('/history', authMiddleware, async (c) => {
-        const projectName = c.req.param('projectName');
+    app.get('/history', async (c) => {
+        const project = (c as any).get('project');
         const language = c.req.query('language');
         const filename = c.req.query('filename');
         const key = c.req.query('key');
@@ -173,10 +161,6 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
             return c.json({ error: 'Missing required parameters' }, 400);
         }
 
-        const project = await prisma.project.findFirst({
-            where: { name: projectName },
-            select: { id: true },
-        });
         if (!project) return c.json({ error: 'Project not found' }, 404);
 
         const history = await prisma.webTranslationHistory.findMany({
@@ -197,16 +181,12 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
     });
 
     // Suggestions
-    app.get('/suggestions', authMiddleware, async (c) => {
-        const projectName = c.req.param('projectName');
+    app.get('/suggestions', async (c) => {
+        const project = (c as any).get('project');
         const language = c.req.query('language');
         const filename = c.req.query('filename');
         const key = c.req.query('key');
 
-        const project = await prisma.project.findFirst({
-            where: { name: projectName },
-            select: { id: true },
-        });
         if (!project) return c.json({ error: 'Project not found' }, 404);
 
         const where: any = { projectId: project.id, status: { not: 'deleted' } };
@@ -226,21 +206,16 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
             return create304Response(etag, buildCacheControl(CACHE_CONFIGS.translationSuggestions));
         }
 
-        const response = c.json({ suggestions: suggestions.map(serializeTranslation) });
+        const response = c.json({ suggestions: suggestions.map(t => serializeTranslation(t, project.name)) });
         response.headers.set('ETag', etag);
         response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translationSuggestions));
         return response;
     });
 
     // Get Translation Counts
-    app.get('/counts', authMiddleware, async (c) => {
-        const projectName = c.req.param('projectName');
+    app.get('/counts', async (c) => {
+        const project = (c as any).get('project');
         const language = c.req.query('language');
-
-        const project = await prisma.project.findFirst({
-            where: { name: projectName },
-            select: { id: true },
-        });
 
         if (!project) return c.json({ error: 'Project not found' }, 404);
 
@@ -266,5 +241,106 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
         return c.json({ counts: result });
     });
 
+    // Get single translation
+    app.get('/:id', async (c) => {
+        const project = (c as any).get('project');
+        const id = c.req.param('id');
+        if (!project) return c.json({ error: 'Project not found' }, 404);
+
+        const translation = await prisma.webTranslation.findUnique({
+            where: { id },
+            include: { user: { select: { username: true, avatarUrl: true } } },
+        });
+        if (!translation || translation.projectId !== project.id) return c.json({ error: 'Not found' }, 404);
+        return c.json({ translation: serializeTranslation(translation, project.name) });
+    });
+
+    // Approve/Reject translation
+    app.patch('/:id', async (c) => {
+        const user = (c as any).get('user');
+        const project = (c as any).get('project');
+        const id = c.req.param('id');
+        const body = await c.req.json();
+        const status = body?.status;
+        if (!['approved', 'rejected'].includes(status)) return c.json({ error: 'Invalid status' }, 400);
+
+        const translation = await prisma.webTranslation.findUnique({ where: { id } });
+        if (!translation) return c.json({ error: 'Translation not found' }, 404);
+        if (translation.projectId !== (c as any).get('project')?.id) return c.json({ error: 'Not found' }, 404);
+
+        try {
+            await ensureUserCanModerateTranslation(prisma, translation.projectId, user);
+        } catch (e) {
+            return c.json({ error: 'Forbidden' }, 403);
+        }
+
+        if (status === 'approved') {
+            // Reject other pending/approved translations for same projectId+language+key
+            await prisma.webTranslation.updateMany({
+                where: {
+                    projectId: translation.projectId,
+                    language: translation.language,
+                    key: translation.key,
+                    id: { not: translation.id },
+                    status: { in: ['pending', 'approved'] },
+                },
+                data: { status: 'rejected' },
+            });
+        }
+
+        const updated = await prisma.webTranslation.update({ where: { id }, data: { status } });
+        await prisma.webTranslationHistory.create({
+            data: {
+                id: crypto.randomUUID(),
+                translationId: updated.id,
+                projectId: updated.projectId,
+                language: updated.language,
+                filename: updated.filename,
+                key: updated.key,
+                value: updated.value,
+                userId: user.userId,
+                action: status === 'approved' ? 'approved' : 'rejected',
+                sourceHash: updated.sourceHash,
+            },
+        });
+
+        return c.json({ success: true, translation: serializeTranslation(updated, project.name) });
+    });
+
+    // Delete translation
+    app.delete('/:id', async (c) => {
+        const user = (c as any).get('user');
+        const id = c.req.param('id');
+
+        const translation = await prisma.webTranslation.findUnique({ where: { id } });
+        if (!translation) return c.json({ error: 'Translation not found' }, 404);
+        if (translation.projectId !== (c as any).get('project')?.id) return c.json({ error: 'Not found' }, 404);
+
+        try {
+            await ensureUserCanModerateTranslation(prisma, translation.projectId, user);
+        } catch (e) {
+            return c.json({ error: 'Forbidden' }, 403);
+        }
+
+        await prisma.webTranslation.delete({ where: { id } });
+        await prisma.webTranslationHistory.create({
+            data: {
+                id: crypto.randomUUID(),
+                translationId: translation.id,
+                projectId: translation.projectId,
+                language: translation.language,
+                filename: translation.filename,
+                key: translation.key,
+                value: translation.value,
+                userId: user.userId,
+                action: 'deleted',
+                sourceHash: translation.sourceHash,
+            },
+        });
+
+        return c.json({ success: true });
+    });
+
     return app;
 }
+

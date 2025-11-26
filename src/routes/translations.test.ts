@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
-import { createTranslationRoutes } from './translations';
+import { createProjectTranslationRoutes } from './project-translations';
 import { PrismaClient } from '../generated/prisma';
 
 describe('Translation Routes', () => {
@@ -13,7 +13,8 @@ describe('Translation Routes', () => {
       JWT_SECRET: 'test-secret',
     };
     app = new Hono();
-    app.route('/api/translations', createTranslationRoutes(prisma, env));
+    // mount project-level translations to simulate nested routes
+    app.route('/api/projects/:projectName/translations', createProjectTranslationRoutes(prisma, env));
   });
 
   describe('Translation Approval', () => {

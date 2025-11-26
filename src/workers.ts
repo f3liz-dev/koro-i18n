@@ -3,7 +3,6 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { initializePrisma, resolveActualProjectId } from './lib/database';
 import { createAuthRoutes } from './routes/auth';
-import { createTranslationRoutes } from './routes/translations';
 import { createProjectRoutes } from './routes/projects';
 import { CACHE_CONFIGS, buildCacheControl } from './lib/cache-headers';
 import { etagMiddleware } from './lib/etag-middleware';
@@ -38,7 +37,7 @@ export function createWorkerApp(env: Env) {
   app.use('/health', etagMiddleware);
 
   app.route('/api/auth', createAuthRoutes(prisma, env));
-  app.route('/api/translations', createTranslationRoutes(prisma, env));
+  // Translation routes are now nested under projects: /api/projects/:projectName/translations
   app.route('/api/projects', createProjectRoutes(prisma, env));
 
   app.get('/api/logs/history', async (c) => {

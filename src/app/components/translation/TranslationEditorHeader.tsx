@@ -1,12 +1,14 @@
 import { useNavigate } from '@solidjs/router';
+import { Show } from 'solid-js';
 
 interface TranslationEditorHeaderProps {
-  projectId: string;
+  projectName: string;
   language: string;
   filename?: string;
   completionPercentage: number;
   onMenuToggle: () => void;
   showMobileMenu: boolean;
+  isStreamingStore?: boolean;
 }
 
 export function TranslationEditorHeader(props: TranslationEditorHeaderProps) {
@@ -28,7 +30,7 @@ export function TranslationEditorHeader(props: TranslationEditorHeaderProps) {
           <div>
             <h1 style={{ 'font-size': '1.125rem', 'font-weight': '600' }}>Translation Editor</h1>
             <p style={{ 'font-size': '0.75rem', color: 'var(--text-secondary)' }}>
-              {props.projectId} • {props.language.toUpperCase()}
+              {props.projectName} • {props.language.toUpperCase()}
               {props.filename && <span> • <code class="code-chip">{props.filename}</code></span>}
             </p>
           </div>
@@ -41,6 +43,9 @@ export function TranslationEditorHeader(props: TranslationEditorHeaderProps) {
           <button onClick={() => navigate('/dashboard')} class="btn ghost">
             Back
           </button>
+          <Show when={props.isStreamingStore}>
+            <div style={{ 'font-size': '0.875rem', color: 'var(--text-secondary)' }} title="Receiving store updates">🔄</div>
+          </Show>
         </div>
       </div>
     </div>

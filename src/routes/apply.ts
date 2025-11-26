@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import * as t from 'io-ts';
 import { PrismaClient } from '../generated/prisma/';
 import { authMiddleware } from '../lib/auth';
+import { createProjectMiddleware } from '../lib/project-middleware';
 import { validate } from '../lib/validator';
 import { getTranslationsDiff, exportApprovedTranslations, markTranslationsAsCommitted } from '../lib/github-pr-service';
 
@@ -38,6 +39,8 @@ function hasProjectAccess(user: any, project: { userId: string; repository: stri
 
 export function createApplyRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono<{ Bindings: Env }>();
+  // Provide project context; access checks are handled per-route
+  app.use('*', authMiddleware, createProjectMiddleware(prisma, { requireAccess: false, withOctokit: false }));
 
   /**
    * Preview the translations that would be applied
@@ -49,18 +52,10 @@ export function createApplyRoutes(prisma: PrismaClient, env: Env) {
    * - JWT: Project owner only
    * - OIDC: Repository must match project's repository
    */
-  app.get('/preview', authMiddleware, async (c) => {
-    const user = c.get('user');
-    const projectName = c.req.param('projectName');
-
-    const project = await prisma.project.findUnique({
-      where: { name: projectName },
-      select: { id: true, userId: true, repository: true },
-    });
-
-    if (!project) {
-      return c.json({ error: 'Project not found' }, 404);
-    }
+  app.get('/preview', async (c) => {
+    const user = (c as any).get('user');
+    const project = (c as any).get('project');
+    if (!project) return c.json({ error: 'Project not found' }, 404);
 
     // Check access - owner or matching repository (OIDC)
     if (!hasProjectAccess(user, project)) {
@@ -95,18 +90,10 @@ export function createApplyRoutes(prisma: PrismaClient, env: Env) {
    * - translations: array of {id, language, filename, key, value}
    * - summary: {total, byLanguage, byFile}
    */
-  app.get('/export', authMiddleware, async (c) => {
-    const user = c.get('user');
-    const projectName = c.req.param('projectName');
-
-    const project = await prisma.project.findUnique({
-      where: { name: projectName },
-      select: { id: true, userId: true, repository: true },
-    });
-
-    if (!project) {
-      return c.json({ error: 'Project not found' }, 404);
-    }
+  app.get('/export', async (c) => {
+    const user = (c as any).get('user');
+    const project = (c as any).get('project');
+    if (!project) return c.json({ error: 'Project not found' }, 404);
 
     // Check access - owner or matching repository (OIDC)
     if (!hasProjectAccess(user, project)) {
@@ -150,19 +137,11 @@ export function createApplyRoutes(prisma: PrismaClient, env: Env) {
    * - success: boolean
    * - count: number - Number of translations marked as committed
    */
-  app.post('/committed', authMiddleware, validate('json', MarkCommittedSchema), async (c) => {
-    const user = c.get('user');
-    const projectName = c.req.param('projectName');
-    const { translationIds } = c.req.valid('json');
-
-    const project = await prisma.project.findUnique({
-      where: { name: projectName },
-      select: { id: true, userId: true, repository: true },
-    });
-
-    if (!project) {
-      return c.json({ error: 'Project not found' }, 404);
-    }
+  app.post('/committed', validate('json', MarkCommittedSchema), async (c) => {
+    const user = (c as any).get('user');
+    const { translationIds } = c.req.valid('json' as never) as t.TypeOf<typeof MarkCommittedSchema>;
+    const project = (c as any).get('project');
+    if (!project) return c.json({ error: 'Project not found' }, 404);
 
     // Check access - owner or matching repository (OIDC)
     if (!hasProjectAccess(user, project)) {

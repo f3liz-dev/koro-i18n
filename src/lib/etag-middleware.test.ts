@@ -82,7 +82,7 @@ describe('ETag Middleware Integration', () => {
     const app = createWorkerApp(mockEnv);
     
     // POST requests should not have ETags
-    const response = await app.request('/api/translations', {
+    const response = await app.request('/api/projects/test/translations', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

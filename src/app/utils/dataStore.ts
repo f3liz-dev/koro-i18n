@@ -329,9 +329,9 @@ export const translationsCache = createCacheStore<TranslationsState, { translati
   makeKey: (projectName: string, language: string, status?: string) =>
     `${projectName}:${language}${status ? `:${status}` : ''}`,
   makeUrl: (projectName: string, language: string, status?: string) => {
-    const params = new URLSearchParams({ projectName, language });
+    const params = new URLSearchParams({ language });
     if (status) params.append('status', status);
-    return `/api/translations?${params}`;
+    return `/api/projects/${encodeURIComponent(projectName)}/translations?${params}`;
   },
   extractData: (data: any) => ({ translations: data.translations }),
   extractEtag: (res: any) => res.etag,
@@ -343,7 +343,7 @@ export const translationsCache = createCacheStore<TranslationsState, { translati
  */
 interface Suggestion {
   id: string;
-  projectId: string;
+  projectName: string;
   language: string;
   key: string;
   value: string;
@@ -368,9 +368,9 @@ export const suggestionsCache = createCacheStore<SuggestionsState, { suggestions
   makeKey: (projectName: string, language: string, key?: string) =>
     key ? `${projectName}:${language}:${key}` : `${projectName}:${language}`,
   makeUrl: (projectName: string, language: string, key?: string) => {
-    const params = new URLSearchParams({ projectName, language });
+    const params = new URLSearchParams({ language });
     if (key) params.append('key', key);
-    return `/api/translations/suggestions?${params}`;
+    return `/api/projects/${encodeURIComponent(projectName)}/translations/suggestions?${params}`;
   },
   extractData: (data: any) => ({ suggestions: data.suggestions }),
   extractEtag: (res: any) => res.etag,

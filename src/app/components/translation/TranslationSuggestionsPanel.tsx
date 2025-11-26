@@ -3,7 +3,7 @@ import { SkeletonListItem } from '../ui';
 
 interface SuggestionEntry {
   id: string;
-  projectId: string;
+  projectName: string;
   language: string;
   key: string;
   value: string;
@@ -53,7 +53,7 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
     <Show when={props.show}>
       <div style={{ 'border-top': '1px solid var(--border)', padding: '1rem' }}>
         <h3 style={{ 'font-size': '0.875rem', 'font-weight': '600', 'margin-bottom': '0.75rem' }}>Suggestions</h3>
-        
+
         <Show when={props.isLoading}>
           <SkeletonListItem />
           <SkeletonListItem />
@@ -77,7 +77,7 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
                           {entry.value}
                         </div>
                       </Show>
-                      
+
                       <div style={{ display: 'flex', 'align-items': 'center', gap: '0.5rem', 'flex-wrap': 'wrap' }}>
                         <Show when={entry.username}>
                           <img

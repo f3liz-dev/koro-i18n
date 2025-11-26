@@ -21,8 +21,8 @@ export interface ProgressEntry {
     keys: string[];
 }
 
-export async function* streamJsonl<T>(url: string): AsyncGenerator<T> {
-    const response = await authFetch(url, { credentials: 'include' });
+export async function* streamJsonl<T>(url: string, init?: RequestInit): AsyncGenerator<T> {
+    const response = await authFetch(url, { credentials: 'include', ...(init || {}) });
     if (!response.ok || !response.body) {
         throw new Error(`Failed to stream from ${url}`);
     }

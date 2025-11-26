@@ -1,6 +1,6 @@
 import { Show } from 'solid-js';
 import { TranslationList } from '../translation';
-import type { MergedTranslation } from '../../utils/translationApi';
+import type { UiMergedTranslation as MergedTranslation } from '../../utils/translationApi';
 import type { SortMethod } from '../../pages/TranslationEditorPage';
 
 interface MobileMenuOverlayProps {

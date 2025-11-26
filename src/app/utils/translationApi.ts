@@ -1,4 +1,35 @@
 import { authFetch } from './authFetch';
+import { streamJsonl } from './streaming';
+
+// Store JSONL types used by the client streaming API
+export interface StoreEntry {
+  src: string; // source commit hash
+  tgt: string; // target commit hash (if present)
+  updated: number; // unix timestamp (seconds)
+  status: 'verified' | 'outdated' | 'pending';
+}
+
+export interface StoreHeaderJsonl {
+  type: 'header';
+  language: string;
+  totalFiles: number;
+  totalKeys: number;
+}
+
+export interface StoreFileHeaderJsonl {
+  type: 'file_header';
+  filepath: string;
+  totalKeys: number;
+}
+
+export interface StoreChunkJsonl {
+  type: 'chunk';
+  filepath: string;
+  chunkIndex: number;
+  entries: Record<string, StoreEntry>;
+}
+
+export type StoreJsonlLine = StoreHeaderJsonl | StoreFileHeaderJsonl | StoreChunkJsonl;
 import type {
   GitBlameInfo,
   CharRange,
@@ -10,6 +41,9 @@ import type {
 export type WebTranslation = SharedWebTranslation;
 export type MergedTranslation = SharedMergedTranslation;
 export type { GitBlameInfo, CharRange };
+
+// UI variant of merged translation that includes optional store entry metadata
+export type UiMergedTranslation = MergedTranslation & { storeEntry?: StoreEntry };
 
 /**
  * File data structure returned from the API (GitHub-based)
@@ -54,16 +88,26 @@ export async function fetchFileFromGitHub(
       throw new Error('Failed to fetch file');
     }
 
-    const fileData = await response.json() as FileData;
+    // The endpoint now returns raw content (JSON) directly
+    // We need to reconstruct the FileData structure expected by the app
+    const rawContent = await response.json();
 
-    // Ensure metadata has the required shape when missing
-    const emptyMetadata = { gitBlame: {}, charRanges: {}, sourceHashes: {} };
-    fileData.metadata = {
-      ...emptyMetadata,
-      ...(fileData.metadata || {})
+    // Get commit SHA from ETag header (remove quotes)
+    const etag = response.headers.get('ETag');
+    const commitSha = etag ? etag.replace(/"/g, '') : '';
+
+    return {
+      raw: rawContent,
+      metadata: {
+        gitBlame: {},
+        charRanges: {},
+        sourceHashes: {}
+      },
+      sourceHash: '', // We could calculate this if needed, but for now leave empty
+      commitSha,
+      fetchedAt: new Date().toISOString(),
+      totalKeys: Object.keys(rawContent).length
     };
-
-    return fileData;
   } catch (error) {
     console.error('[GitHub] Fetch error:', error);
     return null;
@@ -106,6 +150,23 @@ export async function fetchWebTranslations(
   } catch (error) {
     console.error('[D1] Fetch error:', error);
     return [];
+  }
+}
+
+/**
+ * Stream store JSONL file from backend and yield parsed StoreJsonlLine items
+ * This allows UI to react to incoming chunked store entries and update
+ * translation statuses progressively as chunks arrive.
+ */
+export async function* streamStore(
+  projectName: string,
+  language: string,
+  init?: RequestInit
+): AsyncGenerator<StoreJsonlLine> {
+  const url = `/api/projects/${encodeURIComponent(projectName)}/files/store/stream/${encodeURIComponent(language)}`;
+  const generator = streamJsonl<StoreJsonlLine>(url, init);
+  for await (const line of generator) {
+    yield line;
   }
 }
 
@@ -218,8 +279,8 @@ export async function submitTranslation(
 /**
  * Approve suggestion
  */
-export async function approveSuggestion(id: string): Promise<void> {
-  const response = await authFetch(`/api/translations/${id}/approve`, {
+export async function approveSuggestion(projectName: string, id: string): Promise<void> {
+  const response = await authFetch(`/api/projects/${encodeURIComponent(projectName)}/translations/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -232,8 +293,8 @@ export async function approveSuggestion(id: string): Promise<void> {
 /**
  * Reject suggestion
  */
-export async function rejectSuggestion(id: string): Promise<void> {
-  const response = await authFetch(`/api/translations/${id}`, {
+export async function rejectSuggestion(projectName: string, id: string): Promise<void> {
+  const response = await authFetch(`/api/projects/${encodeURIComponent(projectName)}/translations/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });

@@ -96,7 +96,7 @@ export async function fetchTranslations(projectName: string, language: string, s
   const params = new URLSearchParams({ projectName, language });
   if (status) params.append('status', status);
 
-  const url = `/api/translations?${params}`;
+  const url = `/api/projects/${encodeURIComponent(projectName)}/translations?${new URLSearchParams({ language, ...(status ? { status } : {}) })}`;
   const res = await authFetch(url, { credentials: 'include' });
   if (!res.ok) {
     if (res.status === 304) return translationsCache.get(url) || { translations: [] };
@@ -110,8 +110,7 @@ export async function fetchTranslations(projectName: string, language: string, s
 export async function fetchSuggestions(projectName: string, language: string, key?: string) {
   const params = new URLSearchParams({ projectName, language });
   if (key) params.append('key', key);
-
-  const url = `/api/translations/suggestions?${params}`;
+  const url = `/api/projects/${encodeURIComponent(projectName)}/translations/suggestions?${new URLSearchParams({ language, ...(key ? { key } : {}) })}`;
   const res = await authFetch(url, { credentials: 'include' });
   if (!res.ok) {
     if (res.status === 304) return suggestionsCache.get(url) || { suggestions: [] };
@@ -128,8 +127,7 @@ export const fetchFilesSummaryQuery = async (projectName: string, language?: str
 };
 
 export const fetchSuggestionsQuery = async (projectName: string, language: string) => {
-  const params = new URLSearchParams({ projectName, language });
-  const url = `/api/translations/suggestions?${params}`;
+  const url = `/api/projects/${encodeURIComponent(projectName)}/translations/suggestions?${new URLSearchParams({ language })}`;
   const res = await authFetch(url, { credentials: 'include' });
   if (!res.ok) {
     if (res.status === 304) return suggestionsCache.get(url) || { suggestions: [] };
@@ -201,8 +199,7 @@ export function createFetchFilesSummaryQuery() {
 
 export function createFetchSuggestionsQuery() {
   return query(async (projectName: string, language: string) => {
-    const params = new URLSearchParams({ projectName, language });
-    const url = `/api/translations/suggestions?${params}`;
+    const url = `/api/projects/${encodeURIComponent(projectName)}/translations/suggestions?${new URLSearchParams({ language })}`;
     const res = await authFetch(url, { credentials: 'include' });
     if (!res.ok) {
       if (res.status === 304) return suggestionsCache.get(url) || { suggestions: [] };

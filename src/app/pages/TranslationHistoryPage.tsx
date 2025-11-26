@@ -14,9 +14,9 @@ interface HistoryEntry {
 }
 
 async function fetchHistory(projectName: string, language: string, key: string) {
-  const params = new URLSearchParams({ projectName, language, key });
-  const url = `/api/translations/history?${params}`;
-  
+  const params = new URLSearchParams({ language, key });
+  const url = `/api/projects/${encodeURIComponent(projectName)}/translations/history?${params}`;
+
   const response = await authFetch(url, { credentials: 'include' });
   if (!response.ok) throw new Error('Failed to fetch history');
   const data = await response.json() as { history: HistoryEntry[] };

@@ -97,7 +97,7 @@ export function prefetchForRoute(route: string, projectName?: string, language?:
       ? [
           `/api/projects`,
           `/api/projects/${projectName}/files?lang=${language}`,
-          `/api/translations?projectName=${projectName}&language=${language}`,
+          `/api/projects/${projectName}/translations?language=${language}`,
         ]
       : [],
   };

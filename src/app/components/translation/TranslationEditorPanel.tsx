@@ -1,6 +1,6 @@
 import { Show } from "solid-js";
 import { TranslationSuggestionsPanel } from "./TranslationSuggestionsPanel";
-import type { MergedTranslation, WebTranslation } from "../../utils/translationApi";
+import type { UiMergedTranslation as MergedTranslation, WebTranslation } from "../../utils/translationApi";
 
 interface TranslationEditorPanelProps {
   selectedKey: string | null;
@@ -105,7 +105,7 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
               <div style={{ 'font-size': '0.75rem', color: 'var(--text-muted)', 'margin-top': '0.25rem' }}>
                 {translation()!.sourceValue.length} characters
               </div>
-              
+
               <Show when={translation()?.gitBlame}>
                 {(blame) => (
                   <div class="panel" style={{ 'margin-top': '0.5rem', 'font-size': '0.75rem' }}>

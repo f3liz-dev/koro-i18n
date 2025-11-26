@@ -7,7 +7,7 @@ import { authFetch } from '../utils/authFetch';
 
 interface TranslationSuggestion {
   id: string;
-  projectId: string;
+  projectName: string;
   language: string;
   key: string;
   value: string;
@@ -25,8 +25,8 @@ interface GroupedSuggestion {
   suggestions: TranslationSuggestion[];
 }
 
-async function deleteTranslation(id: string) {
-  const response = await authFetch(`/api/translations/${id}`, {
+async function deleteTranslation(projectName: string, id: string) {
+  const response = await authFetch(`/api/projects/${encodeURIComponent(projectName)}/translations/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -74,7 +74,7 @@ export default function TranslationSuggestionsPage() {
     }
 
     try {
-      await deleteTranslation(id);
+      await deleteTranslation(projectName(), id);
       refetch();
     } catch (error) {
       console.error('Failed to delete translation:', error);

@@ -80,7 +80,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       data: { id, userId: user.userId, name, repository },
     });
 
-    return c.json({ success: true, id, name, repository });
+    return c.json({ success: true, id, name, projectName: name, repository });
   });
 
   // List Projects

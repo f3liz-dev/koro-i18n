@@ -1,4 +1,4 @@
-import { createSignal, onMount, createEffect } from 'solid-js';
+import { createSignal, onMount, createEffect, onCleanup } from 'solid-js';
 import { useParams, useNavigate, useSearchParams } from '@solidjs/router';
 import { user } from '../auth';
 import {
@@ -15,7 +15,8 @@ import {
   fetchSuggestions,
   approveSuggestion,
   rejectSuggestion,
-  type MergedTranslation,
+  streamStore,
+  type UiMergedTranslation as MergedTranslation,
   type WebTranslation,
 } from '../utils/translationApi';
 import { authFetch } from '../utils/authFetch';
@@ -61,9 +62,11 @@ export default function TranslationEditorPage() {
   const [showMobileMenu, setShowMobileMenu] = createSignal(false);
   const [isLoading, setIsLoading] = createSignal(true);
   const [isSaving, setIsSaving] = createSignal(false);
+  const [isStreamingStore, setIsStreamingStore] = createSignal(false);
 
   async function loadProject() {
     try {
+      setIsStreamingStore(true);
       const response = await authFetch('/api/projects', { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch projects');
 
@@ -120,6 +123,63 @@ export default function TranslationEditorPage() {
     }
   }
 
+  // Progressive store streaming: updates `isValid` on translations as store chunks arrive
+  let storeController: AbortController | null = null;
+
+  async function streamStoreAndApply() {
+    const proj = project();
+    if (!proj) return;
+
+    const targetLang = language();
+    const filenameActual = filename();
+    const filenameBase = filenameActual.split('/').pop() || filenameActual;
+
+    try {
+      // Abort any previous stream
+      if (storeController) {
+        try { storeController.abort(); } catch { }
+        storeController = null;
+      }
+
+      storeController = new AbortController();
+      const init: RequestInit = { signal: storeController.signal, credentials: 'include', headers: { 'Accept': 'application/x-ndjson' } };
+
+      for await (const line of streamStore(proj.name, targetLang, init)) {
+        if (line.type === 'file_header') {
+          // Ignore headers unless used in future
+          continue;
+        }
+
+        // Only process chunks for our file - match by file basename to be robust with paths
+        if (!(line as any).filepath.endsWith(`/${filenameBase}`) && (line as any).filepath !== filenameBase) continue;
+
+        if (line.type === 'chunk') {
+          const chunk = line as any;
+          // Update translations `isValid` flags based on store entries
+          setTranslations(prev => {
+            if (!prev || prev.length === 0) return prev;
+            const updated = prev.map(t => {
+              const entry = chunk.entries?.[t.key];
+              if (!entry) return t;
+
+              // Map store status to isValid boolean
+              const isValid = entry.status !== 'outdated';
+              // Attach store entry metadata (for UI display) and set isValid
+              return { ...t, isValid, storeEntry: entry };
+            });
+            return updated;
+          });
+        }
+      }
+    } catch (e) {
+      // Streaming errors are non-fatal; just log
+      console.warn('Store stream error:', e);
+    } finally {
+      setIsStreamingStore(false);
+      storeController = null;
+    }
+  }
+
   async function loadSuggestions(force = false) {
     const proj = project();
     const key = selectedKey();
@@ -146,6 +206,16 @@ export default function TranslationEditorPage() {
   createEffect(() => {
     if (project()) {
       loadTranslations();
+      // start streaming store chunk updates
+      streamStoreAndApply();
+    }
+  });
+
+  // Ensure stream aborted when component unmounts
+  onCleanup(() => {
+    if (storeController) {
+      try { storeController.abort(); } catch { }
+      storeController = null;
     }
   });
 
@@ -238,7 +308,9 @@ export default function TranslationEditorPage() {
 
   const handleApproveSuggestion = async (id: string) => {
     try {
-      await approveSuggestion(id);
+      const proj = project();
+      if (!proj) throw new Error('Project not found');
+      await approveSuggestion(proj.name, id);
       await loadTranslations();
       await loadSuggestions(true);
       alert('Suggestion approved!');
@@ -252,7 +324,9 @@ export default function TranslationEditorPage() {
     if (!confirm('Are you sure you want to reject this suggestion?')) return;
 
     try {
-      await rejectSuggestion(id);
+      const proj = project();
+      if (!proj) throw new Error('Project not found');
+      await rejectSuggestion(proj.name, id);
       await loadSuggestions(true);
       alert('Suggestion rejected!');
     } catch (error) {
@@ -296,12 +370,13 @@ export default function TranslationEditorPage() {
   return (
     <div class="page animate-fade-in">
       <TranslationEditorHeader
-        projectId={projectName()}
+        projectName={projectName()}
         language={language()}
         filename={displayFilename()}
         completionPercentage={getCompletionPercentage()}
         onMenuToggle={() => setShowMobileMenu(!showMobileMenu())}
         showMobileMenu={showMobileMenu()}
+        isStreamingStore={isStreamingStore()}
       />
 
       <MobileMenuOverlay

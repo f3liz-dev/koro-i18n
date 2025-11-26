@@ -1,5 +1,5 @@
 import { Show, For } from "solid-js";
-import type { MergedTranslation } from "../../utils/translationApi";
+import type { UiMergedTranslation as MergedTranslation } from "../../utils/translationApi";
 import type { SortMethod } from "../../pages/TranslationEditorPage";
 
 interface TranslationListProps {
@@ -34,7 +34,7 @@ export function TranslationList(props: TranslationListProps) {
         <h2 style={{ 'font-size': '1rem', 'font-weight': '600', 'margin-bottom': '0.75rem' }}>
           Translation Keys
         </h2>
-        
+
         {/* Search */}
         <input
           type="text"
@@ -185,6 +185,12 @@ export function TranslationList(props: TranslationListProps) {
                       </Show>
                       <Show when={translation.webTranslation}>
                         <span class="badge success">Web</span>
+                      </Show>
+                      <Show when={translation.storeEntry && translation.storeEntry.status === 'verified'}>
+                        <span class="badge success" title={`Store: verified`}>Store</span>
+                      </Show>
+                      <Show when={translation.storeEntry && translation.storeEntry.status === 'pending'}>
+                        <span class="badge warning" title={`Store: pending`}>Store</span>
                       </Show>
                       <Show when={translation.gitBlame && !translation.webTranslation}>
                         <span class="badge">Git</span>
