@@ -344,6 +344,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
 
         // Build file list from manifest or fallback to R2File table
         let files: { lang: string; filename: string; totalKeys: number; lastUpdated: Date }[] = [];
+        let r2FileMap = new Map<string, { totalKeys: number; lastUpdated: Date; approvedCount: number; committedCount: number }>();
         
         if (manifestFiles.length > 0) {
             // Filter manifest files by language if specified
@@ -353,25 +354,22 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             
             // Get totalKeys from R2File for each manifest file (if available)
             // Also fetch lastUpdated from R2File for ETag generation
+            // Fetch full R2File rows (includes our new counters)
             const r2Files = await prisma.r2File.findMany({
                 where: { 
                     projectId: project.repository, 
                     branch,
                     ...(language ? { lang: language } : {}),
                 },
-                select: {
-                    lang: true,
-                    filename: true,
-                    totalKeys: true,
-                    lastUpdated: true,
-                },
             });
-            
-            const r2FileMap = new Map<string, { totalKeys: number; lastUpdated: Date }>();
+
+            const r2FileMap = new Map<string, { totalKeys: number; lastUpdated: Date; approvedCount: number; committedCount: number }>();
             for (const r2File of r2Files) {
                 r2FileMap.set(`${r2File.lang}:${r2File.filename}`, { 
                     totalKeys: r2File.totalKeys, 
-                    lastUpdated: r2File.lastUpdated 
+                    lastUpdated: r2File.lastUpdated,
+                    approvedCount: (r2File as any).approvedCount ?? 0,
+                    committedCount: (r2File as any).committedCount ?? 0,
                 });
             }
             
@@ -421,37 +419,21 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             });
         }
 
-        // Batch query: Get translation counts for files using groupBy
-        // SQLite/D1 has a limit on SQL variables (SQLITE_MAX_VARIABLE_NUMBER defaults to 999),
-        // so we batch the queries to avoid "too many SQL variables" error when there are many files.
-        // Each file adds 2 variables (language, filename), plus 3 for projectId and status IN clause,
-        // so batch size of 50 uses ~103 variables per batch, staying well under the limit.
-        const BATCH_SIZE = 50;
-        const translationCounts: { language: string; filename: string; _count: { id: number } }[] = [];
-        
-        if (files.length > 0) {
-            // Process files in batches to avoid SQLite variable limit
-            for (let i = 0; i < files.length; i += BATCH_SIZE) {
-                const batch = files.slice(i, i + BATCH_SIZE);
-                if (batch.length === 0) continue;
-                const batchResults = await prisma.webTranslation.groupBy({
-                    by: ['language', 'filename'],
-                    where: {
-                        projectId: project.repository,
-                        status: { in: ['approved', 'committed'] },
-                        // Only include files in this batch
-                        OR: batch.map(f => ({ language: f.lang, filename: f.filename })),
-                    },
-                    _count: { id: true },
-                });
-                translationCounts.push(...batchResults);
-            }
-        }
-
-        // Create a lookup map for quick access: "lang:filename" -> count
+        // Use precomputed counters on R2File (approvedCount + committedCount)
         const countMap = new Map<string, number>();
-        for (const tc of translationCounts) {
-            countMap.set(`${tc.language}:${tc.filename}`, tc._count.id);
+        for (const f of files) {
+            // If `files` came directly from R2File findMany (fallback case), it will include counters
+            const asAny = f as any;
+            if (typeof asAny.approvedCount === 'number' || typeof asAny.committedCount === 'number') {
+                const cnt = (asAny.approvedCount ?? 0) + (asAny.committedCount ?? 0);
+                countMap.set(`${f.lang}:${f.filename}`, cnt);
+                continue;
+            }
+
+            // Otherwise, look up from r2FileMap built earlier (manifest-backed case)
+            const r2Data = r2FileMap.get(`${f.lang}:${f.filename}`);
+            const cnt = (r2Data?.approvedCount ?? 0) + (r2Data?.committedCount ?? 0);
+            countMap.set(`${f.lang}:${f.filename}`, cnt);
         }
 
         // Build results using the pre-fetched counts

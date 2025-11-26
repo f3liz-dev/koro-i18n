@@ -53,6 +53,8 @@ model R2File {
   r2Key       String   // R2 object key: [project]-[lang]-[filename] (no commit hash)
   sourceHash  String   // Hash of source content
   totalKeys   Int      // Total number of translation keys
+  approvedCount Int    @default(0)
+  committedCount Int   @default(0)
   uploadedAt  DateTime @default(now())
   lastUpdated DateTime @default(now()) @updatedAt // For ETag
 
