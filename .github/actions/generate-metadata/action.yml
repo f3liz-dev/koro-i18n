@@ -115,6 +115,11 @@ runs:
         if [ -f ".koro-i18n/koro-i18n.repo.generated.json" ]; then
           git add .koro-i18n/koro-i18n.repo.generated.json
           
+          # Also add JSONL manifest for streaming support
+          if [ -f ".koro-i18n/koro-i18n.repo.generated.jsonl" ]; then
+            git add .koro-i18n/koro-i18n.repo.generated.jsonl
+          fi
+          
           # Also add progress-translated files if they exist
           if [ -d ".koro-i18n/progress-translated" ]; then
             git add .koro-i18n/progress-translated/

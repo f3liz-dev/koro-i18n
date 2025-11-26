@@ -434,6 +434,45 @@ export async function fetchGeneratedManifest(
 }
 
 /**
+ * Fetch and stream the JSONL manifest directly from the repository
+ * Path: .koro-i18n/koro-i18n.repo.generated.jsonl
+ * 
+ * This function streams the JSONL file directly from GitHub,
+ * avoiding the need to parse and re-serialize the JSON manifest.
+ * 
+ * Falls back to JSON manifest if JSONL is not available.
+ * 
+ * @returns ReadableStream of the JSONL content, or null if not found
+ */
+export async function fetchManifestJsonlStream(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string = 'main'
+): Promise<ReadableStream<Uint8Array> | null> {
+  try {
+    // Try to fetch the JSONL manifest first
+    const jsonlPath = '.koro-i18n/koro-i18n.repo.generated.jsonl';
+    
+    const stream = await streamFileFromGitHub(octokit, owner, repo, jsonlPath, branch);
+    
+    if (stream) {
+      return stream;
+    }
+
+    // Fall back to JSON manifest - convert to JSONL stream
+    console.log('[manifest] JSONL manifest not found, falling back to JSON manifest');
+    return createManifestJsonlStream(octokit, owner, repo, branch);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.warn(`[manifest] Failed to fetch JSONL manifest:`, errorMessage);
+    
+    // Fall back to JSON manifest conversion
+    return createManifestJsonlStream(octokit, owner, repo, branch);
+  }
+}
+
+/**
  * Fetch specific files listed in the manifest
  */
 export async function fetchFilesFromManifest(
@@ -610,4 +649,156 @@ export async function fetchStoreFile(
     console.warn(`[github-fetcher] Store file not found for ${lang}:`, errorMessage);
     return null;
   }
+}
+
+/**
+ * Fetch manifest as JSONL and return as streaming Response
+ * Uses Octokit's raw response option for streaming large files
+ * 
+ * @returns A ReadableStream that yields JSONL lines (header first, then file entries)
+ */
+export async function* streamGeneratedManifest(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string = 'main'
+): AsyncGenerator<import('./streaming').ManifestJsonlLine> {
+  const manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
+  
+  if (!manifest) {
+    return;
+  }
+
+  // Yield header first
+  yield {
+    type: 'header' as const,
+    repository: manifest.repository,
+    sourceLanguage: manifest.sourceLanguage,
+    configVersion: manifest.configVersion,
+    totalFiles: manifest.files.length,
+  };
+
+  // Yield each file entry
+  for (const file of manifest.files) {
+    yield {
+      type: 'file' as const,
+      entry: {
+        filename: file.filename,
+        sourceFilename: file.sourceFilename,
+        lastUpdated: file.lastUpdated,
+        commitHash: file.commitHash,
+        language: file.language,
+      },
+    };
+  }
+}
+
+/**
+ * Stream file content directly from GitHub using raw content URL
+ * This avoids base64 decoding overhead for large files
+ * 
+ * @param octokit - Authenticated Octokit instance
+ * @param owner - Repository owner
+ * @param repo - Repository name
+ * @param path - File path in the repository
+ * @param branch - Branch name (default: 'main')
+ * @returns ReadableStream of file content
+ */
+export async function streamFileFromGitHub(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  path: string,
+  branch: string = 'main'
+): Promise<ReadableStream<Uint8Array> | null> {
+  try {
+    // Use Octokit request with parseSuccessResponseBody: false for streaming
+    const response = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+      owner,
+      repo,
+      path,
+      ref: branch,
+      headers: {
+        'Accept': 'application/vnd.github.raw',
+      },
+      request: {
+        parseSuccessResponseBody: false,
+      },
+    });
+
+    // The response is a raw Response object when parseSuccessResponseBody is false
+    const rawResponse = response.data as unknown as Response;
+    
+    if (!rawResponse.body) {
+      console.warn(`[github-fetcher] No body in streaming response for ${path}`);
+      return null;
+    }
+
+    return rawResponse.body;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`[github-fetcher] Error streaming file ${path}:`, errorMessage);
+    return null;
+  }
+}
+
+/**
+ * Stream manifest as JSONL format
+ * Converts the manifest to JSONL streaming format for efficient frontend consumption
+ * 
+ * @param octokit - Authenticated Octokit instance  
+ * @param owner - Repository owner
+ * @param repo - Repository name
+ * @param branch - Branch name (default: 'main')
+ * @returns ReadableStream of JSONL data
+ */
+export function createManifestJsonlStream(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string = 'main'
+): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        const manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
+        
+        if (!manifest) {
+          controller.close();
+          return;
+        }
+
+        // Emit header
+        const header: import('./streaming').ManifestHeaderJsonl = {
+          type: 'header',
+          repository: manifest.repository,
+          sourceLanguage: manifest.sourceLanguage,
+          configVersion: manifest.configVersion,
+          totalFiles: manifest.files.length,
+        };
+        controller.enqueue(encoder.encode(JSON.stringify(header) + '\n'));
+
+        // Emit each file entry
+        for (const file of manifest.files) {
+          const entry: import('./streaming').ManifestEntryJsonl = {
+            type: 'file',
+            entry: {
+              filename: file.filename,
+              sourceFilename: file.sourceFilename,
+              lastUpdated: file.lastUpdated,
+              commitHash: file.commitHash,
+              language: file.language,
+            },
+          };
+          controller.enqueue(encoder.encode(JSON.stringify(entry) + '\n'));
+        }
+
+        controller.close();
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+  });
 }

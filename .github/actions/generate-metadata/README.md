@@ -120,6 +120,21 @@ The action generates `.koro-i18n/koro-i18n.repo.generated.json` with the followi
 }
 ```
 
+### JSONL Manifest (for Streaming)
+
+The action also generates `.koro-i18n/koro-i18n.repo.generated.jsonl` in [JSON Lines](https://jsonlines.org/) format for efficient streaming. This is particularly useful when working with large repositories:
+
+```jsonl
+{"type":"header","repository":"owner/repo","sourceLanguage":"en","configVersion":1,"totalFiles":2}
+{"type":"file","entry":{"filename":"common.json","sourceFilename":"locales/en/common.json","lastUpdated":"2024-01-01T00:00:00.000Z","commitHash":"abc123...","language":"en"}}
+{"type":"file","entry":{"filename":"errors.json","sourceFilename":"locales/en/errors.json","lastUpdated":"2024-01-01T00:00:00.000Z","commitHash":"def456...","language":"en"}}
+```
+
+The first line is always a header with metadata, and subsequent lines are file entries. This format enables:
+- **Streaming parsing**: Process files one at a time without loading the entire manifest into memory
+- **Chunked transfer**: Backend can stream to frontend using `Transfer-Encoding: chunked`
+- **Progressive loading**: Frontend can display files as they arrive
+
 ### Progress Translated Files
 
 The action also generates `.koro-i18n/progress-translated/[lang].json` files for each target language. These files pre-calculate which keys have been translated, enabling efficient progress tracking:

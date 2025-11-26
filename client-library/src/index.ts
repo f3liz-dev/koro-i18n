@@ -409,6 +409,67 @@ function writeManifest(manifest: GeneratedManifest): void {
 }
 
 /**
+ * Manifest header in JSONL format (first line of the file)
+ */
+export interface ManifestHeaderJsonl {
+  type: 'header';
+  repository: string;
+  sourceLanguage: string;
+  configVersion: number;
+  totalFiles: number;
+}
+
+/**
+ * Manifest file entry wrapper in JSONL format
+ */
+export interface ManifestEntryJsonl {
+  type: 'file';
+  entry: ManifestFile;
+}
+
+/**
+ * Write manifest to .koro-i18n/koro-i18n.repo.generated.jsonl (JSONL format)
+ * JSONL format is more efficient for streaming:
+ * - First line: header with metadata
+ * - Subsequent lines: file entries
+ */
+function writeManifestJsonl(manifest: GeneratedManifest): void {
+  const outputDir = '.koro-i18n';
+  const outputPath = path.join(outputDir, 'koro-i18n.repo.generated.jsonl');
+
+  // Create directory if it doesn't exist
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  // Build JSONL content
+  const lines: string[] = [];
+  
+  // First line: header
+  const header: ManifestHeaderJsonl = {
+    type: 'header',
+    repository: manifest.repository,
+    sourceLanguage: manifest.sourceLanguage,
+    configVersion: manifest.configVersion,
+    totalFiles: manifest.files.length,
+  };
+  lines.push(JSON.stringify(header));
+  
+  // Subsequent lines: file entries
+  for (const file of manifest.files) {
+    const entry: ManifestEntryJsonl = {
+      type: 'file',
+      entry: file,
+    };
+    lines.push(JSON.stringify(entry));
+  }
+
+  // Write JSONL file
+  fs.writeFileSync(outputPath, lines.join('\n') + '\n', 'utf-8');
+  console.log(`  ✓ Manifest JSONL: ${outputPath} (${manifest.files.length} files)`);
+}
+
+/**
  * Replace the language code in a filepath with <lang> placeholder
  * e.g., "locales/ja/common.json" -> "locales/<lang>/common.json"
  * Note: This replaces the first occurrence of the language code as a path segment.
@@ -855,6 +916,9 @@ export async function main() {
   // Generate and write manifest
   const manifest = generateManifest(repository, config.source.language, allFiles);
   writeManifest(manifest);
+  
+  // Also write JSONL version for streaming
+  writeManifestJsonl(manifest);
   
   // Generate progress-translated files for each target language
   console.log(`\n📝 Generating progress-translated files...`);
