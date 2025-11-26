@@ -12,6 +12,7 @@ export interface ManifestEntry {
         lastUpdated: string;
         commitHash: string;
         language: string;
+        totalKeys?: number;
     };
 }
 
@@ -21,9 +22,13 @@ export interface ProgressEntry {
     keys: string[];
 }
 
-export async function* streamJsonl<T>(url: string, init?: RequestInit): AsyncGenerator<T> {
+export async function* streamJsonl<T>(url: string, init?: RequestInit & { ignoreNotFound?: boolean }): AsyncGenerator<T> {
     const response = await authFetch(url, { credentials: 'include', ...(init || {}) });
     if (!response.ok) {
+        // If the caller asked us to ignore 404s, simply exit the generator quietly.
+        if (response.status === 404 && (init as any)?.ignoreNotFound) {
+            return;
+        }
         // Try to extract useful error information from the JSON error body
         const contentType = response.headers.get('Content-Type') || '';
         let message = `HTTP ${response.status}`;

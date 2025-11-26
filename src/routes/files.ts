@@ -366,27 +366,14 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
                 countMap.set(`${tc.language}:${tc.filename}`, tc._count.id);
             }
 
-            // 4. Fetch progress-translated files
-            const sourceLanguage = manifest.sourceLanguage;
-            let progressData: Record<string, string[]> | null = null;
-            try {
-                progressData = await fetchProgressTranslatedFile(
-                    octokit,
-                    owner,
-                    repo,
-                    sourceLanguage,
-                    branch
-                );
-            } catch (error) {
-                console.warn('[summary] Failed to fetch progress-translated file:', error);
-            }
+            // 4. Use totalKeys from manifest entries when available
+            // The generated manifest contains totalKeys per file (source counts). This avoids fetching
+            // and streaming additional store/progress files for the summary endpoint.
 
             // 5. Build response
             const filesWithProgress = filteredManifestFiles.map(mf => {
                 const translatedCount = countMap.get(`${mf.language}:${mf.filename}`) || 0;
-                const progressKey = mf.filename.replace(new RegExp(mf.language, 'g'), '<lang>');
-                const keys = progressData?.[progressKey] || [];
-                const totalKeys = keys.length;
+                const totalKeys = mf.totalKeys || 0;
 
                 const translationPercentage = totalKeys > 0
                     ? Math.round((translatedCount / totalKeys) * 100)

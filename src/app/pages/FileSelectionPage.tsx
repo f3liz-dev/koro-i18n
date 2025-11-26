@@ -58,32 +58,61 @@ export default function FileSelectionPage() {
           return [] as { filename: string, count: number }[];
         });
 
-      // 2. Fetch progress (total keys) from source language progress file
+      // 2. Fetch progress (total keys) from target language progress file (progress-translated files are per-target)
       const progressMap = new Map<string, number>();
       const progressPromise = (async () => {
-        const tryStream = async (lang: string) => {
-          const stream = streamJsonl<ProgressEntry>(`/api/projects/${projectName}/files/progress/stream/${lang}`);
+        const tryStream = async (lang: string, useStore: boolean): Promise<boolean> => {
+          let processed = false;
+          const path = useStore
+            ? `/api/projects/${projectName}/files/store/stream/${lang}`
+            : `/api/projects/${projectName}/files/progress/stream/${lang}`;
+          const stream = streamJsonl<any>(path, { ignoreNotFound: true } as RequestInit & { ignoreNotFound: boolean });
           for await (const item of stream) {
-            if (item.type === 'file') {
-              progressMap.set(item.filepath, item.keys.length);
+            if (!useStore) {
+              // progress-translated JSONL uses {{ type: 'file', filepath, keys: string[] }}
+              if (item.type === 'file' && item.keys) {
+                progressMap.set(item.filepath, item.keys.length);
+                processed = true;
+              }
+            } else {
+              // store JSONL (source) can be in legacy 'file' (entries) or new 'chunk' or 'file_header' format
+              if (item.type === 'file' && item.entries) {
+                progressMap.set(item.filepath, Object.keys(item.entries).length);
+                processed = true;
+              } else if (item.type === 'file_header' && typeof item.totalKeys === 'number') {
+                progressMap.set(item.filepath, item.totalKeys);
+                processed = true;
+              } else if (item.type === 'chunk' && item.entries) {
+                const prev = progressMap.get(item.filepath) || 0;
+                progressMap.set(item.filepath, prev + Object.keys(item.entries).length);
+                processed = true;
+              }
             }
           }
+          return processed;
         };
 
         try {
-          await tryStream(sourceLang);
-        } catch (e) {
-          console.warn('Failed to stream progress for', sourceLang, e);
-          // If sourceLang is a region variant (e.g. en-US) attempt to fallback to base lang (en)
-          if (sourceLang.includes('-')) {
-            const base = sourceLang.split('-')[0];
-            try {
-              console.info('Attempting fallback progress stream using base language', base);
-              await tryStream(base);
-            } catch (err) {
-              console.warn('Failed to stream progress for fallback language', base, err);
+          if (targetLang === sourceLang) {
+            // If the user is viewing the source language, use the store file to get total keys
+            await tryStream(sourceLang, true);
+          } else {
+            // Stream progress for the target language (progress-translated files are per-target language)
+            const ok = await tryStream(targetLang, false);
+            // If we didn't get any entries and the target language is a variant (e.g., fr-CA), try base language (fr)
+            if (!ok && targetLang.includes('-')) {
+              const base = targetLang.split('-')[0];
+              try {
+                console.info('Attempting fallback progress stream using base language', base);
+                await tryStream(base, false);
+              } catch (err) {
+                console.warn('Failed to stream progress for fallback language', base, err);
+              }
             }
           }
+        } catch (e) {
+          // Network errors or other failures should still be logged
+          console.warn('Failed to stream progress for', targetLang, e);
         }
       })();
 
@@ -105,7 +134,7 @@ export default function FileSelectionPage() {
           if (f.language === targetLang) {
             // Match progress key (replace lang with <lang>)
             const progressKey = f.filename.replace(new RegExp(f.language, 'g'), '<lang>');
-            const totalKeys = progressMap.get(progressKey) || 0;
+            const totalKeys = (f.totalKeys ?? progressMap.get(progressKey)) || 0;
             const translatedKeys = countMap.get(f.filename) || 0;
 
             const percentage = totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0;

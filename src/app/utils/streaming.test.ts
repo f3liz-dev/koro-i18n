@@ -58,7 +58,17 @@ describe('streamJsonl', () => {
 
     const url = '/test/stream/fail';
     const gen = streamJsonl(url);
-
     await expect(gen.next()).rejects.toThrow(/Progress file not found/);
+  });
+
+  it('does not throw when ignoreNotFound is set and the server returns 404', async () => {
+    // Mock authFetch to return error response
+    (authFetchModule as any).authFetch = async () => new Response(JSON.stringify({ error: 'Progress file not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+
+    const url = '/test/stream/fail-with-ignore';
+    const gen = streamJsonl(url, { ignoreNotFound: true } as RequestInit & { ignoreNotFound: boolean });
+
+    const result = await gen.next();
+    expect(result.done).toBe(true);
   });
 });

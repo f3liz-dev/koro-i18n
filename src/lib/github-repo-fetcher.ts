@@ -40,6 +40,7 @@ export interface ManifestFileEntry {
   lastUpdated: string;     // ISO date string
   commitHash: string;      // Git commit hash
   language: string;        // Language code (e.g., "en", "ja")
+  totalKeys?: number;      // Number of source keys for the file
 }
 
 /**

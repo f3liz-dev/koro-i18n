@@ -39,6 +39,7 @@ export interface ManifestFile {
   lastUpdated: string;
   commitHash: string;
   language: string;
+  totalKeys: number;
 }
 
 export interface GeneratedManifest {
@@ -375,13 +376,29 @@ export function generateManifest(
   sourceLanguage: string,
   files: TranslationFile[]
 ): GeneratedManifest {
-  const manifestFiles: ManifestFile[] = files.map(file => ({
-    filename: file.filename,
-    sourceFilename: file.filename, // Full path with directory structure
-    lastUpdated: new Date().toISOString(),
-    commitHash: getCommitSha(),
-    language: file.lang,
-  }));
+  // Build a map of source file placeholders to total key counts
+  const sourceKeyCounts = new Map<string, number>();
+  for (const file of files) {
+    if (file.lang !== sourceLanguage) continue;
+    const placeholder = replaceLanguageWithPlaceholder(file.filename, sourceLanguage);
+    const totalKeys = Object.keys(flattenObject(file.contents)).length;
+    sourceKeyCounts.set(placeholder, totalKeys);
+  }
+
+  const manifestFiles: ManifestFile[] = files.map(file => {
+    const placeholder = replaceLanguageWithPlaceholder(file.filename, file.lang);
+    const sourceFilename = placeholder.replace('<lang>', sourceLanguage);
+    const totalKeys = sourceKeyCounts.get(placeholder) || 0;
+
+    return {
+      filename: file.filename,
+      sourceFilename,
+      lastUpdated: new Date().toISOString(),
+      commitHash: getCommitSha(),
+      language: file.lang,
+      totalKeys,
+    } as ManifestFile;
+  });
 
   return {
     repository,
