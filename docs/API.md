@@ -35,9 +35,10 @@ Three methods:
 - `GET /api/projects/:name/files` - List files for project
 - `GET /api/projects/:name/files/:lang/:filename` - Get specific file content
 
-### Apply Translations (Create Pull Request)
+### Apply Translations (Export for GitHub Action)
 - `GET /api/projects/:name/apply/preview` - Preview approved translations to be applied
-- `POST /api/projects/:name/apply` - Apply approved translations and create a Pull Request
+- `GET /api/projects/:name/apply/export` - Export approved translations for GitHub Action
+- `POST /api/projects/:name/apply/committed` - Mark translations as committed after PR is created
 
 ### Translations
 - `GET /api/translations` - List web translations (paginated)
@@ -115,18 +116,25 @@ curl -X POST https://platform.dev/api/translations \
   }'
 ```
 
-### Apply translations and create PR
+### Apply translations via GitHub Action
+
+The API exports translation data that a GitHub Action in the client repository
+uses to create the PR (since the OAuth token doesn't have write permissions).
 
 ```bash
 # Preview what will be applied
 curl https://platform.dev/api/projects/my-project/apply/preview \
   -H "Authorization: Bearer $TOKEN"
 
-# Apply translations and create a Pull Request
-curl -X POST https://platform.dev/api/projects/my-project/apply \
+# Export translations for GitHub Action
+curl https://platform.dev/api/projects/my-project/apply/export \
+  -H "Authorization: Bearer $TOKEN"
+
+# Mark translations as committed (called by GitHub Action after PR is created)
+curl -X POST https://platform.dev/api/projects/my-project/apply/committed \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"branch": "main"}'
+  -d '{"translationIds": ["t1", "t2", "t3"]}'
 ```
 
 For detailed implementation, see `src/routes/`.

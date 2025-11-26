@@ -18,6 +18,10 @@ const createMockPrisma = () => ({
       { id: 't1', language: 'ja', filename: 'common.json', key: 'hello', value: 'こんにちは' },
       { id: 't2', language: 'ja', filename: 'common.json', key: 'goodbye', value: 'さようなら' },
     ],
+    updateMany: async () => ({ count: 2 }),
+  },
+  webTranslationHistory: {
+    create: async () => ({}),
   },
   user: {
     findUnique: async () => ({ githubAccessToken: 'mock-token' }),
@@ -96,7 +100,7 @@ describe('Apply Routes', () => {
     });
   });
 
-  describe('POST /api/projects/:projectName/apply', () => {
+  describe('GET /api/projects/:projectName/apply/export', () => {
     it('should require authentication', async () => {
       const prisma = createMockPrisma();
       const env = createMockEnv();
@@ -104,19 +108,15 @@ describe('Apply Routes', () => {
       const parentApp = new Hono();
       parentApp.route('/:projectName/apply', createApplyRoutes(prisma as any, env as any));
 
-      const req = new Request('http://localhost/test-project/apply', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ branch: 'main' }),
+      const req = new Request('http://localhost/test-project/apply/export', {
+        method: 'GET',
       });
 
       const res = await parentApp.fetch(req, env, {} as ExecutionContext);
       expect(res.status).toBe(401);
     });
 
-    it('should only allow project owner to apply', async () => {
+    it('should only allow project owner to export', async () => {
       const prisma = createMockPrisma();
       const env = createMockEnv();
       
@@ -130,13 +130,59 @@ describe('Apply Routes', () => {
         env.JWT_SECRET
       );
 
-      const req = new Request('http://localhost/test-project/apply', {
+      const req = new Request('http://localhost/test-project/apply/export', {
+        method: 'GET',
+        headers: {
+          'Cookie': `auth_token=${token}`,
+        },
+      });
+
+      const res = await parentApp.fetch(req, env, {} as ExecutionContext);
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe('POST /api/projects/:projectName/apply/committed', () => {
+    it('should require authentication', async () => {
+      const prisma = createMockPrisma();
+      const env = createMockEnv();
+      
+      const parentApp = new Hono();
+      parentApp.route('/:projectName/apply', createApplyRoutes(prisma as any, env as any));
+
+      const req = new Request('http://localhost/test-project/apply/committed', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ translationIds: ['t1', 't2'] }),
+      });
+
+      const res = await parentApp.fetch(req, env, {} as ExecutionContext);
+      expect(res.status).toBe(401);
+    });
+
+    it('should only allow project owner to mark as committed', async () => {
+      const prisma = createMockPrisma();
+      const env = createMockEnv();
+      
+      const parentApp = new Hono();
+      parentApp.route('/:projectName/apply', createApplyRoutes(prisma as any, env as any));
+
+      // Different user than the project owner
+      const token = await createJWT(
+        { id: 'different-user', username: 'otheruser', githubId: 99999 },
+        'github-token',
+        env.JWT_SECRET
+      );
+
+      const req = new Request('http://localhost/test-project/apply/committed', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Cookie': `auth_token=${token}`,
         },
-        body: JSON.stringify({ branch: 'main' }),
+        body: JSON.stringify({ translationIds: ['t1', 't2'] }),
       });
 
       const res = await parentApp.fetch(req, env, {} as ExecutionContext);

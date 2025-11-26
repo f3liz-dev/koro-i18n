@@ -1,0 +1,181 @@
+# koro-i18n Apply Translations Workflow
+#
+# This workflow fetches approved translations from the koro-i18n platform
+# and creates a PR to apply them to your repository.
+#
+# Setup:
+# 1. Add this file to .github/workflows/koro-i18n-apply.yml
+# 2. Set KORO_I18N_TOKEN secret with your JWT token from the koro-i18n web UI
+# 3. Update PROJECT_NAME to match your project name in koro-i18n
+
+name: Apply koro-i18n Translations
+
+on:
+  # Run manually from the Actions tab
+  workflow_dispatch:
+  # Or run on a schedule (e.g., daily at midnight)
+  # schedule:
+  #   - cron: '0 0 * * *'
+
+env:
+  KORO_I18N_API: https://koro.f3liz.workers.dev
+  PROJECT_NAME: your-project-name  # <-- Change this to your project name
+
+jobs:
+  apply-translations:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch translation export
+        id: fetch
+        run: |
+          # Fetch the translation export from koro-i18n API
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.KORO_I18N_TOKEN }}" \
+            "${{ env.KORO_I18N_API }}/api/projects/${{ env.PROJECT_NAME }}/apply/export")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Failed to fetch translations: HTTP $HTTP_CODE"
+            echo "$BODY"
+            exit 1
+          fi
+          
+          # Check if there are translations to apply
+          TOTAL=$(echo "$BODY" | jq -r '.summary.total')
+          if [ "$TOTAL" = "0" ] || [ "$TOTAL" = "null" ]; then
+            echo "No approved translations to apply"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "Found $TOTAL translations to apply"
+          echo "$BODY" > /tmp/translations.json
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+      - name: Apply translations
+        if: steps.fetch.outputs.skip != 'true'
+        run: |
+          # Read the export and apply translations to files
+          node << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          
+          const data = JSON.parse(fs.readFileSync('/tmp/translations.json', 'utf-8'));
+          
+          // Group translations by file
+          const byFile = {};
+          for (const t of data.translations) {
+            const fileKey = `${t.language}/${t.filename}`;
+            if (!byFile[fileKey]) {
+              byFile[fileKey] = { language: t.language, filename: t.filename, translations: [] };
+            }
+            byFile[fileKey].translations.push(t);
+          }
+          
+          // Read manifest to get file paths
+          let manifest;
+          try {
+            manifest = JSON.parse(fs.readFileSync('.koro-i18n/koro-i18n.repo.generated.json', 'utf-8'));
+          } catch (e) {
+            console.error('Could not read manifest file');
+            process.exit(1);
+          }
+          
+          // Apply translations to each file
+          for (const [fileKey, fileData] of Object.entries(byFile)) {
+            // Find the source file path from manifest
+            const manifestEntry = manifest.files.find(f => 
+              f.language === fileData.language && f.filename === fileData.filename
+            );
+            
+            if (!manifestEntry) {
+              console.warn(`Skipping ${fileKey}: not found in manifest`);
+              continue;
+            }
+            
+            const filePath = manifestEntry.sourceFilename;
+            
+            // Read current content
+            let content;
+            try {
+              content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            } catch (e) {
+              console.warn(`Skipping ${filePath}: could not read file`);
+              continue;
+            }
+            
+            // Apply translations
+            for (const t of fileData.translations) {
+              const keyParts = t.key.split('.');
+              let current = content;
+              
+              // Navigate to parent
+              for (let i = 0; i < keyParts.length - 1; i++) {
+                if (!(keyParts[i] in current)) {
+                  current[keyParts[i]] = {};
+                }
+                current = current[keyParts[i]];
+              }
+              
+              // Set value
+              current[keyParts[keyParts.length - 1]] = t.value;
+            }
+            
+            // Write back
+            fs.writeFileSync(filePath, JSON.stringify(content, null, 2) + '\n');
+            console.log(`Updated ${filePath} with ${fileData.translations.length} translations`);
+          }
+          
+          // Save translation IDs for the commit step
+          const translationIds = data.translations.map(t => t.id);
+          fs.writeFileSync('/tmp/translation_ids.json', JSON.stringify(translationIds));
+          EOF
+
+      - name: Create Pull Request
+        if: steps.fetch.outputs.skip != 'true'
+        id: create-pr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore(i18n): apply translations from koro-i18n'
+          title: '[koro-i18n] Apply approved translations'
+          body: |
+            ## Translation Update from koro-i18n
+
+            This PR was automatically generated by the koro-i18n GitHub Action.
+
+            Translations were exported from the koro-i18n platform and applied to this repository.
+
+            ---
+            *Generated by [koro-i18n](https://github.com/f3liz-dev/koro-i18n)*
+          branch: koro-i18n/translations
+          delete-branch: true
+
+      - name: Mark translations as committed
+        if: steps.fetch.outputs.skip != 'true' && steps.create-pr.outputs.pull-request-number
+        run: |
+          # Read the translation IDs that were applied
+          TRANSLATION_IDS=$(cat /tmp/translation_ids.json)
+          
+          # Notify the koro-i18n API that these translations were committed
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.KORO_I18N_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"translationIds\": $TRANSLATION_IDS}" \
+            "${{ env.KORO_I18N_API }}/api/projects/${{ env.PROJECT_NAME }}/apply/committed"
+          
+          echo "Marked translations as committed"
