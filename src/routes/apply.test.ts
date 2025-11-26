@@ -31,6 +31,7 @@ const createMockPrisma = () => ({
 const createMockEnv = () => ({
   JWT_SECRET: 'test-secret',
   ENVIRONMENT: 'test',
+  PLATFORM_URL: 'https://test.example.com',
 });
 
 describe('Apply Routes', () => {

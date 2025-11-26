@@ -3,10 +3,14 @@
 # This workflow fetches approved translations from the koro-i18n platform
 # and creates a PR to apply them to your repository.
 #
+# Authentication uses GitHub OIDC (OpenID Connect) - no secrets required!
+# The workflow requests a short-lived token from GitHub that the koro-i18n
+# API validates against the repository.
+#
 # Setup:
 # 1. Add this file to .github/workflows/koro-i18n-apply.yml
-# 2. Set KORO_I18N_TOKEN secret with your JWT token from the koro-i18n web UI
-# 3. Update PROJECT_NAME to match your project name in koro-i18n
+# 2. Update PROJECT_NAME to match your project name in koro-i18n
+# 3. That's it! No secrets needed.
 
 name: Apply koro-i18n Translations
 
@@ -27,6 +31,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      id-token: write  # Required for OIDC authentication
 
     steps:
       - name: Checkout repository
@@ -37,12 +42,28 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Get OIDC Token
+        id: oidc
+        run: |
+          # Request an OIDC token from GitHub Actions
+          # The token is automatically validated by koro-i18n API
+          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${{ env.KORO_I18N_API }}" | jq -r .value)
+          
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "Failed to get OIDC token"
+            exit 1
+          fi
+          
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+          echo "Successfully obtained OIDC token"
+
       - name: Fetch translation export
         id: fetch
         run: |
-          # Fetch the translation export from koro-i18n API
+          # Fetch the translation export from koro-i18n API using OIDC token
           RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -H "Authorization: Bearer ${{ secrets.KORO_I18N_TOKEN }}" \
+            -H "Authorization: Bearer ${{ steps.oidc.outputs.token }}" \
             "${{ env.KORO_I18N_API }}/api/projects/${{ env.PROJECT_NAME }}/apply/export")
           
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
@@ -165,6 +186,15 @@ jobs:
           branch: koro-i18n/translations
           delete-branch: true
 
+      - name: Get fresh OIDC token for commit notification
+        if: steps.fetch.outputs.skip != 'true' && steps.create-pr.outputs.pull-request-number
+        id: oidc-commit
+        run: |
+          # Get a fresh OIDC token (the previous one may have expired)
+          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${{ env.KORO_I18N_API }}" | jq -r .value)
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
       - name: Mark translations as committed
         if: steps.fetch.outputs.skip != 'true' && steps.create-pr.outputs.pull-request-number
         run: |
@@ -172,10 +202,20 @@ jobs:
           TRANSLATION_IDS=$(cat /tmp/translation_ids.json)
           
           # Notify the koro-i18n API that these translations were committed
-          curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.KORO_I18N_TOKEN }}" \
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ steps.oidc-commit.outputs.token }}" \
             -H "Content-Type: application/json" \
             -d "{\"translationIds\": $TRANSLATION_IDS}" \
-            "${{ env.KORO_I18N_API }}/api/projects/${{ env.PROJECT_NAME }}/apply/committed"
+            "${{ env.KORO_I18N_API }}/api/projects/${{ env.PROJECT_NAME }}/apply/committed")
           
-          echo "Marked translations as committed"
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Warning: Failed to mark translations as committed: HTTP $HTTP_CODE"
+            echo "$BODY"
+            # Don't fail the workflow - the PR was already created
+          else
+            echo "Marked translations as committed"
+            echo "$BODY"
+          fi
