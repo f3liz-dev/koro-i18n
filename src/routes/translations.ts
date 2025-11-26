@@ -24,7 +24,7 @@ export function createTranslationRoutes(prisma: PrismaClient, _env: Env) {
   app.patch('/:id/approve', authMiddleware, validate('json', ApproveTranslationSchema), async (c) => {
     const user = c.get('user');
     const id = c.req.param('id');
-    const { status } = c.req.valid('json');
+    const { status } = c.req.valid('json' as never) as t.TypeOf<typeof ApproveTranslationSchema>;
 
     const translation = await prisma.webTranslation.findUnique({
       where: { id },

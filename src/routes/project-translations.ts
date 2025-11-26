@@ -46,7 +46,7 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
     app.post('/', authMiddleware, validate('json', CreateTranslationSchema), async (c) => {
         const user = c.get('user');
         const projectName = c.req.param('projectName');
-        const { language, filename, key, value } = c.req.valid('json');
+        const { language, filename, key, value } = c.req.valid('json' as never) as t.TypeOf<typeof CreateTranslationSchema>;
 
         const project = await prisma.project.findFirst({
             where: { name: projectName },
@@ -230,6 +230,40 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
         response.headers.set('ETag', etag);
         response.headers.set('Cache-Control', buildCacheControl(CACHE_CONFIGS.translationSuggestions));
         return response;
+    });
+
+    // Get Translation Counts
+    app.get('/counts', authMiddleware, async (c) => {
+        const projectName = c.req.param('projectName');
+        const language = c.req.query('language');
+
+        const project = await prisma.project.findFirst({
+            where: { name: projectName },
+            select: { id: true },
+        });
+
+        if (!project) return c.json({ error: 'Project not found' }, 404);
+
+        const where: any = {
+            projectId: project.id,
+            status: 'approved',
+            isValid: true,
+        };
+        if (language) where.language = language;
+
+        const counts = await prisma.webTranslation.groupBy({
+            by: ['language', 'filename'],
+            where,
+            _count: { id: true },
+        });
+
+        const result = counts.map(c => ({
+            language: c.language,
+            filename: c.filename,
+            count: c._count.id,
+        }));
+
+        return c.json({ counts: result });
     });
 
     return app;

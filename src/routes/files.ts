@@ -23,7 +23,7 @@ interface Env {
     JWT_SECRET: string;
     ENVIRONMENT: string;
     PLATFORM_URL?: string;
-    COMPUTE_WORKER_URL?: string;
+
     Variables: {
         user: any;
     };
@@ -53,16 +53,16 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         // Get user's GitHub access token
         const githubToken = await getUserGitHubToken(prisma, user.userId);
         if (!githubToken) {
-            return c.json({ 
-                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            return c.json({
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.'
             }, 401);
         }
 
         try {
             const parts = project.repository.trim().split('/');
             if (parts.length !== 2 || !parts[0] || !parts[1]) {
-                return c.json({ 
-                    error: 'Invalid repository format. Expected: owner/repo' 
+                return c.json({
+                    error: 'Invalid repository format. Expected: owner/repo'
                 }, 400);
             }
             const [owner, repo] = parts;
@@ -73,8 +73,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             const manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
 
             if (!manifest) {
-                return c.json({ 
-                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.jsonl exists in your repository.' 
+                return c.json({
+                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.jsonl exists in your repository.'
                 }, 404);
             }
 
@@ -85,8 +85,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             console.error('Error fetching manifest:', errorMessage);
-            return c.json({ 
-                error: `Failed to fetch manifest: ${errorMessage}` 
+            return c.json({
+                error: `Failed to fetch manifest: ${errorMessage}`
             }, 500);
         }
     });
@@ -113,16 +113,16 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         // Get user's GitHub access token
         const githubToken = await getUserGitHubToken(prisma, user.userId);
         if (!githubToken) {
-            return c.json({ 
-                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            return c.json({
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.'
             }, 401);
         }
 
         try {
             const parts = project.repository.trim().split('/');
             if (parts.length !== 2 || !parts[0] || !parts[1]) {
-                return c.json({ 
-                    error: 'Invalid repository format. Expected: owner/repo' 
+                return c.json({
+                    error: 'Invalid repository format. Expected: owner/repo'
                 }, 400);
             }
             const [owner, repo] = parts;
@@ -133,8 +133,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             const stream = await fetchManifestJsonlStream(octokit, owner, repo, branch);
 
             if (!stream) {
-                return c.json({ 
-                    error: 'Manifest not found in repository. Please run the koro-i18n CLI to generate the manifest.' 
+                return c.json({
+                    error: 'Manifest not found in repository. Please run the koro-i18n CLI to generate the manifest.'
                 }, 404);
             }
 
@@ -148,9 +148,101 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             console.error('Error streaming manifest:', errorMessage);
-            return c.json({ 
-                error: `Failed to stream manifest: ${errorMessage}` 
+            return c.json({
+                error: `Failed to stream manifest: ${errorMessage}`
             }, 500);
+        }
+    });
+
+    // Stream the store file as JSONL format
+    app.get('/store/stream/:lang', authMiddleware, async (c) => {
+        const user = c.get('user');
+        const projectName = c.req.param('projectName');
+        const lang = c.req.param('lang');
+        const branch = c.req.query('branch') || 'main';
+
+        const project = await prisma.project.findUnique({
+            where: { name: projectName },
+            select: { id: true, userId: true, repository: true },
+        });
+
+        if (!project) return c.json({ error: 'Project not found' }, 404);
+
+        const hasAccess = await checkProjectAccess(prisma, project.id, user.userId);
+        if (!hasAccess) return c.json({ error: 'Forbidden' }, 403);
+
+        const githubToken = await getUserGitHubToken(prisma, user.userId);
+        if (!githubToken) return c.json({ error: 'GitHub access token not found' }, 401);
+
+        try {
+            const parts = project.repository.trim().split('/');
+            const [owner, repo] = parts;
+            const octokit = new Octokit({ auth: githubToken });
+
+            const storePath = `.koro-i18n/store/${lang}.jsonl`;
+            const stream = await streamFileFromGitHub(octokit, owner, repo, storePath, branch);
+
+            if (!stream) {
+                return c.json({ error: 'Store file not found' }, 404);
+            }
+
+            return new Response(stream, {
+                headers: {
+                    'Content-Type': 'application/x-ndjson',
+                    'Transfer-Encoding': 'chunked',
+                    'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles),
+                },
+            });
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Error streaming store file:', errorMessage);
+            return c.json({ error: `Failed to stream store file: ${errorMessage}` }, 500);
+        }
+    });
+
+    // Stream the progress-translated file as JSONL format
+    app.get('/progress/stream/:lang', authMiddleware, async (c) => {
+        const user = c.get('user');
+        const projectName = c.req.param('projectName');
+        const lang = c.req.param('lang');
+        const branch = c.req.query('branch') || 'main';
+
+        const project = await prisma.project.findUnique({
+            where: { name: projectName },
+            select: { id: true, userId: true, repository: true },
+        });
+
+        if (!project) return c.json({ error: 'Project not found' }, 404);
+
+        const hasAccess = await checkProjectAccess(prisma, project.id, user.userId);
+        if (!hasAccess) return c.json({ error: 'Forbidden' }, 403);
+
+        const githubToken = await getUserGitHubToken(prisma, user.userId);
+        if (!githubToken) return c.json({ error: 'GitHub access token not found' }, 401);
+
+        try {
+            const parts = project.repository.trim().split('/');
+            const [owner, repo] = parts;
+            const octokit = new Octokit({ auth: githubToken });
+
+            const progressPath = `.koro-i18n/progress-translated/${lang}.jsonl`;
+            const stream = await streamFileFromGitHub(octokit, owner, repo, progressPath, branch);
+
+            if (!stream) {
+                return c.json({ error: 'Progress file not found' }, 404);
+            }
+
+            return new Response(stream, {
+                headers: {
+                    'Content-Type': 'application/x-ndjson',
+                    'Transfer-Encoding': 'chunked',
+                    'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles),
+                },
+            });
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Error streaming progress file:', errorMessage);
+            return c.json({ error: `Failed to stream progress file: ${errorMessage}` }, 500);
         }
     });
 
@@ -181,16 +273,16 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         // Get user's GitHub access token
         const githubToken = await getUserGitHubToken(prisma, user.userId);
         if (!githubToken) {
-            return c.json({ 
-                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            return c.json({
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.'
             }, 401);
         }
 
         try {
             const parts = project.repository.trim().split('/');
             if (parts.length !== 2 || !parts[0] || !parts[1]) {
-                return c.json({ 
-                    error: 'Invalid repository format. Expected: owner/repo' 
+                return c.json({
+                    error: 'Invalid repository format. Expected: owner/repo'
                 }, 400);
             }
             const [owner, repo] = parts;
@@ -224,8 +316,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             console.error('Error streaming file:', errorMessage);
-            return c.json({ 
-                error: `Failed to stream file: ${errorMessage}` 
+            return c.json({
+                error: `Failed to stream file: ${errorMessage}`
             }, 500);
         }
     });
@@ -251,16 +343,16 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         // Get user's GitHub access token
         const githubToken = await getUserGitHubToken(prisma, user.userId);
         if (!githubToken) {
-            return c.json({ 
-                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            return c.json({
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.'
             }, 401);
         }
 
         try {
             const parts = project.repository.trim().split('/');
             if (parts.length !== 2 || !parts[0] || !parts[1]) {
-                return c.json({ 
-                    error: 'Invalid repository format. Expected: owner/repo' 
+                return c.json({
+                    error: 'Invalid repository format. Expected: owner/repo'
                 }, 400);
             }
             const [owner, repo] = parts;
@@ -271,8 +363,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             const manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
 
             if (!manifest) {
-                return c.json({ 
-                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.jsonl exists in your repository.' 
+                return c.json({
+                    error: 'Generated manifest not found. Please ensure .koro-i18n/koro-i18n.repo.generated.jsonl exists in your repository.'
                 }, 404);
             }
 
@@ -283,8 +375,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             const githubFiles = await fetchFilesFromManifest(octokit, owner, repo, manifest, branch);
 
             if (githubFiles.length === 0) {
-                return c.json({ 
-                    error: 'No translation files found from manifest' 
+                return c.json({
+                    error: 'No translation files found from manifest'
                 }, 404);
             }
 
@@ -312,8 +404,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             console.error('Error fetching from manifest:', errorMessage);
-            return c.json({ 
-                error: `Failed to fetch files from manifest: ${errorMessage}` 
+            return c.json({
+                error: `Failed to fetch files from manifest: ${errorMessage}`
             }, 500);
         }
     });
@@ -339,8 +431,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         // Get user's GitHub access token
         const githubToken = await getUserGitHubToken(prisma, user.userId);
         if (!githubToken) {
-            return c.json({ 
-                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            return c.json({
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.'
             }, 401);
         }
 
@@ -348,8 +440,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             // Parse repository (format: owner/repo)
             const parts = project.repository.trim().split('/');
             if (parts.length !== 2 || !parts[0] || !parts[1]) {
-                return c.json({ 
-                    error: 'Invalid repository format. Expected: owner/repo' 
+                return c.json({
+                    error: 'Invalid repository format. Expected: owner/repo'
                 }, 400);
             }
             const [owner, repo] = parts;
@@ -370,8 +462,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             );
 
             if (githubFiles.length === 0) {
-                return c.json({ 
-                    error: `No translation files found in ${owner}/${repo} at path: ${path}` 
+                return c.json({
+                    error: `No translation files found in ${owner}/${repo} at path: ${path}`
                 }, 404);
             }
 
@@ -399,8 +491,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             console.error('Error fetching from GitHub:', errorMessage);
-            return c.json({ 
-                error: `Failed to fetch files from GitHub: ${errorMessage}` 
+            return c.json({
+                error: `Failed to fetch files from GitHub: ${errorMessage}`
             }, 500);
         }
     });
@@ -429,13 +521,13 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
 
         // Get user's GitHub access token to fetch the manifest
         const githubToken = await getUserGitHubToken(prisma, user.userId);
-        
+
         let manifest: GeneratedManifest | null = null;
         let manifestFiles: ManifestFileEntry[] = [];
         let owner = '';
         let repo = '';
         let octokit: Octokit | null = null;
-        
+
         // Try to fetch manifest from GitHub repository
         if (githubToken) {
             try {
@@ -471,7 +563,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         }
 
         // Filter manifest files by language if specified
-        const filteredManifestFiles = language 
+        const filteredManifestFiles = language
             ? manifestFiles.filter(f => f.language === language)
             : manifestFiles;
 
@@ -499,7 +591,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         // The progress-translated file contains the keys for each file
         const sourceLanguage = manifest.sourceLanguage;
         let progressData: Record<string, string[]> | null = null;
-        
+
         if (octokit) {
             try {
                 progressData = await fetchProgressTranslatedFile(
@@ -517,19 +609,19 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         // Build file list from manifest with totalKeys from progress-translated
         const filesWithProgress = filteredManifestFiles.map(mf => {
             const translatedCount = countMap.get(`${mf.language}:${mf.filename}`) || 0;
-            
+
             // Get totalKeys from progress-translated file
             // The key in progress file has <lang> placeholder, replace it with source language
             const progressKey = mf.filename.replace(new RegExp(mf.language, 'g'), '<lang>');
             const keys = progressData?.[progressKey] || [];
             const totalKeys = keys.length;
-            
+
             // Calculate translation percentage
             const translatedKeys = Math.min(translatedCount, totalKeys);
-            const translationPercentage = totalKeys > 0 
+            const translationPercentage = totalKeys > 0
                 ? Math.round((translatedKeys / totalKeys) * 100)
                 : 0;
-            
+
             // Parse lastUpdated with validation
             let lastUpdated: Date;
             try {
@@ -555,8 +647,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         // Sort files by filename for consistent ordering
         filesWithProgress.sort((a, b) => a.filename.localeCompare(b.filename));
 
-        const latestUpdate = filesWithProgress.length > 0 
-            ? Math.max(...filesWithProgress.map(f => f.lastUpdated.getTime())) 
+        const latestUpdate = filesWithProgress.length > 0
+            ? Math.max(...filesWithProgress.map(f => f.lastUpdated.getTime()))
             : Date.now();
         const serverETag = `"${latestUpdate}"`;
 
@@ -564,7 +656,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             return c.body(null, 304, { 'ETag': serverETag, 'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles) });
         }
 
-        const response = c.json({ 
+        const response = c.json({
             files: filesWithProgress,
             sourceLanguage: manifest.sourceLanguage,
         });
@@ -594,8 +686,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         // Get user's GitHub access token
         const githubToken = await getUserGitHubToken(prisma, user.userId);
         if (!githubToken) {
-            return c.json({ 
-                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            return c.json({
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.'
             }, 401);
         }
 
@@ -606,8 +698,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         try {
             const parts = project.repository.trim().split('/');
             if (parts.length !== 2 || !parts[0] || !parts[1]) {
-                return c.json({ 
-                    error: 'Invalid repository format. Expected: owner/repo' 
+                return c.json({
+                    error: 'Invalid repository format. Expected: owner/repo'
                 }, 400);
             }
             const [owner, repo] = parts;
@@ -616,7 +708,7 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
 
             // Fetch manifest from GitHub
             const manifest = await fetchGeneratedManifest(octokit, owner, repo, branch);
-            
+
             if (!manifest) {
                 return c.json({
                     files: [],
@@ -625,12 +717,12 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
             }
 
             // Filter by language if specified
-            const manifestFiles = language 
+            const manifestFiles = language
                 ? manifest.files.filter(f => f.language === language)
                 : manifest.files;
 
             // Generate ETag from latest commit hash
-            const latestCommit = manifestFiles.length > 0 
+            const latestCommit = manifestFiles.length > 0
                 ? manifestFiles.reduce((latest, f) => f.commitHash > latest ? f.commitHash : latest, '')
                 : '';
             const serverETag = `"${latestCommit || Date.now()}"`;
@@ -654,8 +746,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             console.error('Error listing files from GitHub:', errorMessage);
-            return c.json({ 
-                error: `Failed to list files from GitHub: ${errorMessage}` 
+            return c.json({
+                error: `Failed to list files from GitHub: ${errorMessage}`
             }, 500);
         }
     });
@@ -682,16 +774,16 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         // Get user's GitHub access token
         const githubToken = await getUserGitHubToken(prisma, user.userId);
         if (!githubToken) {
-            return c.json({ 
-                error: 'GitHub access token not found. Please re-authenticate with GitHub.' 
+            return c.json({
+                error: 'GitHub access token not found. Please re-authenticate with GitHub.'
             }, 401);
         }
 
         try {
             const parts = project.repository.trim().split('/');
             if (parts.length !== 2 || !parts[0] || !parts[1]) {
-                return c.json({ 
-                    error: 'Invalid repository format. Expected: owner/repo' 
+                return c.json({
+                    error: 'Invalid repository format. Expected: owner/repo'
                 }, 400);
             }
             const [owner, repo] = parts;
@@ -732,8 +824,8 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             console.error('Error fetching file from GitHub:', errorMessage);
-            return c.json({ 
-                error: `Failed to fetch file from GitHub: ${errorMessage}` 
+            return c.json({
+                error: `Failed to fetch file from GitHub: ${errorMessage}`
             }, 500);
         }
     });

@@ -8,7 +8,7 @@ import {
 } from '../components';
 import { MobileMenuOverlay } from '../components';
 import {
-  fetchR2File,
+  fetchFileFromGitHub,
   fetchWebTranslations,
   mergeTranslationsWithSource,
   submitTranslation,
@@ -93,9 +93,11 @@ export default function TranslationEditorPage() {
         sourceLang
       );
 
-      const sourceR2Data = await fetchR2File(proj.name, sourceLang, sourceFilename);
-      const targetR2Data = await fetchR2File(proj.name, targetLang, targetFilename);
-      const webTrans = await fetchWebTranslations(proj.name, targetLang, targetFilename);
+      const [sourceR2Data, targetR2Data, webTrans] = await Promise.all([
+        fetchFileFromGitHub(proj.name, sourceLang, sourceFilename),
+        fetchFileFromGitHub(proj.name, targetLang, targetFilename),
+        fetchWebTranslations(proj.name, targetLang, targetFilename)
+      ]);
 
       if (sourceR2Data === null) {
         console.debug('[Translations] Source file unchanged — skipping update');

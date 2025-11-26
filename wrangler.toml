@@ -15,11 +15,7 @@ PLATFORM_URL = "https://koro.f3liz.workers.dev"
 # Leave empty to allow all users
 ALLOWED_PROJECT_CREATORS = "nyanrus"
 
-# Rust Compute Worker URL (optional but recommended for performance)
-# Deploy rust-worker first, then set this to the deployed worker URL
-# Example: "https://koro-compute-worker.your-account.workers.dev"
-# When configured, CPU-intensive operations are offloaded to Rust worker
-COMPUTE_WORKER_URL = "https://koro-compute.f3liz.workers.dev"
+
 
 # D1 Database Configuration
 [[d1_databases]]

@@ -70,8 +70,7 @@ export async function fetchFileFromGitHub(
   }
 }
 
-// Alias for backward compatibility
-export const fetchR2File = fetchFileFromGitHub;
+
 
 /**
  * Fetch web translations from D1

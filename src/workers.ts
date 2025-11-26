@@ -15,7 +15,7 @@ interface Env {
   JWT_SECRET: string;
   ENVIRONMENT: string;
   PLATFORM_URL?: string;
-  COMPUTE_WORKER_URL?: string; // Optional Rust compute worker URL
+
   ASSETS?: Fetcher;
   Variables: {
     user: any;

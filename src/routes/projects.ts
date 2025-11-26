@@ -49,7 +49,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
   // Create Project
   app.post('/', authMiddleware, validate('json', CreateProjectSchema), async (c) => {
     const user = c.get('user');
-    const { name, repository } = c.req.valid('json');
+    const { name, repository } = c.req.valid('json' as never) as t.TypeOf<typeof CreateProjectSchema>;
 
     // Permission check
     const allowedCreators = env.ALLOWED_PROJECT_CREATORS?.trim();
@@ -169,7 +169,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
   app.patch('/:projectName', authMiddleware, validate('json', UpdateProjectSchema), async (c) => {
     const user = c.get('user');
     const projectName = c.req.param('projectName');
-    const { accessControl } = c.req.valid('json');
+    const { accessControl } = c.req.valid('json' as never) as t.TypeOf<typeof UpdateProjectSchema>;
 
     const project = await prisma.project.findUnique({ where: { name: projectName } });
     if (!project) return c.json({ error: 'Not found' }, 404);
@@ -242,7 +242,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     const user = c.get('user');
     const projectName = c.req.param('projectName');
     const memberId = c.req.param('memberId');
-    const { status } = c.req.valid('json');
+    const { status } = c.req.valid('json' as never) as t.TypeOf<typeof ApproveMemberSchema>;
 
     const project = await prisma.project.findUnique({ where: { name: projectName } });
     if (!project) return c.json({ error: 'Not found' }, 404);
