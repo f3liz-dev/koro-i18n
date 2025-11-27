@@ -127,9 +127,9 @@ export function useTranslationEditor() {
       const init: RequestInit = { signal: storeController.signal, credentials: 'include', headers: { 'Accept': 'application/x-ndjson' } };
 
       for await (const line of streamStore(proj.name, targetLang, init)) {
-        if (line.type === 'file_header') continue;
+        if (line.type === 'header' || line.type === 'file_header') continue;
 
-        if (!(line as any).filepath.endsWith(`/${filenameBase}`) && (line as any).filepath !== filenameBase) continue;
+        if (!(line as any).filepath?.endsWith(`/${filenameBase}`) && (line as any).filepath !== filenameBase) continue;
 
         if (line.type === 'chunk') {
           const chunk = line as any;

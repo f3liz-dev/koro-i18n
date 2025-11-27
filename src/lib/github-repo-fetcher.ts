@@ -607,11 +607,11 @@ export async function fetchSingleFileFromGitHub(
       return null;
     }
 
-    // Fetch the file content
+    // Fetch the file content using the actual filename (not sourceFilename which points to source language)
     // Try streaming raw content first (preferred)
     let content: string | null = null;
     try {
-      const stream = await streamFileFromGitHub(octokit, owner, repo, entry.sourceFilename, branch);
+      const stream = await streamFileFromGitHub(octokit, owner, repo, entry.filename, branch);
       if (stream) {
         content = await readableStreamToString(stream);
       }
@@ -620,9 +620,9 @@ export async function fetchSingleFileFromGitHub(
     }
 
     if (!content) {
-      const { data: fileData } = await octokit.rest.repos.getContent({ owner, repo, path: entry.sourceFilename, ref: branch });
+      const { data: fileData } = await octokit.rest.repos.getContent({ owner, repo, path: entry.filename, ref: branch });
       if (!('content' in fileData) || !fileData.content) {
-        console.warn(`[github-fetcher] No content in file: ${entry.sourceFilename}`);
+        console.warn(`[github-fetcher] No content in file: ${entry.filename}`);
         return null;
       }
       content = Buffer.from(fileData.content, 'base64').toString('utf-8');
@@ -634,7 +634,7 @@ export async function fetchSingleFileFromGitHub(
       octokit,
       owner,
       repo,
-      entry.sourceFilename,
+      entry.filename,
       content,
       branch
     );
@@ -683,15 +683,15 @@ export async function streamSingleFileFromGitHub(
       return null;
     }
 
-    // Stream the file content
-    const stream = await streamFileFromGitHub(octokit, owner, repo, entry.sourceFilename, branch);
+    // Stream the file content using the actual filename (not sourceFilename which points to source language)
+    const stream = await streamFileFromGitHub(octokit, owner, repo, entry.filename, branch);
 
     if (!stream) {
       return null;
     }
 
     // Determine content type based on extension
-    const extParts = entry.sourceFilename.split('.');
+    const extParts = entry.filename.split('.');
     const ext = extParts.length > 1 ? extParts.pop()?.toLowerCase() : undefined;
     let contentType = 'application/octet-stream';
     if (ext === 'json') contentType = 'application/json';
