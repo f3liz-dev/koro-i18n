@@ -37,6 +37,9 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
 
   /**
    * Create a new project
+   * 
+   * Validation of name and repository format is handled by CreateProjectSchema
+   * which validates: name matches /^[a-zA-Z0-9_-]+$/, repository matches owner/repo format
    */
   app.post('/', authMiddleware, validateJson(CreateProjectSchema), async (c) => {
     const user = c.get('user');

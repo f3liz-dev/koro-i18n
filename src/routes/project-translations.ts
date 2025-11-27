@@ -305,7 +305,8 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
 
     try {
       await ensureUserCanModerateTranslation(prisma, translation.projectId, user);
-    } catch {
+    } catch (_) {
+      // Expected error when user doesn't have moderation permissions
       return c.json({ error: 'Forbidden' }, 403);
     }
 
@@ -360,7 +361,8 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
 
     try {
       await ensureUserCanModerateTranslation(prisma, translation.projectId, user);
-    } catch {
+    } catch (_) {
+      // Expected error when user doesn't have moderation permissions
       return c.json({ error: 'Forbidden' }, 403);
     }
 

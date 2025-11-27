@@ -425,7 +425,8 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
         try {
           lastUpdated = new Date(mf.lastUpdated);
           if (isNaN(lastUpdated.getTime())) lastUpdated = new Date();
-        } catch {
+        } catch (_) {
+          // Invalid date format, use current time
           lastUpdated = new Date();
         }
 
