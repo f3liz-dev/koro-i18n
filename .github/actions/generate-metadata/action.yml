@@ -125,6 +125,10 @@ runs:
             git add .koro-i18n/store/
           fi
 
+          if [ -d ".koro-i18n/source" ]; then
+            git add .koro-i18n/source/
+          fi
+
           # Check if there are changes to commit
           if git diff --staged --quiet; then
             echo "ℹ No changes to commit - metadata is up to date"
