@@ -4,6 +4,7 @@ import { findProjectWithAccessCheck } from './database';
 import { getUserGitHubToken } from './github-repo-fetcher';
 import { Octokit } from '@octokit/rest';
 import type { AppEnv } from './context';
+import { isOIDCUser } from './context';
 
 export interface ProjectMiddlewareOptions {
   requireAccess?: boolean;
@@ -22,9 +23,9 @@ export function createProjectMiddleware(prisma: PrismaClient, opts: ProjectMiddl
     
     // Optimize: fetch project and check access in a single query when possible
     // For OIDC users, we still need to do repository comparison separately
-    const isOidcUser = user && user.userId === 'oidc-user';
+    const oidcUser = user && isOIDCUser(user);
     
-    if (requireAccess && user && !isOidcUser) {
+    if (requireAccess && user && !oidcUser) {
       // Single query: fetch project + check access
       const projectWithAccess = await findProjectWithAccessCheck(prisma, projectName, user.userId);
       
@@ -112,11 +113,11 @@ export function createProjectMiddleware(prisma: PrismaClient, opts: ProjectMiddl
       if (!user) return c.json({ error: 'Unauthorized' }, 401);
 
       // OIDC token may set user.repository
-      if (isOidcUser && user.repository) {
+      if (oidcUser && user.repository) {
         if (user.repository !== project.repository) {
           return c.json({ error: 'Forbidden' }, 403);
         }
-      } else if (isOidcUser) {
+      } else if (oidcUser) {
         return c.json({ error: 'Forbidden' }, 403);
       }
     }
