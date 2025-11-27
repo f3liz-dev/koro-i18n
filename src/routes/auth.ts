@@ -1,24 +1,19 @@
+/**
+ * Authentication routes
+ * 
+ * Handles GitHub OAuth flow, JWT token generation, and user session management
+ */
 import { Hono } from 'hono';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { Octokit } from '@octokit/rest';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/';
 import { createJWT, authMiddleware } from '../lib/auth';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
-
-interface Env {
-  DB: D1Database;
-  GITHUB_CLIENT_ID: string;
-  GITHUB_CLIENT_SECRET: string;
-  JWT_SECRET: string;
-  ENVIRONMENT: string;
-  Variables: {
-    user: any;
-  };
-}
+import type { Env, AppEnv } from '../lib/context';
 
 export function createAuthRoutes(prisma: PrismaClient, env: Env) {
-  const app = new Hono<{ Bindings: Env }>();
+  const app = new Hono<AppEnv>();
 
   const oauth = createOAuthAppAuth({
     clientType: 'oauth-app',
@@ -26,16 +21,22 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
     clientSecret: env.GITHUB_CLIENT_SECRET,
   });
 
+  /**
+   * Set auth cookie with secure settings
+   */
   const setAuthCookie = (c: any, token: string) =>
     setCookie(c, 'auth_token', token, {
       httpOnly: true,
-      maxAge: 86400,
+      maxAge: 86400, // 24 hours
       path: '/',
       sameSite: 'Lax',
       secure: env.ENVIRONMENT === 'production',
     });
 
-  async function upsertUserFromProfile(profile: any, accessToken: string) {
+  /**
+   * Upsert user from GitHub profile
+   */
+  async function upsertUserFromProfile(profile: any, accessToken: string): Promise<string> {
     const email = profile.email || `${profile.id}+${profile.login}@users.noreply.github.com`;
     const existing = await prisma.user.findUnique({
       where: { githubId: profile.id },
@@ -49,7 +50,7 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
           username: profile.login, 
           email, 
           avatarUrl: profile.avatar_url,
-          githubAccessToken: accessToken, // Store GitHub access token
+          githubAccessToken: accessToken,
         },
       });
       return existing.id;
@@ -63,12 +64,20 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
         username: profile.login,
         email,
         avatarUrl: profile.avatar_url,
-        githubAccessToken: accessToken, // Store GitHub access token
+        githubAccessToken: accessToken,
       },
     });
     return id;
   }
 
+  // ============================================================================
+  // OAuth Routes
+  // ============================================================================
+
+  /**
+   * Start GitHub OAuth flow
+   * Redirects to GitHub authorization page
+   */
   app.get('/github', async (c) => {
     const state = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
@@ -77,7 +86,7 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
       data: { state, timestamp: Date.now(), expiresAt },
     });
 
-    // No scope = read-only access to public information only (user profile, public repository metadata)
+    // No scope = read-only access to public information only
     const params = new URLSearchParams({
       client_id: env.GITHUB_CLIENT_ID,
       state,
@@ -86,16 +95,25 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
     return c.redirect(`https://github.com/login/oauth/authorize?${params}`);
   });
 
+  /**
+   * GitHub OAuth callback
+   * Exchanges code for token, creates/updates user, sets JWT cookie
+   */
   app.get('/callback', async (c) => {
     const code = c.req.query('code');
     const state = c.req.query('state');
 
-    if (!code || !state) return c.json({ error: 'Missing code or state' }, 400);
+    if (!code || !state) {
+      return c.json({ error: 'Missing code or state' }, 400);
+    }
 
     const stateData = await prisma.oauthState.findFirst({
       where: { state, expiresAt: { gt: new Date() } },
     });
-    if (!stateData) return c.json({ error: 'Invalid or expired OAuth state' }, 400);
+    
+    if (!stateData) {
+      return c.json({ error: 'Invalid or expired OAuth state' }, 400);
+    }
 
     await prisma.oauthState.delete({ where: { state } });
 
@@ -120,6 +138,13 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
     }
   });
 
+  // ============================================================================
+  // User Routes
+  // ============================================================================
+
+  /**
+   * Get current authenticated user
+   */
   app.get('/me', authMiddleware, async (c) => {
     const user = c.get('user');
 
@@ -134,6 +159,9 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
     return response;
   });
 
+  /**
+   * Logout - clear auth cookie
+   */
   app.post('/logout', async (c) => {
     deleteCookie(c, 'auth_token');
     return c.json({ success: true });

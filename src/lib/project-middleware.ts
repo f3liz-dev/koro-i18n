@@ -3,22 +3,18 @@ import { PrismaClient } from '../generated/prisma/';
 import { checkProjectAccess } from './database';
 import { getUserGitHubToken } from './github-repo-fetcher';
 import { Octokit } from '@octokit/rest';
+import type { AppEnv } from './context';
 
-interface ProjectMiddlewareOptions {
+export interface ProjectMiddlewareOptions {
   requireAccess?: boolean;
   withOctokit?: boolean; // whether to attach octokit/githubToken and fail if missing
   requireValidRepo?: boolean; // validates owner/repo format
 }
 
-interface Env {
-  Variables: { user: any };
-  Bindings: { JWT_SECRET?: string; PLATFORM_URL?: string };
-}
-
 export function createProjectMiddleware(prisma: PrismaClient, opts: ProjectMiddlewareOptions = {}) {
   const { requireAccess = true, withOctokit = false, requireValidRepo = true } = opts;
 
-  return createMiddleware<Env>(async (c, next) => {
+  return createMiddleware<AppEnv>(async (c, next) => {
     const projectName = c.req.param('projectName');
     if (!projectName) return c.json({ error: 'Project name is required' }, 400);
 
@@ -29,16 +25,17 @@ export function createProjectMiddleware(prisma: PrismaClient, opts: ProjectMiddl
 
     if (!project) return c.json({ error: 'Project not found' }, 404);
 
-    (c as any).set('project', project);
+    c.set('project', project as any);
 
     // Parse repository into owner/repo if possible
+    let owner = '';
+    let repo = '';
     if (project.repository) {
       try {
         const parts = project.repository.trim().split('/');
-        if (parts.length === 2) {
-          const [owner, repo] = parts;
-          (c as any).set('owner', owner);
-          (c as any).set('repo', repo);
+        if (parts.length === 2 && parts[0] && parts[1]) {
+          owner = parts[0];
+          repo = parts[1];
         } else if (requireValidRepo) {
           return c.json({ error: 'Invalid repository format. Expected owner/repo' }, 400);
         }
@@ -51,7 +48,7 @@ export function createProjectMiddleware(prisma: PrismaClient, opts: ProjectMiddl
 
     // Access check: supports JWT (userId) and OIDC (repository on token)
     if (requireAccess) {
-      const user = (c as any).get('user');
+      const user = c.get('user');
       if (!user) return c.json({ error: 'Unauthorized' }, 401);
 
       let hasAccess = false;
@@ -67,14 +64,18 @@ export function createProjectMiddleware(prisma: PrismaClient, opts: ProjectMiddl
 
     // Attach Octokit if requested
     if (withOctokit) {
-      const user = (c as any).get('user');
+      const user = c.get('user');
       if (!user) return c.json({ error: 'Unauthorized' }, 401);
       const token = await getUserGitHubToken(prisma, user.userId);
       if (!token) {
         return c.json({ error: 'GitHub access token not found. Please re-authenticate with GitHub.' }, 401);
       }
-      (c as any).set('githubToken', token);
-      (c as any).set('octokit', new Octokit({ auth: token }));
+      c.set('github', {
+        octokit: new Octokit({ auth: token }),
+        owner,
+        repo,
+        token,
+      } as any);
     }
 
     await next();

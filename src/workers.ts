@@ -6,20 +6,10 @@ import { createAuthRoutes } from './routes/auth';
 import { createProjectRoutes } from './routes/projects';
 import { CACHE_CONFIGS, buildCacheControl } from './lib/cache-headers';
 import { etagMiddleware } from './lib/etag-middleware';
+import type { Env } from './lib/context';
 
-interface Env {
-  DB: D1Database;
-  GITHUB_CLIENT_ID: string;
-  GITHUB_CLIENT_SECRET: string;
-  JWT_SECRET: string;
-  ENVIRONMENT: string;
-  PLATFORM_URL?: string;
-
-  ASSETS?: Fetcher;
-  Variables: {
-    user: any;
-  };
-}
+// Re-export the Env type for backwards compatibility
+export type { Env } from './lib/context';
 
 export function createWorkerApp(env: Env) {
   const app = new Hono();
