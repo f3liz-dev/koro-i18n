@@ -242,8 +242,8 @@ function findKeyLineInJson(lines: string[], keyPath: string): number {
         braceDepth++;
       } else if (char === '}') {
         braceDepth--;
-        // When closing a brace, pop the path stack if it's deeper than current depth
-        while (pathStack.length >= braceDepth && pathStack.length > 0) {
+        // When closing a brace, pop the path stack if it has more items than current depth
+        while (pathStack.length > braceDepth && pathStack.length > 0) {
           pathStack.pop();
         }
       }
@@ -297,16 +297,42 @@ function buildCharRangesFromJson(
 
       const startChar = line.indexOf(keyPattern);
       if (startChar >= 0) {
-        // Find the end of the value on this line
-        const colonIndex = line.indexOf(':', startChar);
+        // Find the colon after the key
+        const colonIndex = line.indexOf(':', startChar + keyPattern.length);
         if (colonIndex > -1) {
-          const closingQuote = line.lastIndexOf('"');
-          const comma = line.indexOf(',', colonIndex);
-
-          charRanges[key] = {
-            start: [lineNumber, startChar],
-            end: [lineNumber, closingQuote > colonIndex ? closingQuote + 1 : comma > 0 ? comma : line.length]
-          };
+          // Find the opening quote of the value (after the colon)
+          const valueStartQuote = line.indexOf('"', colonIndex + 1);
+          if (valueStartQuote > -1) {
+            // Find the closing quote of the value (handle escaped quotes)
+            let endQuote = valueStartQuote + 1;
+            while (endQuote < line.length) {
+              if (line[endQuote] === '"') {
+                // Check if this quote is escaped
+                let backslashCount = 0;
+                let j = endQuote - 1;
+                while (j >= valueStartQuote + 1 && line[j] === '\\') {
+                  backslashCount++;
+                  j--;
+                }
+                // Quote is escaped only if odd number of backslashes precede it
+                if (backslashCount % 2 === 0) {
+                  break;
+                }
+              }
+              endQuote++;
+            }
+            charRanges[key] = {
+              start: [lineNumber, startChar],
+              end: [lineNumber, endQuote < line.length ? endQuote + 1 : line.length]
+            };
+          } else {
+            // Non-string value (number, boolean, null)
+            const comma = line.indexOf(',', colonIndex);
+            charRanges[key] = {
+              start: [lineNumber, startChar],
+              end: [lineNumber, comma > 0 ? comma : line.length]
+            };
+          }
         }
       }
     }
@@ -520,23 +546,37 @@ export async function fetchSourceData(
     for await (const line of streamSource(projectName, language, init)) {
       if (line.type === 'header') continue;
 
-      // Match by filename (with or without path)
-      const lineFilename = (line as SourceFileJsonl).filename || '';
-      const lineFilepath = (line as SourceFileJsonl | SourceChunkJsonl).filepath || '';
-      
-      // Check if this line is for our file
-      const isMatch = lineFilename === filenameBase || 
-                      lineFilepath.endsWith(`/${filenameBase}`) ||
-                      lineFilepath === filenameBase;
+      // Type guard: only file and chunk types have filepath/filename/keys
+      if (line.type === 'file') {
+        const lineFilename = line.filename || '';
+        const lineFilepath = line.filepath || '';
+        
+        // Check if this line is for our file
+        const isMatch = lineFilename === filenameBase || 
+                        lineFilepath.endsWith(`/${filenameBase}`) ||
+                        lineFilepath === filenameBase;
 
-      if (isMatch) {
-        foundFile = true;
-        if (line.type === 'file' || line.type === 'chunk') {
+        if (isMatch) {
+          foundFile = true;
           Object.assign(keyPositions, line.keys);
+        } else if (foundFile) {
+          // We've moved past our file, stop streaming
+          break;
         }
-      } else if (foundFile) {
-        // We've moved past our file, stop streaming
-        break;
+      } else if (line.type === 'chunk') {
+        const lineFilepath = line.filepath || '';
+        
+        // Check if this line is for our file
+        const isMatch = lineFilepath.endsWith(`/${filenameBase}`) ||
+                        lineFilepath === filenameBase;
+
+        if (isMatch) {
+          foundFile = true;
+          Object.assign(keyPositions, line.keys);
+        } else if (foundFile) {
+          // We've moved past our file, stop streaming
+          break;
+        }
       }
     }
 

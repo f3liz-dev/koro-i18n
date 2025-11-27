@@ -1061,17 +1061,20 @@ function writeSource(
       const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, lang);
       const filename = file.filename.split('/').pop() || file.filename;
       const allKeys = Object.keys(file.contents);
-      const charRanges = file.rawMetadata?.charRanges || {};
+      const charRanges = file.rawMetadata?.charRanges ?? {};
 
       // Build keys with position data
       const keysWithPositions: Record<string, KeyPosition> = {};
       for (const key of allKeys) {
         const range = charRanges[key];
-        if (range) {
+        if (range && range.start && range.end) {
           keysWithPositions[key] = {
             start: range.start,
             end: range.end,
           };
+        } else {
+          // Log warning for keys without position data
+          console.warn(`  ⚠ Key "${key}" in ${file.filename} has no position data`);
         }
       }
 
