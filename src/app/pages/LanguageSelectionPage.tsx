@@ -109,9 +109,15 @@ export default function LanguageSelectionPage() {
   };
 
   const getProgressColor = (percentage: number) => {
-    if (percentage >= 90) return 'var(--success)';
-    if (percentage >= 50) return 'var(--warning)';
+    if (percentage >= 80) return 'var(--success)';
+    if (percentage >= 40) return 'var(--warning)';
     return 'var(--danger)';
+  };
+
+  const getStatusBadgeClass = (percentage: number) => {
+    if (percentage >= 80) return 'success';
+    if (percentage >= 40) return 'warning';
+    return 'danger';
   };
 
   const menuItems: MenuItem[] = [
@@ -143,50 +149,82 @@ export default function LanguageSelectionPage() {
       />
 
       <div class="container" style={{ 'padding-top': '2rem' }}>
+        {/* Section Header */}
         <div style={{ 'margin-bottom': '2rem' }}>
-          <h2 style={{ 'font-size': '1.5rem', 'font-weight': '600', 'margin-bottom': '0.5rem' }}>
+          <h2 style={{ 
+            'font-size': '1.5rem', 
+            'font-weight': '700', 
+            'margin-bottom': '0.5rem',
+            'letter-spacing': '-0.02em'
+          }}>
             Select Language
           </h2>
-          <p style={{ color: 'var(--text-secondary)', 'font-size': '0.875rem' }}>
+          <p style={{ color: 'var(--text-secondary)', 'font-size': '0.9375rem' }}>
             Choose a language to view and translate files
           </p>
         </div>
 
+        {/* Loading State */}
         <Show when={isLoading()}>
-          <div style={{ 'text-align': 'center', padding: '3rem' }}>
-            <div style={{
-              width: '2.5rem',
-              height: '2.5rem',
+          <div style={{ 
+            'text-align': 'center', 
+            padding: '4rem 2rem',
+            background: 'var(--bg)',
+            'border-radius': 'var(--radius-lg)',
+            border: '1px solid var(--border-light)'
+          }}>
+            <div class="animate-spin" style={{
+              width: '3rem',
+              height: '3rem',
               border: '3px solid var(--border)',
               'border-top-color': 'var(--accent)',
               'border-radius': '50%',
-              animation: 'spin 0.8s linear infinite',
               margin: '0 auto 1rem'
             }} />
-            <p style={{ color: 'var(--text-secondary)' }}>Loading languages...</p>
+            <p style={{ color: 'var(--text-secondary)', 'font-size': '0.9375rem' }}>Loading languages...</p>
           </div>
         </Show>
 
+        {/* Empty State */}
         <Show when={!isLoading() && languageStats().length === 0}>
-          <div class="card empty-state">
-            <div class="icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="card" style={{ 
+            'text-align': 'center', 
+            padding: '4rem 2rem',
+            'border-style': 'dashed',
+            'border-width': '2px'
+          }}>
+            <div style={{
+              width: '5rem',
+              height: '5rem',
+              margin: '0 auto 1.5rem',
+              display: 'flex',
+              'align-items': 'center',
+              'justify-content': 'center',
+              background: 'var(--accent-light)',
+              'border-radius': '50%'
+            }}>
+              <svg width="32" height="32" fill="none" stroke="var(--accent)" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
               </svg>
             </div>
-            <div class="title">No target languages found</div>
-            <div class="description">Upload translation files for languages other than {project()?.sourceLanguage || 'en'}</div>
+            <h3 style={{ 'font-size': '1.25rem', 'font-weight': '600', 'margin-bottom': '0.5rem' }}>
+              No target languages found
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', 'max-width': '24rem', margin: '0 auto' }}>
+              Upload translation files for languages other than {project()?.sourceLanguage || 'en'}
+            </p>
           </div>
         </Show>
 
+        {/* Languages Grid */}
         <Show when={!isLoading() && languageStats().length > 0}>
           <div class="grid grid-auto">
             <For each={languageStats()}>
               {(langStat) => (
                 <button
                   onClick={() => navigate(`/projects/${params.projectName}/language/${langStat.language}`)}
-                  class="card hover-lift transition-all"
-                  style={{ 'text-align': 'left', cursor: 'pointer' }}
+                  class="card interactive"
+                  style={{ 'text-align': 'left' }}
                 >
                   <div style={{
                     display: 'flex',
@@ -194,35 +232,31 @@ export default function LanguageSelectionPage() {
                     'justify-content': 'space-between',
                     'margin-bottom': '1rem'
                   }}>
-                    <h3 style={{ 'font-size': '1.25rem', 'font-weight': '600' }}>
+                    <h3 style={{ 
+                      'font-size': '1.375rem', 
+                      'font-weight': '700',
+                      'letter-spacing': '0.02em'
+                    }}>
                       {langStat.language.toUpperCase()}
                     </h3>
-                    <span class="badge" style={{
-                      background: langStat.percentage >= 90 ? 'var(--success-light)' :
-                                  langStat.percentage >= 50 ? 'var(--warning-light)' : 'var(--danger-light)',
-                      color: langStat.percentage >= 90 ? '#065f46' :
-                             langStat.percentage >= 50 ? '#92400e' : '#b91c1c'
-                    }}>
+                    <span class={`badge ${getStatusBadgeClass(langStat.percentage)}`}>
                       {langStat.percentage}%
                     </span>
                   </div>
-                  <div style={{ 'font-size': '0.875rem', color: 'var(--text-secondary)', 'margin-bottom': '0.75rem' }}>
-                    {langStat.translatedKeys} / {langStat.totalKeys} keys
-                  </div>
-                  <div style={{
-                    width: '100%',
-                    height: '0.5rem',
-                    background: 'var(--surface)',
-                    'border-radius': '999px',
-                    overflow: 'hidden'
+                  <div style={{ 
+                    'font-size': '0.875rem', 
+                    color: 'var(--text-secondary)', 
+                    'margin-bottom': '0.875rem' 
                   }}>
-                    <div style={{
-                      height: '100%',
-                      width: `${langStat.percentage}%`,
-                      background: getProgressColor(langStat.percentage),
-                      'border-radius': '999px',
-                      transition: 'width 0.3s ease'
-                    }} />
+                    <span style={{ 'font-weight': '600', color: 'var(--text)' }}>
+                      {langStat.translatedKeys.toLocaleString()}
+                    </span> / {langStat.totalKeys.toLocaleString()} keys translated
+                  </div>
+                  <div class="progress-bar">
+                    <div 
+                      class={`progress-fill ${getStatusBadgeClass(langStat.percentage)}`}
+                      style={{ width: `${langStat.percentage}%` }}
+                    />
                   </div>
                 </button>
               )}

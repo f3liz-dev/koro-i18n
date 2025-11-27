@@ -1,4 +1,12 @@
-export function LoadingSpinner() {
+export function LoadingSpinner(props: { size?: 'sm' | 'md' | 'lg'; text?: string }) {
+  const sizes = {
+    sm: { spinner: '1.5rem', border: '2px' },
+    md: { spinner: '2.5rem', border: '3px' },
+    lg: { spinner: '3.5rem', border: '4px' }
+  };
+  
+  const size = sizes[props.size || 'md'];
+
   return (
     <div style={{
       display: 'flex',
@@ -13,24 +21,23 @@ export function LoadingSpinner() {
         gap: '1rem'
       }}>
         <div
+          class="animate-spin"
           style={{
-            width: '2.5rem',
-            height: '2.5rem',
-            border: '3px solid var(--border)',
+            width: size.spinner,
+            height: size.spinner,
+            border: `${size.border} solid var(--border)`,
             'border-top-color': 'var(--accent)',
-            'border-radius': '50%',
-            animation: 'spin 0.8s linear infinite'
+            'border-radius': '50%'
           }}
           role="status"
           aria-label="Loading"
         />
-        <p style={{ 'font-size': '0.875rem', color: 'var(--text-secondary)' }}>Loading...</p>
+        {props.text !== '' && (
+          <p style={{ 'font-size': '0.9375rem', color: 'var(--text-secondary)' }}>
+            {props.text || 'Loading...'}
+          </p>
+        )}
       </div>
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }
