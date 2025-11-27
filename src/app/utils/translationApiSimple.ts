@@ -160,11 +160,11 @@ export async function submitTranslation(
     );
 
     if (!response.ok) {
-      const data = await response.json();
+      const data = await response.json() as { error?: string };
       return { success: false, error: data.error || 'Failed to submit translation' };
     }
 
-    const data = await response.json();
+    const data = await response.json() as { id?: string };
     return { success: true, id: data.id };
   } catch (error) {
     console.error('[API] Error submitting translation:', error);
@@ -191,7 +191,7 @@ export async function approveTranslation(
     );
 
     if (!response.ok) {
-      const data = await response.json();
+      const data = await response.json() as { error?: string };
       return { success: false, error: data.error || 'Failed to approve translation' };
     }
 
@@ -219,7 +219,7 @@ export async function rejectTranslation(
     );
 
     if (!response.ok) {
-      const data = await response.json();
+      const data = await response.json() as { error?: string };
       return { success: false, error: data.error || 'Failed to reject translation' };
     }
 
