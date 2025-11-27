@@ -155,6 +155,37 @@ export function createFileRoutes(prisma: PrismaClient, env: Env) {
         }
     });
 
+    // Stream the source file as JSONL format
+    // This contains pre-parsed key-value pairs for all files in a language
+    app.get('/source/stream/:lang', async (c) => {
+        const lang = c.req.param('lang');
+        const branch = c.req.query('branch') || 'main';
+        const octokit = (c as any).get('octokit') as Octokit;
+        const owner = (c as any).get('owner') as string;
+        const repo = (c as any).get('repo') as string;
+
+        try {
+            const sourcePath = `.koro-i18n/source/${lang}.jsonl`;
+            const stream = await streamFileFromGitHub(octokit, owner, repo, sourcePath, branch);
+
+            if (!stream) {
+                return c.json({ error: 'Source file not found' }, 404);
+            }
+
+            return new Response(stream, {
+                headers: {
+                    'Content-Type': 'application/x-ndjson',
+                    'Transfer-Encoding': 'chunked',
+                    'Cache-Control': buildCacheControl(CACHE_CONFIGS.projectFiles),
+                },
+            });
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Error streaming source file:', errorMessage);
+            return c.json({ error: `Failed to stream source file: ${errorMessage}` }, 500);
+        }
+    });
+
     // Stream a file directly from GitHub
     // This endpoint returns raw file content as a stream
     // Useful for large files that shouldn't be loaded entirely into memory
