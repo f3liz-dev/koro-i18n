@@ -1,127 +1,149 @@
 # koro-i18n
 
-Lightweight i18n platform powered by Cloudflare Workers, D1, and R2.
+A lightweight, intuitive i18n platform powered by Cloudflare Workers.
+
+## Quick Start
+
+### 1. Add Configuration
+
+Create `koro.config.json` in your repository:
+
+```json
+{
+  "version": 1,
+  "sourceLanguage": "en",
+  "targetLanguages": ["ja", "es", "fr", "de"],
+  "files": {
+    "include": ["locales/{lang}/**/*.json"]
+  }
+}
+```
+
+### 2. Create a Project
+
+1. Log in with GitHub at https://koro.f3liz.workers.dev
+2. Create a new project and link it to your repository
+
+### 3. Set Up GitHub Action
+
+Create `.github/workflows/i18n.yml`:
+
+```yaml
+name: i18n Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'locales/en/**'
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: f3liz-dev/koro-i18n/.github/actions/sync@main
+        with:
+          project-name: your-project-name
+```
+
+That's it! Your translations will sync automatically.
+
+## How It Works
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         Your Repository                                   │
+│                                                                          │
+│  locales/           .koro-i18n/                                          │
+│    en/*.json   ──▶    koro-i18n.repo.generated.jsonl                     │
+│    ja/*.json          store/*.jsonl                                       │
+│                       source/*.jsonl                                      │
+│                                                                          │
+│  GitHub Action preprocesses translation files and generates metadata     │
+└────────────────────────────────┬─────────────────────────────────────────┘
+                                 │
+                                 │ Platform reads metadata from GitHub
+                                 ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                       Koro i18n Platform                                  │
+│                                                                          │
+│  • Reads preprocessed metadata from your repo (no storage needed)        │
+│  • Stores only web-submitted translations in D1                          │
+│  • Exports approved translations for sync back                           │
+└────────────────────────────────┬─────────────────────────────────────────┘
+                                 │
+                                 │ GitHub Action applies approved translations
+                                 ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         Your Repository                                   │
+│                                                                          │
+│  locales/ja/*.json ◀── Updated with approved translations                │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Flow Summary
+
+1. **Push**: GitHub Action preprocesses translations → generates `.koro-i18n/` metadata → commits to repo
+2. **Display**: Platform reads metadata directly from GitHub (no storage needed on Workers)
+3. **Translate**: Contributors use the web UI to submit translations (stored in D1)
+4. **Pull**: GitHub Action exports approved translations → updates your translation files → commits
 
 ## Features
 
-- **R2 Storage** - GitHub imports stored in R2 (unlimited size)
-- **Differential Upload** - Only upload changed files, skip duplicates
-- **Automatic Cleanup** - Remove orphaned files from R2
-- **Source Validation** - Auto-detect outdated translations
-- **Git Integration** - Full git blame + commit info
-- **Web Translations** - User translations in D1
-- **Free Tier Optimized** - <1GB storage, minimal operations
+- **Stateless Platform**: Cloudflare Workers with no persistent storage needed
+- **Preprocessing on GitHub**: Metadata generation happens in your repo
+- **OIDC Authentication**: No secrets to manage
+- **Web UI**: Simple interface for translators
+- **Git Integration**: Full attribution for translators
 
-## Quick start
+## CLI (Optional)
 
-1. Install dependencies and generate Prisma client:
+For local validation and metadata generation:
 
-```pwsh
-pnpm install
-pnpm run prisma:generate
+```bash
+# Initialize config
+npx @koro-i18n/client init
+
+# Validate config
+npx @koro-i18n/client validate
+
+# Generate metadata locally (same as GitHub Action)
+npx @koro-i18n/client generate
 ```
 
-2. Create R2 *and* D1 (Cloudflare) resources and apply migrations:
+## Development
 
-```pwsh
-wrangler r2 bucket create koro-i18n-translations
-pnpm run prisma:migrate:local
+```bash
+# Install dependencies
+npm install
+
+# Generate Prisma client
+npm run prisma:generate
+
+# Run locally
+npm run dev:all
+
+# Run tests
+npm run test
 ```
-
-3. Run locally:
-
-```pwsh
-pnpm run dev:all    # frontend + workers + rust (if enabled)
-```
-
-4. Build & deploy:
-
-```pwsh
-pnpm run build
-pnpm run deploy
-```
-
-## Architecture
-
-**Current Flow:** GitHub → Worker (fetch with user token) → Process & Validate → D1 (metadata). Web UI queries Worker → D1 for web translations.
-
-**Key Concepts:**
-- **Direct GitHub Access:** Files are fetched on-demand from GitHub using user's OAuth token with `public_repo` scope
-- **Manifest-Based:** Repositories generate `.koro-i18n/koro-i18n.repo.generated.json` listing all translation files
-- **Client-side Validation:** Metadata validation is done on the client side
-- **No Manual Upload:** The system automatically fetches the latest files from the repository
-- **R2 for Web Translations Only:** R2 storage is used primarily for user-submitted web translations
-- Git history preserved in metadata
-- Source validation via hash comparison
-
-## Documentation
-
-- `docs/SETUP.md` — Installation + Cloudflare setup
-- `docs/API.md` — API reference
-- `docs/ARCHITECTURE.md` — System design
-- `docs/FRONTEND_GUIDE.md` — Frontend development
-- `docs/RUST_WORKER.md` — Compute worker details
-- `docs/CLIENT_LIBRARY.md` — Manifest generation
-- `docs/PRISMA.md` — Database schema
-- `docs/TESTING.md` — Testing guide
-
-See [docs/README.md](docs/README.md) for complete index.
 
 ## Tech Stack
 
-- Frontend: SolidJS + Vite + UnoCSS
-- Backend: Cloudflare Workers + Hono
-- Compute: Rust Worker (for CPU-intensive operations)
-- Storage: D1 (SQLite) + R2 (Object Storage)
-- ORM: Prisma
-- Auth: GitHub OAuth + JWT
-- Compression: MessagePack
+- Frontend: SolidJS + Vite
+- Backend: Cloudflare Workers + Hono + D1
+- Auth: GitHub OAuth + OIDC
 
-## API Endpoints
+## Documentation
 
-### GitHub Integration
-```
-GET  /api/projects/:project/files/manifest              # Get generated manifest
-POST /api/projects/:project/files/fetch-from-manifest  # Fetch files using manifest (RECOMMENDED)
-POST /api/projects/:project/files/fetch-from-github    # Legacy: Fetch files with directory traversal
-```
-
-### D1 API - Metadata & Web Translations
-```
-GET  /api/projects/:project/files/list
-GET  /api/translations
-POST /api/translations
-```
-
-### R2 API - Web Translations Only
-```
-GET /api/r2/:project/:lang/:filename  # Primarily for web translations
-GET /api/r2/by-key/:r2Key
-```
-
-## Performance
-
-**Free Tier Usage:**
-- R2: ~100 writes/month, ~1K reads/month
-- D1: ~200 writes/month, ~10K reads/month
-- Storage: <1GB total
-
-**Optimizations:**
-- In-memory caching (1 hour TTL)
-- ETag support (304 Not Modified)
-- MessagePack compression
-- Individual file storage
-
-## Development commands
-
-Run components individually or together:
-
-```pwsh
-pnpm run dev          # frontend
-pnpm run dev:workers  # wrangler dev
-pnpm run dev:all      # run all services together
-pnpm run test         # run vitest
-```
+See [docs/](docs/) for detailed documentation.
 
 ## License
 

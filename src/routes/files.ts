@@ -144,6 +144,83 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
   });
 
   // ============================================================================
+  // Refresh Files from GitHub
+  // ============================================================================
+
+  /**
+   * Refresh translation files from GitHub
+   * Reads koro.config.json directly from the repository
+   * This is the simplified flow - no preprocessing needed
+   */
+  app.post('/refresh', async (c) => {
+    const branch = c.req.query('branch') || 'main';
+    const { project, github } = getContext(c);
+
+    try {
+      // Try to read koro.config.json from the repository
+      let config: any = null;
+      try {
+        const configStream = await streamFileFromGitHub(
+          github.octokit, github.owner, github.repo, 'koro.config.json', branch
+        );
+        if (configStream) {
+          const reader = configStream.getReader();
+          const decoder = new TextDecoder();
+          let configContent = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            configContent += decoder.decode(value, { stream: true });
+          }
+          configContent += decoder.decode();
+          config = JSON.parse(configContent);
+        }
+      } catch (e) {
+        console.warn('Could not read koro.config.json, trying legacy config');
+      }
+
+      // Fall back to legacy manifest if config not found
+      if (!config) {
+        const manifest = await fetchGeneratedManifest(
+          github.octokit, github.owner, github.repo, branch
+        );
+        if (manifest) {
+          return c.json({
+            success: true,
+            filesRefreshed: manifest.files.length,
+            message: 'Using legacy manifest. Consider migrating to koro.config.json',
+            useLegacy: true,
+          });
+        }
+        return c.json({
+          error: 'No koro.config.json or legacy manifest found. Please add a koro.config.json to your repository.',
+        }, 404);
+      }
+
+      // Read files based on the include pattern
+      const sourceLanguage = config.sourceLanguage || 'en';
+      const includePatterns = config.files?.include || ['locales/{lang}/**/*.json'];
+      
+      // For now, just acknowledge the refresh request
+      // The actual file reading happens when the frontend requests files
+      return c.json({
+        success: true,
+        filesRefreshed: 0,
+        config: {
+          sourceLanguage,
+          targetLanguages: config.targetLanguages || [],
+          includePatterns,
+        },
+        message: 'Config loaded successfully. Files will be fetched on demand.',
+      });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error refreshing files:', msg);
+      return c.json({ error: `Failed to refresh files: ${msg}` }, 500);
+    }
+  });
+
+  // ============================================================================
   // Store/Source/Progress Streaming
   // ============================================================================
 
