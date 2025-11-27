@@ -1,24 +1,58 @@
 import { ParentComponent, Show } from 'solid-js';
-import { A } from '@solidjs/router';
+import { A, useLocation } from '@solidjs/router';
 import { useAuth } from '../auth';
 import '../styles/minimal.css';
 
 export const SimpleLayout: ParentComponent = (props) => {
   const { user, login, logout } = useAuth();
+  const location = useLocation();
+
+  const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
   return (
     <div class="page">
       <header class="header">
         <div class="inner">
           <A href="/" class="brand">
-            <span style={{ "font-size": "1.25rem" }}>🌐</span>
+            <span style={{ "font-size": "1.5rem" }}>🌐</span>
             <span>koro i18n</span>
           </A>
 
           <nav class="nav">
-            <A href="/projects">Projects</A>
+            <A 
+              href="/projects"
+              style={{
+                color: isActive('/projects') || isActive('/dashboard') ? 'var(--accent)' : undefined,
+                background: isActive('/projects') || isActive('/dashboard') ? 'var(--accent-light)' : undefined
+              }}
+            >
+              Projects
+            </A>
+            <A 
+              href="/history"
+              style={{
+                color: isActive('/history') ? 'var(--accent)' : undefined,
+                background: isActive('/history') ? 'var(--accent-light)' : undefined
+              }}
+            >
+              History
+            </A>
             <Show when={!user()} fallback={
-              <button onClick={() => logout()} class="btn ghost">Sign Out</button>
+              <div style={{ display: 'flex', 'align-items': 'center', gap: '0.75rem' }}>
+                <Show when={user()?.avatarUrl}>
+                  <img 
+                    src={user()?.avatarUrl} 
+                    alt={user()?.username || 'User'} 
+                    style={{ 
+                      width: '2rem', 
+                      height: '2rem', 
+                      'border-radius': '50%',
+                      border: '2px solid var(--border)'
+                    }} 
+                  />
+                </Show>
+                <button onClick={() => logout()} class="btn ghost">Sign Out</button>
+              </div>
             }>
               <button onClick={() => login()} class="btn primary">Sign In</button>
             </Show>
@@ -33,7 +67,16 @@ export const SimpleLayout: ParentComponent = (props) => {
       </main>
 
       <footer class="footer">
-        © {new Date().getFullYear()} koro i18n
+        <span>© {new Date().getFullYear()} koro i18n</span>
+        <span style={{ margin: '0 0.75rem', color: 'var(--border)' }}>·</span>
+        <a 
+          href="https://github.com" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          style={{ color: 'var(--text-muted)', 'text-decoration': 'none' }}
+        >
+          GitHub
+        </a>
       </footer>
     </div>
   );
