@@ -890,15 +890,16 @@ export async function streamFileFromGitHub(
       },
     });
 
-    // The response is a raw Response object when parseSuccessResponseBody is false
-    const rawResponse = response.data as unknown as Response;
+    // When parseSuccessResponseBody is false, response.data IS the ReadableStream body directly,
+    // not a Response object. Octokit sets: octokitResponse.data = fetchResponse.body
+    const stream = response.data as unknown as ReadableStream<Uint8Array>;
 
-    if (!rawResponse.body) {
-      console.warn(`[github-fetcher] No body in streaming response for ${path}`);
+    if (!stream) {
+      console.warn(`[github-fetcher] No stream in response for ${path}`);
       return null;
     }
 
-    return rawResponse.body;
+    return stream;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[github-fetcher] Error streaming file ${path}:`, errorMessage);
