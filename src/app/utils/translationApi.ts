@@ -85,12 +85,23 @@ function extractQuotedString(str: string): string {
   }
 
   // Find closing quote (handle escaped quotes)
+  // Count consecutive backslashes before quote - if odd, quote is escaped
   let closeQuote = -1;
   let i = openQuote + 1;
   while (i < trimmed.length) {
-    if (trimmed[i] === '"' && trimmed[i - 1] !== '\\') {
-      closeQuote = i;
-      break;
+    if (trimmed[i] === '"') {
+      // Count consecutive backslashes before this quote
+      let backslashCount = 0;
+      let j = i - 1;
+      while (j >= openQuote + 1 && trimmed[j] === '\\') {
+        backslashCount++;
+        j--;
+      }
+      // Quote is escaped only if odd number of backslashes precede it
+      if (backslashCount % 2 === 0) {
+        closeQuote = i;
+        break;
+      }
     }
     i++;
   }
@@ -109,14 +120,18 @@ function extractQuotedString(str: string): string {
 
 /**
  * Unescape JSON string escape sequences
+ * Order matters: replace \\\\ first to avoid affecting other escape sequences
  */
 function unescapeJsonString(str: string): string {
+  // Replace escaped backslash first (\\) -> (\)
+  // This must happen first to avoid affecting other escape sequences like \n, \t
   return str
+    .replace(/\\\\/g, '\x00')  // Temporarily replace \\\\ with null char
     .replace(/\\n/g, '\n')
     .replace(/\\r/g, '\r')
     .replace(/\\t/g, '\t')
     .replace(/\\"/g, '"')
-    .replace(/\\\\/g, '\\');
+    .replace(/\x00/g, '\\');   // Replace null char back to single backslash
 }
 
 // Store JSONL types used by the client streaming API
@@ -230,8 +245,9 @@ export async function fetchFileFromGitHub(
       sourceHash: '',
       commitSha,
       fetchedAt: new Date().toISOString(),
-      // totalKeys will be set from metadata when available
-      totalKeys: undefined
+      // totalKeys is 0 when metadata is not yet available
+      // Will be updated when metadata is fetched separately
+      totalKeys: 0
     };
   } catch (error) {
     console.error('[GitHub] Fetch error:', error);

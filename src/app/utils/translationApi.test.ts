@@ -14,12 +14,24 @@ describe('extractValueFromPosition behavior (via integration)', () => {
     if (openQuote === -1) {
       return trimmed.replace(/,\s*$/, '');
     }
+    // Find closing quote - count consecutive backslashes before quote
+    // If odd number of backslashes, quote is escaped
     let closeQuote = -1;
     let i = openQuote + 1;
     while (i < trimmed.length) {
-      if (trimmed[i] === '"' && trimmed[i - 1] !== '\\') {
-        closeQuote = i;
-        break;
+      if (trimmed[i] === '"') {
+        // Count consecutive backslashes before this quote
+        let backslashCount = 0;
+        let j = i - 1;
+        while (j >= openQuote + 1 && trimmed[j] === '\\') {
+          backslashCount++;
+          j--;
+        }
+        // Quote is escaped only if odd number of backslashes precede it
+        if (backslashCount % 2 === 0) {
+          closeQuote = i;
+          break;
+        }
       }
       i++;
     }
@@ -27,12 +39,15 @@ describe('extractValueFromPosition behavior (via integration)', () => {
       return trimmed.substring(openQuote + 1);
     }
     const content = trimmed.substring(openQuote + 1, closeQuote);
+    // Replace escaped backslash first (\\) -> (\)
+    // This must happen first to avoid affecting other escape sequences like \n, \t
     return content
+      .replace(/\\\\/g, '\x00')  // Temporarily replace \\\\ with null char
       .replace(/\\n/g, '\n')
       .replace(/\\r/g, '\r')
       .replace(/\\t/g, '\t')
       .replace(/\\"/g, '"')
-      .replace(/\\\\/g, '\\');
+      .replace(/\x00/g, '\\');   // Replace null char back to single backslash
   };
 
   const parseJsonStringValue = (extracted: string): string => {
@@ -111,6 +126,19 @@ describe('extractValueFromPosition behavior (via integration)', () => {
     const range = { start: [2, 2] as [number, number], end: [2, 31] as [number, number] };
     const value = extractValueFromPosition(jsonContent, range);
     expect(value).toBe('He said "hello"');
+  });
+
+  it('handles escaped backslash before quote correctly', () => {
+    // Test case: \\\" means escaped backslash followed by quote (end of string)
+    // The backslash itself is escaped, so the quote is NOT escaped
+    const jsonContent = `{
+  "path": "C:\\\\Users\\\\test"
+}`;
+
+    // This tests: "path": "C:\\Users\\test" where \\ becomes \
+    const range = { start: [2, 2] as [number, number], end: [2, 27] as [number, number] };
+    const value = extractValueFromPosition(jsonContent, range);
+    expect(value).toBe('C:\\Users\\test');
   });
 
   it('returns empty string for invalid position', () => {
