@@ -1,57 +1,51 @@
+/**
+ * Project routes
+ * 
+ * Handles project CRUD, member management, and mounts sub-routes for
+ * files, translations, and apply operations
+ */
 import { Hono } from 'hono';
-import * as t from 'io-ts';
 import { PrismaClient } from '../generated/prisma/';
 import { authMiddleware } from '../lib/auth';
-import { validate } from '../lib/validator';
 import { createFileRoutes } from './files';
 import { createProjectTranslationRoutes } from './project-translations';
 import { createApplyRoutes } from './apply';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 import { generateProjectsETag, checkETagMatch, create304Response } from '../lib/etag-db';
-
-interface Env {
-  JWT_SECRET: string;
-  ENVIRONMENT: string;
-  ALLOWED_PROJECT_CREATORS?: string;
-  Variables: {
-    user: any;
-  };
-}
-
-const CreateProjectSchema = t.type({
-  name: t.string,
-  repository: t.string,
-});
-
-const UpdateProjectSchema = t.type({
-  accessControl: t.union([t.literal('whitelist'), t.literal('blacklist')]),
-});
-
-const JoinProjectSchema = t.type({}); // Empty body
-
-const ApproveMemberSchema = t.type({
-  status: t.union([t.literal('approved'), t.literal('rejected')]),
-});
+import type { Env, AppEnv } from '../lib/context';
+import { 
+  CreateProjectSchema, 
+  UpdateProjectSchema, 
+  ApproveMemberSchema,
+  validateJson,
+} from '../lib/schemas';
 
 export function createProjectRoutes(prisma: PrismaClient, env: Env) {
-  const app = new Hono<{ Bindings: Env }>();
+  const app = new Hono<AppEnv>();
 
-  // Mount files routes
-  // Note: We mount it at /:projectName/files so that the nested router can access :projectName
+  // ============================================================================
+  // Mount Sub-Routes
+  // ============================================================================
+
   app.route('/:projectName/files', createFileRoutes(prisma, env));
-
-  // Mount translations routes
   app.route('/:projectName/translations', createProjectTranslationRoutes(prisma, env));
-
-  // Mount apply translations routes
   app.route('/:projectName/apply', createApplyRoutes(prisma, env));
 
-  // Create Project
-  app.post('/', authMiddleware, validate('json', CreateProjectSchema), async (c) => {
-    const user = c.get('user');
-    const { name, repository } = c.req.valid('json' as never) as t.TypeOf<typeof CreateProjectSchema>;
+  // ============================================================================
+  // Project CRUD
+  // ============================================================================
 
-    // Permission check
+  /**
+   * Create a new project
+   * 
+   * Validation of name and repository format is handled by CreateProjectSchema
+   * which validates: name matches /^[a-zA-Z0-9_-]+$/, repository matches owner/repo format
+   */
+  app.post('/', authMiddleware, validateJson(CreateProjectSchema), async (c) => {
+    const user = c.get('user');
+    const { name, repository } = c.req.valid('json');
+
+    // Check permission to create projects
     const allowedCreators = env.ALLOWED_PROJECT_CREATORS?.trim();
     if (allowedCreators) {
       const allowedUsernames = allowedCreators.split(',').map(u => u.trim().toLowerCase());
@@ -60,13 +54,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       }
     }
 
-    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-      return c.json({ error: 'Invalid name' }, 400);
-    }
-    if (!/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+$/.test(repository)) {
-      return c.json({ error: 'Invalid repository' }, 400);
-    }
-
+    // Check for existing project or repository
     const existing = await prisma.project.findFirst({
       where: { OR: [{ name }, { repository }] },
     });
@@ -83,14 +71,13 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return c.json({ success: true, id, name, projectName: name, repository });
   });
 
-  // List Projects
+  /**
+   * List user's projects (owned or member of)
+   */
   app.get('/', authMiddleware, async (c) => {
     const user = c.get('user');
-    const includeLanguages = c.req.query('includeLanguages') === 'true';
 
-    // Optimization: Split query to avoid slow OR with relation filter
-    // 1. Fetch projects owned by user
-    // 2. Fetch projects where user is an approved member
+    // Fetch owned projects and memberships in parallel
     const [ownedProjects, memberProjects] = await Promise.all([
       prisma.project.findMany({
         where: { userId: user.userId },
@@ -103,7 +90,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       }),
     ]);
 
-    // Combine and deduplicate (in case user is both owner and member)
+    // Combine and deduplicate
     const projectMap = new Map<string, any>();
 
     ownedProjects.forEach(p => {
@@ -119,15 +106,12 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     const result = Array.from(projectMap.values())
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-    // ETag logic
+    // ETag for caching
     const timestamps = result.map(p => p.createdAt);
     const etag = generateProjectsETag(timestamps);
     if (checkETagMatch(c.req.raw, etag)) {
       return create304Response(etag, buildCacheControl(CACHE_CONFIGS.projects));
     }
-
-    // Optional: Fetch languages (simplified for brevity)
-    // ...
 
     const response = c.json({ projects: result });
     response.headers.set('ETag', etag);
@@ -135,7 +119,9 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return response;
   });
 
-  // Get All Projects (for discovery)
+  /**
+   * List all projects for discovery
+   */
   app.get('/all', authMiddleware, async (c) => {
     const user = c.get('user');
     const projects = await prisma.project.findMany({
@@ -165,7 +151,9 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return response;
   });
 
-  // Delete Project
+  /**
+   * Delete a project (owner only)
+   */
   app.delete('/:projectName', authMiddleware, async (c) => {
     const user = c.get('user');
     const projectName = c.req.param('projectName');
@@ -178,11 +166,13 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return c.json({ success: true });
   });
 
-  // Update Project
-  app.patch('/:projectName', authMiddleware, validate('json', UpdateProjectSchema), async (c) => {
+  /**
+   * Update project settings (owner only)
+   */
+  app.patch('/:projectName', authMiddleware, validateJson(UpdateProjectSchema), async (c) => {
     const user = c.get('user');
     const projectName = c.req.param('projectName');
-    const { accessControl } = c.req.valid('json' as never) as t.TypeOf<typeof UpdateProjectSchema>;
+    const { accessControl } = c.req.valid('json');
 
     const project = await prisma.project.findUnique({ where: { name: projectName } });
     if (!project) return c.json({ error: 'Not found' }, 404);
@@ -195,7 +185,13 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return c.json({ success: true });
   });
 
-  // Join Project
+  // ============================================================================
+  // Member Management
+  // ============================================================================
+
+  /**
+   * Request to join a project
+   */
   app.post('/:projectName/join', authMiddleware, async (c) => {
     const user = c.get('user');
     const projectName = c.req.param('projectName');
@@ -207,7 +203,9 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
       where: { projectId_userId: { projectId: project.id, userId: user.userId } },
     });
 
-    if (existing) return c.json({ error: 'Already member/requested', status: existing.status }, 400);
+    if (existing) {
+      return c.json({ error: 'Already member/requested', status: existing.status }, 400);
+    }
 
     await prisma.projectMember.create({
       data: {
@@ -222,7 +220,9 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return c.json({ success: true, status: 'pending' });
   });
 
-  // List Members
+  /**
+   * List project members (owner only)
+   */
   app.get('/:projectName/members', authMiddleware, async (c) => {
     const user = c.get('user');
     const projectName = c.req.param('projectName');
@@ -250,12 +250,14 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return c.json({ members: result });
   });
 
-  // Approve Member
-  app.post('/:projectName/members/:memberId/approve', authMiddleware, validate('json', ApproveMemberSchema), async (c) => {
+  /**
+   * Approve or reject a member request (owner only)
+   */
+  app.post('/:projectName/members/:memberId/approve', authMiddleware, validateJson(ApproveMemberSchema), async (c) => {
     const user = c.get('user');
     const projectName = c.req.param('projectName');
     const memberId = c.req.param('memberId');
-    const { status } = c.req.valid('json' as never) as t.TypeOf<typeof ApproveMemberSchema>;
+    const { status } = c.req.valid('json');
 
     const project = await prisma.project.findUnique({ where: { name: projectName } });
     if (!project) return c.json({ error: 'Not found' }, 404);
@@ -269,7 +271,9 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
     return c.json({ success: true });
   });
 
-  // Remove Member
+  /**
+   * Remove a member (owner only)
+   */
   app.delete('/:projectName/members/:memberId', authMiddleware, async (c) => {
     const user = c.get('user');
     const projectName = c.req.param('projectName');

@@ -1,103 +1,83 @@
+/**
+ * Apply routes
+ * 
+ * Handles exporting approved translations for GitHub Actions to create PRs
+ */
 import { Hono } from 'hono';
-import * as t from 'io-ts';
 import { PrismaClient } from '../generated/prisma/';
 import { authMiddleware } from '../lib/auth';
 import { createProjectMiddleware } from '../lib/project-middleware';
-import { validate } from '../lib/validator';
 import { getTranslationsDiff, exportApprovedTranslations, markTranslationsAsCommitted } from '../lib/github-pr-service';
+import type { Env, AppEnv, AuthUser, ProjectContext } from '../lib/context';
+import { hasProjectAccess } from '../lib/context';
+import { MarkCommittedSchema, validateJson } from '../lib/schemas';
 
-interface Env {
-  JWT_SECRET: string;
-  ENVIRONMENT: string;
-  PLATFORM_URL?: string;
-  Variables: {
-    user: any;
+// ============================================================================
+// Helper Types
+// ============================================================================
+
+interface ApplyContext {
+  user: AuthUser;
+  project: ProjectContext;
+}
+
+function getContext(c: any): ApplyContext {
+  return {
+    user: c.get('user') as AuthUser,
+    project: c.get('project') as ProjectContext,
   };
 }
 
-const MarkCommittedSchema = t.type({
-  translationIds: t.array(t.string),
-});
+// ============================================================================
+// Route Factory
+// ============================================================================
 
-/**
- * Check if user has access to the project
- * Supports both JWT (userId check) and OIDC (repository check)
- */
-function hasProjectAccess(user: any, project: { userId: string; repository: string }): boolean {
-  // JWT auth: check userId
-  if (user.userId && user.userId !== 'oidc-user') {
-    return project.userId === user.userId;
-  }
+export function createApplyRoutes(prisma: PrismaClient, _env: Env) {
+  const app = new Hono<AppEnv>();
   
-  // OIDC auth: check repository matches
-  if (user.repository) {
-    return project.repository === user.repository;
-  }
-  
-  return false;
-}
+  // Project context without access check (handled per-route for OIDC support)
+  app.use('*', authMiddleware, createProjectMiddleware(prisma, { 
+    requireAccess: false, 
+    withOctokit: false 
+  }));
 
-export function createApplyRoutes(prisma: PrismaClient, env: Env) {
-  const app = new Hono<{ Bindings: Env }>();
-  // Provide project context; access checks are handled per-route
-  app.use('*', authMiddleware, createProjectMiddleware(prisma, { requireAccess: false, withOctokit: false }));
+  // ============================================================================
+  // Preview
+  // ============================================================================
 
   /**
-   * Preview the translations that would be applied
-   * GET /api/projects/:projectName/apply/preview
-   * 
-   * Returns a summary of approved translations grouped by language and file.
-   * 
-   * Authentication:
-   * - JWT: Project owner only
-   * - OIDC: Repository must match project's repository
+   * Preview translations that would be applied
+   * Returns summary of approved translations grouped by language and file
    */
   app.get('/preview', async (c) => {
-    const user = (c as any).get('user');
-    const project = (c as any).get('project');
-    if (!project) return c.json({ error: 'Project not found' }, 404);
+    const { user, project } = getContext(c);
 
-    // Check access - owner or matching repository (OIDC)
     if (!hasProjectAccess(user, project)) {
-      return c.json({ error: 'Access denied. Use project owner credentials or OIDC from matching repository.' }, 403);
+      return c.json({ 
+        error: 'Access denied. Use project owner credentials or OIDC from matching repository.' 
+      }, 403);
     }
 
     const diff = await getTranslationsDiff(prisma, project.id);
 
-    return c.json({
-      success: true,
-      preview: diff,
-    });
+    return c.json({ success: true, preview: diff });
   });
 
+  // ============================================================================
+  // Export
+  // ============================================================================
+
   /**
-   * Export approved translations for the GitHub Action to create a PR
-   * GET /api/projects/:projectName/apply/export
-   * 
-   * This endpoint returns the full translation data that the client repository's
-   * GitHub Action will use to create the PR. The API doesn't create the PR directly
-   * because the OAuth token doesn't have write permissions to user repositories.
-   * 
-   * Authentication:
-   * - JWT: Project owner only
-   * - OIDC: Repository must match project's repository (recommended for GitHub Actions)
-   * 
-   * Response:
-   * - projectId: string
-   * - projectName: string
-   * - repository: string
-   * - exportedAt: string (ISO date)
-   * - translations: array of {id, language, filename, key, value}
-   * - summary: {total, byLanguage, byFile}
+   * Export approved translations for GitHub Action to create PR
+   * The API doesn't create the PR directly (OAuth token lacks write permissions)
    */
   app.get('/export', async (c) => {
-    const user = (c as any).get('user');
-    const project = (c as any).get('project');
-    if (!project) return c.json({ error: 'Project not found' }, 404);
+    const { user, project } = getContext(c);
 
-    // Check access - owner or matching repository (OIDC)
     if (!hasProjectAccess(user, project)) {
-      return c.json({ error: 'Access denied. Use project owner credentials or OIDC from matching repository.' }, 403);
+      return c.json({ 
+        error: 'Access denied. Use project owner credentials or OIDC from matching repository.' 
+      }, 403);
     }
 
     const exportData = await exportApprovedTranslations(prisma, project.id);
@@ -107,49 +87,33 @@ export function createApplyRoutes(prisma: PrismaClient, env: Env) {
     }
 
     if (exportData.translations.length === 0) {
-      return c.json({ 
-        success: false, 
-        error: 'No approved translations to export' 
-      }, 400);
+      return c.json({ success: false, error: 'No approved translations to export' }, 400);
     }
 
-    return c.json({
-      success: true,
-      ...exportData,
-    });
+    return c.json({ success: true, ...exportData });
   });
 
-  /**
-   * Mark translations as committed after the GitHub Action has applied them
-   * POST /api/projects/:projectName/apply/committed
-   * 
-   * This endpoint should be called by the client repository's GitHub Action
-   * after it has successfully created the PR with the translations.
-   * 
-   * Authentication:
-   * - JWT: Project owner only
-   * - OIDC: Repository must match project's repository (recommended for GitHub Actions)
-   * 
-   * Request body:
-   * - translationIds: string[] - IDs of translations that were applied
-   * 
-   * Response:
-   * - success: boolean
-   * - count: number - Number of translations marked as committed
-   */
-  app.post('/committed', validate('json', MarkCommittedSchema), async (c) => {
-    const user = (c as any).get('user');
-    const { translationIds } = c.req.valid('json' as never) as t.TypeOf<typeof MarkCommittedSchema>;
-    const project = (c as any).get('project');
-    if (!project) return c.json({ error: 'Project not found' }, 404);
+  // ============================================================================
+  // Mark Committed
+  // ============================================================================
 
-    // Check access - owner or matching repository (OIDC)
+  /**
+   * Mark translations as committed after GitHub Action creates PR
+   */
+  app.post('/committed', validateJson(MarkCommittedSchema), async (c) => {
+    const { user, project } = getContext(c);
+    const { translationIds } = c.req.valid('json');
+
     if (!hasProjectAccess(user, project)) {
-      return c.json({ error: 'Access denied. Use project owner credentials or OIDC from matching repository.' }, 403);
+      return c.json({ 
+        error: 'Access denied. Use project owner credentials or OIDC from matching repository.' 
+      }, 403);
     }
 
-    // For OIDC, use the actor as the userId for history logging
-    const effectiveUserId = user.userId !== 'oidc-user' ? user.userId : `oidc:${user.actor || 'unknown'}`;
+    // For OIDC, use actor as userId for history logging
+    const effectiveUserId = user.userId !== 'oidc-user' 
+      ? user.userId 
+      : `oidc:${user.actor || 'unknown'}`;
 
     const result = await markTranslationsAsCommitted(
       prisma,
@@ -159,16 +123,10 @@ export function createApplyRoutes(prisma: PrismaClient, env: Env) {
     );
 
     if (!result.success) {
-      return c.json({ 
-        success: false, 
-        error: 'No matching approved translations found' 
-      }, 400);
+      return c.json({ success: false, error: 'No matching approved translations found' }, 400);
     }
 
-    return c.json({
-      success: true,
-      count: result.count,
-    });
+    return c.json({ success: true, count: result.count });
   });
 
   return app;
