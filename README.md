@@ -55,67 +55,75 @@ jobs:
 
 That's it! Your translations will sync automatically.
 
-## How It Works
+## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                         Your Repository                                   │
-│                                                                          │
-│  locales/           .koro-i18n/                                          │
-│    en/*.json   ──▶    koro-i18n.repo.generated.jsonl                     │
-│    ja/*.json          store/*.jsonl                                       │
-│                       source/*.jsonl                                      │
-│                                                                          │
-│  GitHub Action preprocesses translation files and generates metadata     │
-└────────────────────────────────┬─────────────────────────────────────────┘
-                                 │
-                                 │ Platform reads metadata from GitHub
-                                 ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                       Koro i18n Platform                                  │
-│                                                                          │
-│  • Reads preprocessed metadata from your repo (no storage needed)        │
-│  • Stores only web-submitted translations in D1                          │
-│  • Exports approved translations for sync back                           │
-└────────────────────────────────┬─────────────────────────────────────────┘
-                                 │
-                                 │ GitHub Action applies approved translations
-                                 ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                         Your Repository                                   │
-│                                                                          │
-│  locales/ja/*.json ◀── Updated with approved translations                │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Your Repository                                    │
+│                                                                             │
+│  koro.config.json              locales/                                      │
+│  (configuration)               ├── en/common.json  (source)                 │
+│                                └── ja/common.json  (target)                 │
+│                                                                             │
+│  Optional: .koro-i18n/translations.jsonl  (generated metadata)              │
+└─────────────────────────────────┬───────────────────────────────────────────┘
+                                  │
+                    GitHub Action runs `npx @koro-i18n/client generate`
+                    to create metadata (optional, for advanced use cases)
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Koro i18n Platform (Backend)                           │
+│                                                                             │
+│  API Endpoints:                                                              │
+│  • GET  /api/projects/:name/translations/file/:lang/:file                   │
+│    → Returns source + target translations in one call                        │
+│  • POST /api/projects/:name/translations                                     │
+│    → Submit new translation                                                  │
+│  • GET  /api/projects/:name/apply/export                                     │
+│    → Export approved translations for GitHub Action                          │
+│                                                                             │
+│  Storage: D1 (web-submitted translations only)                               │
+└─────────────────────────────────┬───────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Web Frontend (SolidJS)                                 │
+│                                                                             │
+│  Translation Editor:                                                         │
+│  • Fetches all data in single API call                                       │
+│  • Side-by-side source/target view                                           │
+│  • Submit, approve, reject translations                                      │
+│  • Filter by status, search by key/value                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Flow Summary
+### Data Flow
 
-1. **Push**: GitHub Action preprocesses translations → generates `.koro-i18n/` metadata → commits to repo
-2. **Display**: Platform reads metadata directly from GitHub (no storage needed on Workers)
-3. **Translate**: Contributors use the web UI to submit translations (stored in D1)
-4. **Pull**: GitHub Action exports approved translations → updates your translation files → commits
+1. **Fetch**: Frontend requests `/translations/file/:lang/:file`
+   - Backend fetches source and target files from GitHub
+   - Backend fetches web translations from D1
+   - Returns unified response with all data
 
-## Features
+2. **Edit**: User submits translation via web UI
+   - Stored in D1 as "pending" status
+   - Owner can approve/reject
 
-- **Stateless Platform**: Cloudflare Workers with no persistent storage needed
-- **Preprocessing on GitHub**: Metadata generation happens in your repo
-- **OIDC Authentication**: No secrets to manage
-- **Web UI**: Simple interface for translators
-- **Git Integration**: Full attribution for translators
+3. **Sync**: GitHub Action runs periodically
+   - Calls `/apply/export` to get approved translations
+   - Commits translations back to repository
+   - Marks translations as "committed"
 
-## CLI (Optional)
-
-For local validation and metadata generation:
+## CLI
 
 ```bash
 # Initialize config
 npx @koro-i18n/client init
 
-# Validate config
+# Validate config and find translation files
 npx @koro-i18n/client validate
 
-# Generate metadata locally (same as GitHub Action)
+# Generate metadata (optional, for advanced use)
 npx @koro-i18n/client generate
 ```
 
@@ -137,13 +145,43 @@ npm run test
 
 ## Tech Stack
 
-- Frontend: SolidJS + Vite
-- Backend: Cloudflare Workers + Hono + D1
-- Auth: GitHub OAuth + OIDC
+- **Frontend**: SolidJS + Vite + UnoCSS
+- **Backend**: Cloudflare Workers + Hono + Prisma (D1)
+- **Auth**: GitHub OAuth + OIDC (for GitHub Actions)
 
-## Documentation
+## API Reference
 
-See [docs/](docs/) for detailed documentation.
+### Translation Endpoints
+
+```
+GET /api/projects/:name/translations/file/:lang/:file
+  → { source, target, pending, approved, sourceLanguage, targetLanguage, filename, commitSha }
+
+POST /api/projects/:name/translations
+  Body: { language, filename, key, value }
+  → { success: true, id }
+
+PATCH /api/projects/:name/translations/:id
+  Body: { status: "approved" | "rejected" }
+  → { success: true }
+
+DELETE /api/projects/:name/translations/:id
+  → { success: true }
+```
+
+### Apply Endpoints (for GitHub Actions)
+
+```
+GET /api/projects/:name/apply/preview
+  → { preview: { translations, files } }
+
+GET /api/projects/:name/apply/export
+  → { translations, files, contributors }
+
+POST /api/projects/:name/apply/committed
+  Body: { translationIds: [...] }
+  → { success: true, count }
+```
 
 ## License
 
