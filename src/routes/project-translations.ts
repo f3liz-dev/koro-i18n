@@ -327,32 +327,21 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
       const source: Record<string, string> = {};
       const target: Record<string, string> = {};
 
-      // Flatten source content
-      const flattenObject = (obj: any, prefix = ''): void => {
+      // Flatten nested object to dot notation
+      const flattenToRecord = (obj: any, result: Record<string, string>, prefix = ''): void => {
         for (const [key, value] of Object.entries(obj)) {
           const newKey = prefix ? `${prefix}.${key}` : key;
           if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-            flattenObject(value, newKey);
+            flattenToRecord(value, result, newKey);
           } else {
-            source[newKey] = String(value);
+            result[newKey] = String(value);
           }
         }
       };
-      flattenObject(sourceFile.contents);
 
-      // Flatten target content if exists
+      flattenToRecord(sourceFile.contents, source);
       if (targetFile) {
-        const flattenTarget = (obj: any, prefix = ''): void => {
-          for (const [key, value] of Object.entries(obj)) {
-            const newKey = prefix ? `${prefix}.${key}` : key;
-            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-              flattenTarget(value, newKey);
-            } else {
-              target[newKey] = String(value);
-            }
-          }
-        };
-        flattenTarget(targetFile.contents);
+        flattenToRecord(targetFile.contents, target);
       }
 
       // Separate pending and approved translations

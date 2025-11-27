@@ -73,8 +73,16 @@ export type ManifestLine = ManifestHeader | FileHeader | KeyEntry;
 // Utility Functions
 // ============================================================================
 
+/**
+ * Simple djb2-style hash for change detection.
+ * 
+ * This is NOT cryptographically secure and may have collisions.
+ * It's used only to detect when a translation value has changed
+ * between manifest generations. Collisions are acceptable since
+ * the worst case is a translation appears unchanged when it isn't,
+ * which will be corrected on the next sync.
+ */
 function hashValue(value: string): string {
-  // Simple hash for change detection
   let hash = 0;
   for (let i = 0; i < value.length; i++) {
     const char = value.charCodeAt(i);
@@ -136,6 +144,17 @@ function getGitBlame(filePath: string): Map<number, { author: string; date: stri
   return result;
 }
 
+/**
+ * Find the line number where a key is defined in JSON content.
+ * 
+ * Limitations:
+ * - Does not handle JSON with comments (JSONC)
+ * - May fail with string values containing braces or colons
+ * - Uses simple regex matching, not a full JSON parser
+ * 
+ * This is acceptable for well-formed i18n JSON files where values
+ * are typically simple strings without special characters.
+ */
 function findKeyLine(content: string, key: string): number {
   const lines = content.split('\n');
   const keyParts = key.split('.');
