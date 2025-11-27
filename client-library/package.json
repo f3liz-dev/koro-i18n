@@ -8,7 +8,9 @@
     "koro-i18n": "./dist/cli.js"
   },
   "scripts": {
-    "build": "rolldown src/cli.ts -d dist -f esm --inlineDynamicImports && rolldown src/index-legacy.ts -d dist -f esm",
+    "build:cli": "rolldown src/cli.ts -d dist -f esm --inlineDynamicImports",
+    "build:legacy": "rolldown src/index-legacy.ts -d dist -f esm",
+    "build": "npm run build:cli && npm run build:legacy",
     "prepublish": "npm run build"
   },
   "keywords": [

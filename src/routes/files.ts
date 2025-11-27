@@ -156,9 +156,20 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
     const branch = c.req.query('branch') || 'main';
     const { project, github } = getContext(c);
 
+    // Config structure for koro.config.json
+    interface KoroConfig {
+      version?: number;
+      sourceLanguage?: string;
+      targetLanguages?: string[];
+      files?: {
+        include?: string[];
+        exclude?: string[];
+      };
+    }
+
     try {
       // Try to read koro.config.json from the repository
-      let config: any = null;
+      let config: KoroConfig | null = null;
       try {
         const configStream = await streamFileFromGitHub(
           github.octokit, github.owner, github.repo, 'koro.config.json', branch
@@ -173,7 +184,7 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
             configContent += decoder.decode(value, { stream: true });
           }
           configContent += decoder.decode();
-          config = JSON.parse(configContent);
+          config = JSON.parse(configContent) as KoroConfig;
         }
       } catch (e) {
         console.warn('Could not read koro.config.json, trying legacy config');

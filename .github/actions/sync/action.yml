@@ -129,11 +129,19 @@ runs:
         # For JSON config, use 'generate' command
         # For TOML config (legacy), the CLI handles it automatically
         if [ "$CONFIG_TYPE" = "json" ]; then
-          # Convert JSON config to the format the legacy generator expects
-          # The CLI will auto-detect and handle this
-          node "$CLI_PATH" generate "$CONFIG_PATH" 2>&1 || node "$CLI_PATH" "$CONFIG_PATH" 2>&1
+          # Try 'generate' command first, then fall back to direct config path for legacy compatibility
+          if ! node "$CLI_PATH" generate "$CONFIG_PATH" 2>&1; then
+            echo "::notice::Falling back to legacy config handling"
+            if ! node "$CLI_PATH" "$CONFIG_PATH" 2>&1; then
+              echo "::error::Failed to generate metadata"
+              exit 1
+            fi
+          fi
         else
-          node "$CLI_PATH" "$CONFIG_PATH"
+          if ! node "$CLI_PATH" "$CONFIG_PATH" 2>&1; then
+            echo "::error::Failed to generate metadata from TOML config"
+            exit 1
+          fi
         fi
         
         # Check if metadata was generated

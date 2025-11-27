@@ -64,7 +64,7 @@ export interface TranslationFile {
 /**
  * Load configuration from koro.config.json or legacy TOML
  */
-export function loadConfig(configPath?: string): KoroConfig | null {
+export async function loadConfig(configPath?: string): Promise<KoroConfig | null> {
   // Try new JSON config first
   const jsonPath = configPath || 'koro.config.json';
   if (fs.existsSync(jsonPath)) {
@@ -81,8 +81,8 @@ export function loadConfig(configPath?: string): KoroConfig | null {
   const tomlPath = '.koro-i18n.repo.config.toml';
   if (fs.existsSync(tomlPath)) {
     try {
-      // Dynamic import for toml parser (optional dependency)
-      const toml = require('toml');
+      // Use dynamic import for toml parser
+      const toml = await import('toml');
       const content = fs.readFileSync(tomlPath, 'utf-8');
       const legacy = toml.parse(content) as LegacyConfig;
       
@@ -202,7 +202,7 @@ function commandInit(): void {
  * Validate the config and list found files
  */
 async function commandValidate(): Promise<void> {
-  const config = loadConfig();
+  const config = await loadConfig();
   
   if (!config) {
     console.error('No config found. Run: npx koro-i18n init');
