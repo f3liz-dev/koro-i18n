@@ -49,6 +49,68 @@ export async function checkProjectAccess(
   return result.length > 0;
 }
 
+export interface ProjectWithAccess {
+  id: string;
+  userId: string;
+  name: string;
+  repository: string;
+  sourceLanguage: string;
+  hasAccess: boolean;
+}
+
+/**
+ * Fetch a project by name and check if the user has access in a single query.
+ * This is more efficient than running two separate queries.
+ * 
+ * @returns The project with access status, or null if project not found
+ */
+export async function findProjectWithAccessCheck(
+  prisma: PrismaClient,
+  projectName: string,
+  userId: string
+): Promise<ProjectWithAccess | null> {
+  const result = await prisma.$queryRaw<Array<{
+    id: string;
+    userId: string;
+    name: string;
+    repository: string;
+    sourceLanguage: string;
+    hasAccess: number;
+  }>>`
+    SELECT 
+      p.id,
+      p.userId,
+      p.name,
+      p.repository,
+      p.sourceLanguage,
+      CASE 
+        WHEN p.userId = ${userId} THEN 1
+        WHEN EXISTS (
+          SELECT 1 FROM ProjectMember pm 
+          WHERE pm.projectId = p.id AND pm.userId = ${userId} AND pm.status = 'approved'
+        ) THEN 1
+        ELSE 0
+      END as hasAccess
+    FROM Project p
+    WHERE p.name = ${projectName}
+    LIMIT 1
+  `;
+  
+  if (result.length === 0) {
+    return null;
+  }
+  
+  const row = result[0];
+  return {
+    id: row.id,
+    userId: row.userId,
+    name: row.name,
+    repository: row.repository,
+    sourceLanguage: row.sourceLanguage,
+    hasAccess: row.hasAccess === 1,
+  };
+}
+
 /**
  * Resolve a project identifier (name or id) to the repository ID used as the
  * internal project identifier stored in R2/D1 indices.
