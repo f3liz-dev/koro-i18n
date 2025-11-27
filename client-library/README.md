@@ -1,63 +1,39 @@
-# koro-i18n Client
+# Koro i18n Client
 
-Client library for koro-i18n platform - generates translation manifest for your repository.
+CLI for managing translations with the Koro i18n platform.
 
-## What It Does
-
-The client library generates a manifest file (`.koro-i18n/koro-i18n.repo.generated.json`) that lists all translation files in your repository. The platform then uses this manifest to fetch files directly from GitHub using the user's access token.
-
-## Installation
+## Quick Start
 
 ```bash
-npm install -g @i18n-platform/client
-```
+# Initialize config
+npx @koro-i18n/client init
 
-## Usage
+# Validate config and find translation files
+npx @koro-i18n/client validate
 
-### In GitHub Actions
-
-Since this package is not published to npm, you need to build it directly from the repository:
-
-```yaml
-- name: Checkout koro-i18n client library
-  uses: actions/checkout@v4
-  with:
-    repository: f3liz-dev/koro-i18n
-    path: .koro-i18n-client
-    sparse-checkout: |
-      client-library
-    sparse-checkout-cone-mode: false
-
-- name: Build and install I18n Platform Client
-  run: |
-    cd .koro-i18n-client/client-library
-    npm install
-    npm run build
-    npm link
-    cd ../..
-
-- name: Generate manifest
-  run: i18n-upload
-
-- name: Commit manifest
-  run: |
-    git add .koro-i18n/koro-i18n.repo.generated.json
-    git commit -m "Update translation manifest"
-    git push
-```
-
-### Programmatically
-
-```typescript
-import { main } from '@i18n-platform/client';
-
-// Generate manifest
-await main();
+# Generate metadata (for GitHub Action preprocessing)
+npx @koro-i18n/client generate
 ```
 
 ## Configuration
 
-Create `.koro-i18n.repo.config.toml` in your repository root:
+Create `koro.config.json` in your repository root:
+
+```json
+{
+  "version": 1,
+  "sourceLanguage": "en",
+  "targetLanguages": ["ja", "es", "fr", "de"],
+  "files": {
+    "include": ["locales/{lang}/**/*.json"],
+    "exclude": ["**/node_modules/**"]
+  }
+}
+```
+
+### Legacy TOML Config
+
+The CLI also supports the legacy `.koro-i18n.repo.config.toml` format:
 
 ```toml
 [project]
@@ -66,58 +42,47 @@ name = "my-project"
 [source]
 language = "en"
 include = ["locales/{lang}/**/*.json"]
-exclude = ["**/node_modules/**"]
-lang_marker = "([a-zA-Z0-9]+(-[a-zA-Z0-9]+)*)"
 
 [target]
 languages = ["ja", "es", "fr"]
 ```
 
-## Generated Manifest
+## Commands
 
-The tool generates `.koro-i18n/koro-i18n.repo.generated.json`:
+### `init`
+Create a new `koro.config.json` file with sensible defaults.
 
-```json
-{
-  "repository": "owner/repo",
-  "sourceLanguage": "en",
-  "configVersion": 1,
-  "files": [
-    {
-      "filename": "locales/en/common.json",
-      "sourceFilename": "locales/en/common.json",
-      "lastUpdated": "2024-01-01T10:00:00Z",
-      "commitHash": "abc123",
-      "language": "en"
-    }
-  ]
-}
+### `validate`
+Validate your config and list all translation files found.
+
+### `generate`
+Generate the `.koro-i18n/` metadata files that the platform reads. This is typically run by the GitHub Action, not manually.
+
+## GitHub Action Integration
+
+The recommended way to use this is through the sync action:
+
+```yaml
+- uses: f3liz-dev/koro-i18n/.github/actions/sync@main
+  with:
+    project-name: my-project
 ```
 
-This file should be committed to your repository. The platform will use it to fetch translation files directly from GitHub.
+This will automatically:
+1. Run the CLI to generate metadata
+2. Commit the metadata to your repository
+3. Pull approved translations from the platform
 
-## Supported File Formats
+## Generated Files
 
-### JSON
+The CLI generates these files in `.koro-i18n/`:
 
-```json
-{
-  "welcome": "Welcome",
-  "buttons": {
-    "save": "Save",
-    "cancel": "Cancel"
-  }
-}
-```
+- `koro-i18n.repo.generated.jsonl` - Manifest listing all translation files
+- `store/{lang}.jsonl` - Translation status for each target language
+- `source/{lang}.jsonl` - Source keys and positions
+- `progress-translated/{lang}.jsonl` - Translation progress
 
-Flattened to:
-```json
-{
-  "welcome": "Welcome",
-  "buttons.save": "Save",
-  "buttons.cancel": "Cancel"
-}
-```
+These files should be committed to your repository. The platform reads them directly from GitHub.
 
 ## License
 

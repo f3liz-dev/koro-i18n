@@ -1,36 +1,36 @@
 {
   "name": "@koro-i18n/client",
   "version": "2.0.0",
-  "description": "Client library for koro-i18n - preprocesses and uploads translations with git blame",
+  "description": "Koro i18n CLI - Simple translation management",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
     "koro-i18n": "./dist/cli.js"
   },
   "scripts": {
-    "build": "rolldown src/cli.ts --file dist/cli.js -f esm",
+    "build:cli": "rolldown src/cli.ts -d dist -f esm --inlineDynamicImports",
+    "build:legacy": "rolldown src/index-legacy.ts -d dist -f esm",
+    "build": "npm run build:cli && npm run build:legacy",
     "prepublish": "npm run build"
   },
   "keywords": [
     "i18n",
     "internationalization",
     "translation",
-    "github-actions",
-    "r2",
-    "cloudflare"
+    "koro"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@msgpack/msgpack": "^3.0.0-beta2",
-    "fp-ts": "^2.16.9",
     "glob": "^10.3.10",
-    "io-ts": "^2.2.21",
     "toml": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "rolldown": "^1.0.0-beta.50",
     "typescript": "^5.0.0"
+  },
+  "optionalDependencies": {
+    "@msgpack/msgpack": "^3.0.0-beta2"
   }
 }

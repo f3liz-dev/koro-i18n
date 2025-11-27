@@ -1,0 +1,10 @@
+{
+  "$schema": "https://koro.f3liz.workers.dev/schema/koro.config.json",
+  "version": 1,
+  "sourceLanguage": "en",
+  "targetLanguages": ["ja", "es", "fr", "de", "zh"],
+  "files": {
+    "include": ["locales/{lang}/**/*.json"],
+    "exclude": ["**/node_modules/**"]
+  }
+}

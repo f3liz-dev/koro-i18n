@@ -1,0 +1,300 @@
+name: 'Koro i18n Sync'
+description: 'Sync translations between your repository and Koro i18n platform'
+author: 'Koro i18n'
+
+branding:
+  icon: 'refresh-cw'
+  color: 'blue'
+
+inputs:
+  project-name:
+    description: 'Project name on the platform'
+    required: true
+  platform-url:
+    description: 'URL of the Koro i18n platform'
+    required: false
+    default: 'https://koro.f3liz.workers.dev'
+  action:
+    description: 'Action to perform: push (preprocess + commit metadata), pull (download translations), or sync (both)'
+    required: false
+    default: 'sync'
+  config-path:
+    description: 'Path to koro.config.json or legacy .koro-i18n.repo.config.toml'
+    required: false
+    default: 'koro.config.json'
+  commit-changes:
+    description: 'Whether to commit and push changes'
+    required: false
+    default: 'true'
+  commit-message:
+    description: 'Commit message for translation updates'
+    required: false
+    default: 'chore: sync translations from Koro i18n'
+
+outputs:
+  pushed:
+    description: 'Number of files preprocessed and pushed'
+    value: ${{ steps.preprocess.outputs.files_count }}
+  pulled:
+    description: 'Number of translations pulled'
+    value: ${{ steps.pull.outputs.pulled }}
+
+runs:
+  using: 'composite'
+  steps:
+    # =========================================================================
+    # Setup
+    # =========================================================================
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Check config exists
+      id: check-config
+      shell: bash
+      run: |
+        # Check for new JSON config
+        if [ -f "${{ inputs.config-path }}" ]; then
+          echo "config_exists=true" >> $GITHUB_OUTPUT
+          echo "config_type=json" >> $GITHUB_OUTPUT
+          echo "config_file=${{ inputs.config-path }}" >> $GITHUB_OUTPUT
+          echo "✓ Found ${{ inputs.config-path }}"
+        # Check for legacy TOML config
+        elif [ -f ".koro-i18n.repo.config.toml" ]; then
+          echo "config_exists=true" >> $GITHUB_OUTPUT
+          echo "config_type=toml" >> $GITHUB_OUTPUT
+          echo "config_file=.koro-i18n.repo.config.toml" >> $GITHUB_OUTPUT
+          echo "✓ Found legacy .koro-i18n.repo.config.toml"
+        else
+          echo "config_exists=false" >> $GITHUB_OUTPUT
+          echo "::error::No config found. Create koro.config.json or .koro-i18n.repo.config.toml"
+          exit 1
+        fi
+
+    - name: Get OIDC Token
+      id: oidc
+      if: steps.check-config.outputs.config_exists == 'true'
+      shell: bash
+      run: |
+        OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${{ inputs.platform-url }}" | jq -r .value)
+        if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" = "null" ]; then
+          echo "::error::Failed to get OIDC token"
+          exit 1
+        fi
+        echo "token=$OIDC_TOKEN" >> $GITHUB_OUTPUT
+        echo "✓ OIDC token obtained"
+
+    # =========================================================================
+    # Push: Preprocess translations and generate metadata
+    # =========================================================================
+    - name: Install koro-i18n client
+      id: install-client
+      if: (inputs.action == 'push' || inputs.action == 'sync') && steps.check-config.outputs.config_exists == 'true'
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        # Navigate from action path to client-library
+        CLIENT_LIB_PATH="$ACTION_PATH/../../../client-library"
+        
+        if [ ! -d "$CLIENT_LIB_PATH" ]; then
+          echo "::error::Client library not found at $CLIENT_LIB_PATH"
+          exit 1
+        fi
+        
+        cd "$CLIENT_LIB_PATH"
+        npm install --silent
+        npm run build --silent
+        
+        CLI_PATH="$CLIENT_LIB_PATH/dist/cli.js"
+        echo "cli-path=$CLI_PATH" >> $GITHUB_OUTPUT
+        echo "✓ koro-i18n client ready"
+
+    - name: Preprocess translations
+      id: preprocess
+      if: (inputs.action == 'push' || inputs.action == 'sync') && steps.check-config.outputs.config_exists == 'true'
+      shell: bash
+      env:
+        CONFIG_PATH: ${{ steps.check-config.outputs.config_file }}
+        CONFIG_TYPE: ${{ steps.check-config.outputs.config_type }}
+        CLI_PATH: ${{ steps.install-client.outputs.cli-path }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        echo ""
+        echo "📦 Preprocessing translations..."
+        
+        # Run the koro-i18n client to generate metadata
+        # For JSON config, use 'generate' command
+        # For TOML config (legacy), the CLI handles it automatically
+        if [ "$CONFIG_TYPE" = "json" ]; then
+          # Try 'generate' command first, then fall back to direct config path for legacy compatibility
+          if ! node "$CLI_PATH" generate "$CONFIG_PATH" 2>&1; then
+            echo "::notice::Falling back to legacy config handling"
+            if ! node "$CLI_PATH" "$CONFIG_PATH" 2>&1; then
+              echo "::error::Failed to generate metadata"
+              exit 1
+            fi
+          fi
+        else
+          if ! node "$CLI_PATH" "$CONFIG_PATH" 2>&1; then
+            echo "::error::Failed to generate metadata from TOML config"
+            exit 1
+          fi
+        fi
+        
+        # Check if metadata was generated
+        METADATA_PATH=".koro-i18n/koro-i18n.repo.generated.jsonl"
+        if [ -f "$METADATA_PATH" ]; then
+          FILES_COUNT=$(head -1 "$METADATA_PATH" | jq -r '.totalFiles // 0')
+          echo "files_count=$FILES_COUNT" >> $GITHUB_OUTPUT
+          echo "✓ Generated metadata for $FILES_COUNT files"
+        else
+          echo "files_count=0" >> $GITHUB_OUTPUT
+          echo "::warning::No metadata generated"
+        fi
+
+    - name: Commit metadata
+      if: (inputs.action == 'push' || inputs.action == 'sync') && inputs.commit-changes == 'true' && steps.preprocess.outputs.files_count != '0'
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        # Stage metadata files
+        git add .koro-i18n/
+
+        if git diff --staged --quiet; then
+          echo "ℹ No metadata changes to commit"
+        else
+          git commit -m "chore: update koro-i18n metadata [skip ci]"
+          git push
+          echo "✓ Metadata committed and pushed"
+        fi
+
+    # =========================================================================
+    # Pull: Download approved translations and apply to files
+    # =========================================================================
+    - name: Pull translations
+      id: pull
+      if: (inputs.action == 'pull' || inputs.action == 'sync') && steps.check-config.outputs.config_exists == 'true'
+      shell: bash
+      env:
+        PLATFORM_URL: ${{ inputs.platform-url }}
+        OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        PROJECT_NAME: ${{ inputs.project-name }}
+        CONFIG_PATH: ${{ steps.check-config.outputs.config_file }}
+        CONFIG_TYPE: ${{ steps.check-config.outputs.config_type }}
+      run: |
+        set -e
+        PULLED=0
+
+        echo ""
+        echo "📥 Pulling translations from platform..."
+        
+        # Get config values for file path resolution
+        if [ "$CONFIG_TYPE" = "json" ]; then
+          INCLUDE_PATTERN=$(jq -r '.files.include[0] // "locales/{lang}/**/*.json"' "$CONFIG_PATH")
+        else
+          # Parse TOML - extract include pattern
+          INCLUDE_PATTERN=$(grep -A1 '\[source\]' "$CONFIG_PATH" | grep 'include' | sed 's/.*\["\(.*\)"\].*/\1/' | head -1)
+          [ -z "$INCLUDE_PATTERN" ] && INCLUDE_PATTERN="locales/{lang}/**/*.json"
+        fi
+
+        # Export approved translations from platform
+        HTTP_CODE=$(curl -sS -w "%{http_code}" -o /tmp/pull_response.json \
+          -H "Authorization: Bearer $OIDC_TOKEN" \
+          "$PLATFORM_URL/api/projects/$PROJECT_NAME/apply/export")
+
+        if [ "$HTTP_CODE" != "200" ]; then
+          echo "::warning::Pull returned HTTP $HTTP_CODE"
+          cat /tmp/pull_response.json 2>/dev/null || true
+          echo "pulled=0" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Check if there are translations to apply
+        TOTAL=$(jq -r '.summary.total // 0' /tmp/pull_response.json)
+        
+        if [ "$TOTAL" -eq 0 ]; then
+          echo "No approved translations to apply"
+          echo "pulled=0" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "Found $TOTAL approved translation(s) to apply"
+        
+        # Apply translations to files
+        while IFS= read -r translation; do
+          LANG=$(echo "$translation" | jq -r '.language')
+          FILENAME=$(echo "$translation" | jq -r '.filename')
+          KEY=$(echo "$translation" | jq -r '.key')
+          VALUE=$(echo "$translation" | jq -r '.value')
+          
+          # Find the file path based on the pattern
+          # Replace {lang} with actual language, then resolve the path
+          FILE_PATH=$(echo "$INCLUDE_PATTERN" | sed "s/{lang}/$LANG/g" | sed 's/\*\*\///' | sed 's/\*\.json$//')
+          FILE_PATH="${FILE_PATH}${FILENAME}"
+          
+          if [ -f "$FILE_PATH" ]; then
+            # Update the JSON file with the translation
+            TMP_FILE=$(mktemp)
+            jq --arg key "$KEY" --arg value "$VALUE" \
+              'setpath($key | split("."); $value)' \
+              "$FILE_PATH" > "$TMP_FILE" && mv "$TMP_FILE" "$FILE_PATH"
+            echo "  ✓ Updated $FILE_PATH: $KEY"
+            PULLED=$((PULLED + 1))
+          else
+            echo "  ⚠ File not found: $FILE_PATH"
+          fi
+        done < <(jq -c '.translations[]' /tmp/pull_response.json)
+        
+        # Mark translations as committed on the platform
+        if [ "$PULLED" -gt 0 ]; then
+          TRANSLATION_IDS=$(jq -c '[.translations[].id]' /tmp/pull_response.json)
+          curl -sS -X POST \
+            -H "Authorization: Bearer $OIDC_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"translationIds\": $TRANSLATION_IDS}" \
+            "$PLATFORM_URL/api/projects/$PROJECT_NAME/apply/committed" > /dev/null
+          echo "✓ Marked $PULLED translation(s) as committed"
+        fi
+
+        echo "pulled=$PULLED" >> $GITHUB_OUTPUT
+
+    - name: Commit translations
+      if: (inputs.action == 'pull' || inputs.action == 'sync') && inputs.commit-changes == 'true' && steps.pull.outputs.pulled != '0'
+      shell: bash
+      env:
+        COMMIT_MESSAGE: ${{ inputs.commit-message }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        # Stage translation files
+        git add -A
+
+        if git diff --staged --quiet; then
+          echo "ℹ No translation changes to commit"
+          exit 0
+        fi
+
+        git commit -m "$COMMIT_MESSAGE"
+        git push
+        echo "✓ Translation changes committed and pushed"
+
+    # =========================================================================
+    # Summary
+    # =========================================================================
+    - name: Summary
+      if: always() && steps.check-config.outputs.config_exists == 'true'
+      shell: bash
+      env:
+        PUSHED: ${{ steps.preprocess.outputs.files_count || '0' }}
+        PULLED: ${{ steps.pull.outputs.pulled || '0' }}
+      run: |
+        echo ""
+        echo "📊 Sync Summary"
+        echo "  Preprocessed: $PUSHED files"
+        echo "  Pulled: $PULLED translations"

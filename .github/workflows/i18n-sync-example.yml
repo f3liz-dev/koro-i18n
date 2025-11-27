@@ -1,18 +1,14 @@
-# Example: Bidirectional i18n Sync Workflow
+# Koro i18n Sync Workflow
 #
-# This workflow demonstrates a complete integration with Koro i18n:
-# 1. Uploads source translations when they change
-# 2. Downloads completed translations periodically
+# This workflow syncs translations between your repository and the Koro i18n platform.
+# It runs automatically when translation source files change, or on schedule.
 #
 # Setup:
-# 1. Create a project on the platform and set the repository
-# 2. Update PROJECT_NAME with your project name
-# 3. Adjust file paths to match your project structure
-# 4. No secrets needed - uses OIDC authentication!
+# 1. Create a project on the platform
+# 2. Add a koro.config.json to your repository
+# 3. Update PROJECT_NAME below
 #
-# Note: The upload-translations and download-translations actions automatically
-# build and use the koro-i18n client library from the repository, so you don't
-# need to install anything manually or publish to npm.
+# No secrets needed - uses OIDC authentication!
 
 name: i18n Sync
 
@@ -21,12 +17,12 @@ on:
     branches:
       - main
     paths:
-      # Upload when source language changes
+      # Trigger on source language changes
       - 'locales/en/**'
-      - '.koro-i18n.repo.config.toml'
+      - 'koro.config.json'
   
   schedule:
-    # Download translations every 6 hours
+    # Sync translations every 6 hours
     - cron: '0 */6 * * *'
   
   workflow_dispatch:
@@ -34,60 +30,28 @@ on:
       action:
         description: 'Action to perform'
         required: false
-        default: 'both'
+        default: 'sync'
         type: choice
         options:
-          - upload
-          - download
-          - both
+          - push
+          - pull
+          - sync
 
 env:
   PROJECT_NAME: my-project  # Change this to your project name
 
 jobs:
-  # Upload source translation files
-  upload-source:
-    if: |
-      (github.event_name == 'push') || 
-      (github.event_name == 'workflow_dispatch' && (inputs.action == 'upload' || inputs.action == 'both'))
+  sync:
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # Required for OIDC
-      contents: read
+      contents: write  # Required to push changes
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Upload translations
-        uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
+      - name: Sync translations
+        uses: f3liz-dev/koro-i18n/.github/actions/sync@main
         with:
           project-name: ${{ env.PROJECT_NAME }}
-          mode: json  # Both modes require .koro-i18n.repo.config.toml
-
-  # Download completed translations
-  download-translations:
-    if: |
-      (github.event_name == 'schedule') || 
-      (github.event_name == 'workflow_dispatch' && (inputs.action == 'download' || inputs.action == 'both'))
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write   # Required for OIDC
-      contents: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Download translations
-        uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
-        with:
-          project-name: ${{ env.PROJECT_NAME }}
-          commit-message: 'chore: Update translations from i18n platform [skip ci]'
-      
-      - name: Create Pull Request (optional)
-        if: false  # Enable if you want PRs instead of direct commits
-        uses: peter-evans/create-pull-request@v5
-        with:
-          commit-message: 'chore: Update translations'
-          title: 'Update translations from i18n platform'
-          body: 'Automated translation updates from Koro i18n platform'
-          branch: translations/update-${{ github.run_number }}
+          action: ${{ github.event.inputs.action || 'sync' }}
