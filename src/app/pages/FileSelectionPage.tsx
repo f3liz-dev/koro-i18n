@@ -98,17 +98,11 @@ export default function FileSelectionPage() {
             await tryStream(sourceLang, true);
           } else {
             // Stream progress for the target language (progress-translated files are per-target language)
-            const ok = await tryStream(targetLang, false);
-            // If we didn't get any entries and the target language is a variant (e.g., fr-CA), try base language (fr)
-            if (!ok && targetLang.includes('-')) {
-              const base = targetLang.split('-')[0];
-              try {
-                console.info('Attempting fallback progress stream using base language', base);
-                await tryStream(base, false);
-              } catch (err) {
-                console.warn('Failed to stream progress for fallback language', base, err);
-              }
-            }
+            // Note: We intentionally do NOT fallback to base language (e.g., ja from ja-JP)
+            // because progress files are generated per-exact-language code.
+            // If the file doesn't exist (404), streamJsonl with ignoreNotFound:true will
+            // gracefully exit the generator without throwing.
+            await tryStream(targetLang, false);
           }
         } catch (e) {
           // Network errors or other failures should still be logged
