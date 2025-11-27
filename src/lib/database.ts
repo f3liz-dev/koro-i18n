@@ -139,3 +139,48 @@ export function flattenObject(obj: any, prefix = ''): Record<string, string> {
   }
   return result;
 }
+
+/**
+ * Check if a user can moderate translations for a project in a single query.
+ * Combines owner check and member role check into one database call.
+ * 
+ * This uses Prisma's parameterized template literals which are safe from SQL injection.
+ * See: https://www.prisma.io/docs/concepts/components/prisma-client/raw-database-access#tagged-template-helpers
+ * 
+ * A user can moderate if they are:
+ * - The project owner, OR
+ * - An approved member with a role other than 'viewer'
+ * 
+ * @returns true if the user can moderate, false if project doesn't exist or user lacks permission
+ */
+export async function checkModerationAccess(
+  prisma: PrismaClient,
+  projectId: string,
+  userId: string
+): Promise<boolean> {
+  const result = await prisma.$queryRaw<Array<{ canModerate: number }>>`
+    SELECT 
+      CASE 
+        WHEN p.userId = ${userId} THEN 1
+        WHEN EXISTS (
+          SELECT 1 FROM ProjectMember pm 
+          WHERE pm.projectId = ${projectId} 
+            AND pm.userId = ${userId} 
+            AND pm.status = 'approved'
+            AND pm.role != 'viewer'
+        ) THEN 1
+        ELSE 0
+      END as canModerate
+    FROM Project p
+    WHERE p.id = ${projectId}
+    LIMIT 1
+  `;
+  
+  // Returns false if project doesn't exist or user has no access
+  // This matches the original behavior of userCanModerateTranslation
+  if (result.length === 0) {
+    return false;
+  }
+  
+  return result[0].canModerate === 1;
+}
