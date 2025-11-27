@@ -163,12 +163,157 @@ export interface StoreChunkJsonl {
 }
 
 export type StoreJsonlLine = StoreHeaderJsonl | StoreFileHeaderJsonl | StoreChunkJsonl;
+
+// Source JSONL types for key positions from client repository
+export interface SourceHeaderJsonl {
+  type: 'header';
+  language: string;
+  totalFiles: number;
+  totalKeys: number;
+}
+
+/**
+ * Key position data for extracting values from raw file content
+ */
+export interface KeyPosition {
+  start: [number, number];  // [line, char] - 1-indexed
+  end: [number, number];    // [line, char] - 1-indexed
+}
+
+export interface SourceFileJsonl {
+  type: 'file';
+  filepath: string;  // filepath with <lang> placeholder
+  filename: string;  // just the filename without directories
+  keys: Record<string, KeyPosition>;  // key -> position data
+}
+
+export interface SourceChunkJsonl {
+  type: 'chunk';
+  filepath: string;  // filepath with <lang> placeholder
+  chunkIndex: number;
+  keys: Record<string, KeyPosition>;  // key -> position data
+}
+
+export type SourceJsonlLine = SourceHeaderJsonl | SourceFileJsonl | SourceChunkJsonl;
+
 import type {
   GitBlameInfo,
   CharRange,
   WebTranslation as SharedWebTranslation,
   MergedTranslation as SharedMergedTranslation
 } from '../../../shared/types';
+
+/**
+ * Flatten a nested object into dot-notation keys
+ * e.g., { a: { b: 'c' } } => { 'a.b': 'c' }
+ */
+function flattenObject(obj: any, prefix = ''): Record<string, string> {
+  const result: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    const newKey = prefix ? `${prefix}.${key}` : key;
+
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      Object.assign(result, flattenObject(value, newKey));
+    } else {
+      result[newKey] = String(value);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Find the line number in JSON content where a nested key is defined.
+ * Handles nested structures like "buttons.save" properly.
+ */
+function findKeyLineInJson(lines: string[], keyPath: string): number {
+  // Track the current path of parent keys
+  const pathStack: string[] = [];
+  let braceDepth = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Count braces before processing keys
+    for (const char of line) {
+      if (char === '{') {
+        braceDepth++;
+      } else if (char === '}') {
+        braceDepth--;
+        // When closing a brace, pop the path stack if it's deeper than current depth
+        while (pathStack.length >= braceDepth && pathStack.length > 0) {
+          pathStack.pop();
+        }
+      }
+    }
+
+    // Check for key pattern: "keyName":
+    const keyMatch = trimmed.match(/^"([^"]+)"\s*:/);
+    if (keyMatch) {
+      const foundKey = keyMatch[1];
+
+      // Build current path
+      const currentPath = pathStack.length > 0
+        ? pathStack.join('.') + '.' + foundKey
+        : foundKey;
+
+      // Check if this matches our target key path
+      if (currentPath === keyPath) {
+        return i + 1; // 1-indexed line number
+      }
+
+      // If this key's value is an object (line has { after :), add to path stack
+      const afterColon = trimmed.substring(trimmed.indexOf(':') + 1).trim();
+      if (afterColon.startsWith('{') && !afterColon.includes('}')) {
+        pathStack.push(foundKey);
+      }
+    }
+  }
+
+  return 0;
+}
+
+/**
+ * Build charRanges from JSON content.
+ * Parses the JSON file and finds the position of each key-value pair.
+ */
+function buildCharRangesFromJson(
+  rawContent: string,
+  flattenedContents: Record<string, string>
+): Record<string, CharRange> {
+  const charRanges: Record<string, CharRange> = {};
+  const lines = rawContent.split('\n');
+
+  for (const key of Object.keys(flattenedContents)) {
+    const lineNumber = findKeyLineInJson(lines, key);
+
+    if (lineNumber > 0) {
+      const line = lines[lineNumber - 1];
+      const keyParts = key.split('.');
+      const leafKey = keyParts[keyParts.length - 1];
+      const keyPattern = `"${leafKey}"`;
+
+      const startChar = line.indexOf(keyPattern);
+      if (startChar >= 0) {
+        // Find the end of the value on this line
+        const colonIndex = line.indexOf(':', startChar);
+        if (colonIndex > -1) {
+          const closingQuote = line.lastIndexOf('"');
+          const comma = line.indexOf(',', colonIndex);
+
+          charRanges[key] = {
+            start: [lineNumber, startChar],
+            end: [lineNumber, closingQuote > colonIndex ? closingQuote + 1 : comma > 0 ? comma : line.length]
+          };
+        }
+      }
+    }
+  }
+
+  return charRanges;
+}
 
 // Re-export shared types for convenience
 export type WebTranslation = SharedWebTranslation;
@@ -182,10 +327,12 @@ export type UiMergedTranslation = MergedTranslation & { storeEntry?: StoreEntry 
  * File data structure returned from the API (GitHub-based)
  * 
  * raw: Plain text content of the file (NOT parsed JSON)
+ * parsed: Flattened key-value pairs from parsed JSON (used for value lookup)
  * metadata: Contains position information (charRanges) for extracting values
  */
 export interface FileData {
   raw: string;  // Plain text file content
+  parsed: Record<string, string>;  // Flattened key-value pairs from parsed JSON
   metadata: {
     gitBlame: Record<string, GitBlameInfo>;
     charRanges: Record<string, CharRange>;
@@ -201,8 +348,8 @@ export interface FileData {
  * Fetch file from GitHub via the API
  * Uses the files endpoint which now fetches directly from GitHub
  * 
- * Returns raw file content as plain text (NOT parsed JSON)
- * Values are extracted using metadata's charRanges position info
+ * First tries to fetch key positions from client repository (.koro-i18n/source/)
+ * Falls back to fetching raw file and parsing JSON if source data is not available
  */
 export async function fetchFileFromGitHub(
   projectName: string,
@@ -210,8 +357,11 @@ export async function fetchFileFromGitHub(
   filename: string
 ): Promise<FileData | null> {
   try {
-    // Fetch file content directly from the API
-    // The backend now fetches from GitHub instead of R2
+    // First, try to fetch key positions from client repository
+    // This is the preferred method as it supports custom parsers (JSON, Markdown, etc.)
+    const keyPositions = await fetchSourceData(projectName, lang, filename, { credentials: 'include' });
+
+    // Fetch raw file content from the API
     const response = await authFetch(
       `/api/projects/${encodeURIComponent(projectName)}/files/${encodeURIComponent(lang)}/${encodeURIComponent(filename)}`,
       { credentials: 'include' }
@@ -227,27 +377,50 @@ export async function fetchFileFromGitHub(
       throw new Error('Failed to fetch file');
     }
 
-    // Get raw content as plain text (NOT parsed JSON)
-    // Values will be extracted using metadata's charRanges position info
+    // Get raw content as plain text
     const rawContent = await response.text();
 
     // Get commit SHA from ETag header (remove quotes)
     const etag = response.headers.get('ETag');
     const commitSha = etag ? etag.replace(/"/g, '') : '';
 
+    // Use key positions from client repository if available
+    let parsed: Record<string, string> = {};
+    let charRanges: Record<string, CharRange> = {};
+
+    if (keyPositions && Object.keys(keyPositions).length > 0) {
+      // Use key positions from client repository to extract values
+      charRanges = keyPositions as Record<string, CharRange>;
+      
+      // Extract values using the position data
+      for (const [key, position] of Object.entries(keyPositions)) {
+        const value = extractValueFromPosition(rawContent, position);
+        parsed[key] = value;
+      }
+    } else {
+      // Fallback: Parse JSON content locally
+      // This is a fallback for repositories that haven't run the client-library yet
+      try {
+        const jsonParsed = JSON.parse(rawContent);
+        parsed = flattenObject(jsonParsed);
+        charRanges = buildCharRangesFromJson(rawContent, parsed);
+      } catch (parseError) {
+        console.warn('[GitHub] Failed to parse JSON content, will return empty data:', parseError);
+      }
+    }
+
     return {
       raw: rawContent,
+      parsed,
       metadata: {
         gitBlame: {},
-        charRanges: {},
+        charRanges,
         sourceHashes: {}
       },
       sourceHash: '',
       commitSha,
       fetchedAt: new Date().toISOString(),
-      // totalKeys is 0 when metadata is not yet available
-      // Will be updated when metadata is fetched separately
-      totalKeys: 0
+      totalKeys: Object.keys(parsed).length
     };
   } catch (error) {
     console.error('[GitHub] Fetch error:', error);
@@ -312,11 +485,79 @@ export async function* streamStore(
 }
 
 /**
+ * Stream source JSONL file from backend and yield parsed SourceJsonlLine items
+ * This provides key positions from the client repository for value extraction.
+ */
+export async function* streamSource(
+  projectName: string,
+  language: string,
+  init?: RequestInit
+): AsyncGenerator<SourceJsonlLine> {
+  const url = `/api/projects/${encodeURIComponent(projectName)}/files/source/stream/${encodeURIComponent(language)}`;
+  const generator = streamJsonl<SourceJsonlLine>(url, init);
+  for await (const line of generator) {
+    yield line;
+  }
+}
+
+/**
+ * Fetch key positions for a specific file from the client repository
+ * Uses the source stream endpoint and filters for the requested file
+ * 
+ * @returns Record of key -> KeyPosition for the file, or null if not found
+ */
+export async function fetchSourceData(
+  projectName: string,
+  language: string,
+  filename: string,
+  init?: RequestInit
+): Promise<Record<string, KeyPosition> | null> {
+  try {
+    const keyPositions: Record<string, KeyPosition> = {};
+    const filenameBase = filename.split('/').pop() || filename;
+    let foundFile = false;
+
+    for await (const line of streamSource(projectName, language, init)) {
+      if (line.type === 'header') continue;
+
+      // Match by filename (with or without path)
+      const lineFilename = (line as SourceFileJsonl).filename || '';
+      const lineFilepath = (line as SourceFileJsonl | SourceChunkJsonl).filepath || '';
+      
+      // Check if this line is for our file
+      const isMatch = lineFilename === filenameBase || 
+                      lineFilepath.endsWith(`/${filenameBase}`) ||
+                      lineFilepath === filenameBase;
+
+      if (isMatch) {
+        foundFile = true;
+        if (line.type === 'file' || line.type === 'chunk') {
+          Object.assign(keyPositions, line.keys);
+        }
+      } else if (foundFile) {
+        // We've moved past our file, stop streaming
+        break;
+      }
+    }
+
+    return foundFile ? keyPositions : null;
+  } catch (error) {
+    console.warn('[Source] Failed to fetch source data:', error);
+    return null;
+  }
+}
+
+/**
  * Get all translation keys from file data
- * Uses metadata keys (which are properly flattened by client-library)
- * Keys come from charRanges, sourceHashes, or gitBlame
+ * Priority: parsed content > charRanges > sourceHashes > gitBlame
  */
 function getKeysFromFileData(fileData: FileData): string[] {
+  // Priority 0: Use keys from parsed content (generated by frontend JSON parsing)
+  const parsedKeys = Object.keys(fileData.parsed || {});
+  if (parsedKeys.length > 0) {
+    return parsedKeys;
+  }
+
   // Priority 1: Use keys from charRanges (generated by client-library with position info)
   const charRangeKeys = Object.keys(fileData.metadata.charRanges || {});
   if (charRangeKeys.length > 0) {
@@ -386,8 +627,7 @@ export function mergeTranslations(
  * Merge source file, target file, and D1 web translations
  * This properly handles the case where source and target are different files
  * 
- * Extracts values using metadata's charRanges position info
- * Does NOT parse JSON - treats source as plain text
+ * Uses pre-parsed content when available, falls back to position extraction
  */
 export function mergeTranslationsWithSource(
   sourceFileData: FileData | null,
@@ -403,18 +643,18 @@ export function mergeTranslationsWithSource(
 
   const merged: MergedTranslation[] = [];
 
-  // Get keys from source metadata
+  // Get keys from source file data
   const keys = getKeysFromFileData(sourceFileData);
 
   for (const key of keys) {
     const sourceCharRange = sourceFileData.metadata.charRanges?.[key];
     const targetCharRange = targetFileData?.metadata.charRanges?.[key];
 
-    // Extract values using position info from metadata (string manipulation, not JSON parse)
-    const sourceValue = extractValueFromPosition(sourceFileData.raw, sourceCharRange);
-    const targetValue = targetFileData 
-      ? extractValueFromPosition(targetFileData.raw, targetCharRange)
-      : '';
+    // Get values from parsed content (preferred) or extract from positions (fallback)
+    const sourceValue = sourceFileData.parsed?.[key] ?? 
+                        extractValueFromPosition(sourceFileData.raw, sourceCharRange);
+    const targetValue = targetFileData?.parsed?.[key] ??
+                        (targetFileData ? extractValueFromPosition(targetFileData.raw, targetCharRange) : '');
     const webTrans = webTransMap.get(key);
 
     // Priority: web translation > target file > empty (don't use source as fallback)

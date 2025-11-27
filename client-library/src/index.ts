@@ -30,7 +30,9 @@ export interface TranslationFile {
   filename: string;
   contents: Record<string, any>;
   metadata: string; // Base64-encoded MessagePack (for git blame info)
+  rawMetadata: R2Metadata; // Raw metadata for source file generation
   sourceHash: string;
+  filePath: string; // Original file path for re-reading content
 }
 
 export interface ManifestFile {
@@ -305,10 +307,10 @@ export function processFile(
     }
 
     // Build metadata
-    const metadata = buildMetadata(filePath, flattened);
+    const rawMetadata = buildMetadata(filePath, flattened);
 
     // Compress metadata with MessagePack
-    const metadataPacked = encode(metadata);
+    const metadataPacked = encode(rawMetadata);
     const metadataBase64 = Buffer.from(metadataPacked).toString('base64');
 
     // Calculate source hash
@@ -329,7 +331,9 @@ export function processFile(
       filename,
       contents: flattened,
       metadata: metadataBase64,
+      rawMetadata,
       sourceHash,
+      filePath,
     };
   } catch (error: any) {
     console.error(`Error processing ${filePath}:`, error.message);
@@ -961,6 +965,159 @@ function writeStore(
 }
 
 /**
+ * Source file header in JSONL format (first line of the file)
+ */
+export interface SourceHeaderJsonl {
+  type: 'header';
+  language: string;
+  totalFiles: number;
+  totalKeys: number;
+}
+
+/**
+ * Key position data for extracting values from raw file content
+ */
+export interface KeyPosition {
+  start: [number, number];  // [line, char] - 1-indexed
+  end: [number, number];    // [line, char] - 1-indexed
+}
+
+/**
+ * Source file entry in JSONL format
+ * Contains keys with their position data for value extraction
+ */
+export interface SourceFileJsonl {
+  type: 'file';
+  filepath: string;  // filepath with <lang> placeholder
+  filename: string;  // just the filename without directories
+  keys: Record<string, KeyPosition>;  // key -> position data
+}
+
+/**
+ * Source chunk entry in JSONL format
+ * Contains a subset of keys with position data (chunked for streaming)
+ */
+export interface SourceChunkJsonl {
+  type: 'chunk';
+  filepath: string;  // filepath with <lang> placeholder
+  chunkIndex: number;
+  keys: Record<string, KeyPosition>;  // key -> position data
+}
+
+/**
+ * Default number of keys per chunk in source files
+ */
+const SOURCE_KEYS_PER_CHUNK = 200;
+
+/**
+ * Generate and write source files for each language
+ * Creates .koro-i18n/source/[lang].jsonl
+ * JSONL format: header line followed by file entries with key position data
+ * 
+ * Stores keys with position info (charRanges) so the frontend can extract
+ * values from raw file content. This supports custom parsers (JSON, Markdown, etc.)
+ * while keeping file size small (no values stored).
+ */
+function writeSource(
+  files: TranslationFile[],
+  sourceLanguage: string
+): void {
+  const outputDir = '.koro-i18n/source';
+
+  // Create directory if it doesn't exist
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  // Group files by language (include all languages including source)
+  const filesByLang = new Map<string, TranslationFile[]>();
+  for (const file of files) {
+    const existing = filesByLang.get(file.lang) || [];
+    existing.push(file);
+    filesByLang.set(file.lang, existing);
+  }
+
+  // Generate source file for each language
+  for (const [lang, langFiles] of filesByLang.entries()) {
+    const lines: string[] = [];
+    let totalKeys = 0;
+
+    // Count total keys first
+    for (const file of langFiles) {
+      totalKeys += Object.keys(file.contents).length;
+    }
+
+    // First line: header
+    const header: SourceHeaderJsonl = {
+      type: 'header',
+      language: lang,
+      totalFiles: langFiles.length,
+      totalKeys,
+    };
+    lines.push(JSON.stringify(header));
+
+    // Write file entries with keys and their position data
+    for (const file of langFiles) {
+      const filepathWithPlaceholder = replaceLanguageWithPlaceholder(file.filename, lang);
+      const filename = file.filename.split('/').pop() || file.filename;
+      const allKeys = Object.keys(file.contents);
+      const charRanges = file.rawMetadata?.charRanges || {};
+
+      // Build keys with position data
+      const keysWithPositions: Record<string, KeyPosition> = {};
+      for (const key of allKeys) {
+        const range = charRanges[key];
+        if (range) {
+          keysWithPositions[key] = {
+            start: range.start,
+            end: range.end,
+          };
+        }
+      }
+
+      // Chunk the keys
+      const keysList = Object.keys(keysWithPositions);
+      for (let i = 0; i < keysList.length; i += SOURCE_KEYS_PER_CHUNK) {
+        const chunkKeysList = keysList.slice(i, i + SOURCE_KEYS_PER_CHUNK);
+        const chunkKeys: Record<string, KeyPosition> = {};
+        for (const key of chunkKeysList) {
+          chunkKeys[key] = keysWithPositions[key];
+        }
+
+        if (i === 0) {
+          // First chunk includes file metadata
+          const fileEntry: SourceFileJsonl = {
+            type: 'file',
+            filepath: filepathWithPlaceholder,
+            filename,
+            keys: chunkKeys,
+          };
+          lines.push(JSON.stringify(fileEntry));
+        } else {
+          // Subsequent chunks
+          const chunk: SourceChunkJsonl = {
+            type: 'chunk',
+            filepath: filepathWithPlaceholder,
+            chunkIndex: Math.floor(i / SOURCE_KEYS_PER_CHUNK),
+            keys: chunkKeys,
+          };
+          lines.push(JSON.stringify(chunk));
+        }
+      }
+    }
+
+    // Write the source file for this language (JSONL format)
+    const outputPath = path.join(outputDir, `${lang}.jsonl`);
+    fs.writeFileSync(outputPath, lines.join('\n') + '\n', 'utf-8');
+    console.log(`  ✓ Source: ${outputPath} (${langFiles.length} files, ${totalKeys} keys)`);
+  }
+
+  if (filesByLang.size > 0) {
+    console.log(`\n✅ Source generated for ${filesByLang.size} languages`);
+  }
+}
+
+/**
  * Escape special regex characters in a string
  */
 function escapeRegExp(string: string): string {
@@ -1095,6 +1252,10 @@ export async function main() {
   // Generate store files for each target language (source values for validation)
   console.log(`\n📝 Generating store files...`);
   writeStore(allFiles, config.source.language);
+  
+  // Generate source files for all languages (pre-parsed content)
+  console.log(`\n📝 Generating source files (pre-parsed content)...`);
+  writeSource(allFiles, config.source.language);
   
   console.log('\n✨ Done! The metadata has been created in .koro-i18n/');
   console.log('💡 Commit these files to your repository for the platform to fetch your translations.');
