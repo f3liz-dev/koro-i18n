@@ -1,10 +1,10 @@
 /**
  * File routes
  * 
- * Handles file access from GitHub repositories including:
- * - Manifest fetching and streaming
- * - File content streaming
- * - Translation summary with progress
+ * Simplified file access from GitHub repositories:
+ * - Manifest: Get project configuration and file list
+ * - Files: Stream translation file content
+ * - Summary: Get translation progress per language
  */
 import { Hono } from 'hono';
 import { PrismaClient } from '../generated/prisma/';

@@ -263,6 +263,113 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
   });
 
   // ============================================================================
+  // Unified Translation Data (Simplified API)
+  // ============================================================================
+
+  /**
+   * Get all translation data for a file in one call
+   * This is the primary endpoint for the translation editor
+   * 
+   * Returns:
+   * - source: Array of source translations (from source language file)
+   * - target: Array of target translations (from target language file)
+   * - pending: Array of pending web translations
+   * - approved: Array of approved web translations
+   */
+  app.get('/file/:language/:filename', async (c) => {
+    const { user, project } = getContext(c);
+    const language = c.req.param('language');
+    const filename = decodeURIComponent(c.req.param('filename'));
+
+    // Get user's GitHub token for fetching files
+    const githubToken = await getUserGitHubToken(prisma, user.userId);
+    if (!githubToken) {
+      return c.json({ error: 'GitHub token not found. Please re-login.' }, 401);
+    }
+
+    const parts = project.repository.trim().split('/');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      return c.json({ error: 'Invalid repository format' }, 400);
+    }
+    const [owner, repo] = parts;
+    const octokit = new Octokit({ auth: githubToken });
+
+    try {
+      // Determine source and target filenames
+      const sourceFilename = filename.replace(
+        new RegExp(language.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+        project.sourceLanguage
+      );
+
+      // Fetch source and target files in parallel
+      const [sourceFile, targetFile, webTranslations] = await Promise.all([
+        fetchSingleFileFromGitHub(octokit, owner, repo, project.sourceLanguage, sourceFilename, 'main'),
+        language !== project.sourceLanguage 
+          ? fetchSingleFileFromGitHub(octokit, owner, repo, language, filename, 'main')
+          : null,
+        prisma.webTranslation.findMany({
+          where: { 
+            projectId: project.id, 
+            language, 
+            filename,
+            status: { in: ['pending', 'approved'] }
+          },
+          include: { user: { select: { username: true, avatarUrl: true } } },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ]);
+
+      if (!sourceFile) {
+        return c.json({ error: 'Source file not found' }, 404);
+      }
+
+      // Build unified response
+      const source: Record<string, string> = {};
+      const target: Record<string, string> = {};
+
+      // Flatten nested object to dot notation
+      const flattenToRecord = (obj: any, result: Record<string, string>, prefix = ''): void => {
+        for (const [key, value] of Object.entries(obj)) {
+          const newKey = prefix ? `${prefix}.${key}` : key;
+          if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            flattenToRecord(value, result, newKey);
+          } else {
+            result[newKey] = String(value);
+          }
+        }
+      };
+
+      flattenToRecord(sourceFile.contents, source);
+      if (targetFile) {
+        flattenToRecord(targetFile.contents, target);
+      }
+
+      // Separate pending and approved translations
+      const pending = webTranslations
+        .filter(t => t.status === 'pending')
+        .map(t => serializeTranslation(t, project.name));
+      const approved = webTranslations
+        .filter(t => t.status === 'approved')
+        .map(t => serializeTranslation(t, project.name));
+
+      return c.json({
+        source,
+        target,
+        pending,
+        approved,
+        sourceLanguage: project.sourceLanguage,
+        targetLanguage: language,
+        filename,
+        commitSha: sourceFile.commitSha,
+      });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error fetching translation data:', msg);
+      return c.json({ error: `Failed to fetch translation data: ${msg}` }, 500);
+    }
+  });
+
+  // ============================================================================
   // Single Translation Operations
   // ============================================================================
 
