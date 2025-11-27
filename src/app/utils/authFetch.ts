@@ -9,19 +9,6 @@
  * - Network errors are re-thrown so callers can handle them explicitly.
  */
 
-const inFlight = new Map<string, Promise<Response>>();
-
-function makeKey(input: RequestInfo | URL, init?: RequestInit) {
-  try {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
-    const method = (init && init.method) || 'GET';
-    // simple key - include URL and method; headers/body would make this more precise
-    return `${method}:${url}`;
-  } catch {
-    return String(input);
-  }
-}
-
 export async function authFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -37,15 +24,6 @@ export async function authFetch(
   };
 
   const method = (fetchInit.method || 'GET').toUpperCase();
-
-  // For idempotent GETs we dedupe in-flight requests to reduce network wait
-  const key = makeKey(input, fetchInit);
-  if (method === 'GET') {
-    const existing = inFlight.get(key);
-    if (existing) {
-      return existing.then(r => r.clone());
-    }
-  }
 
   // attach AbortController with a reasonable timeout for slow networks
   const controller = new AbortController();
@@ -95,17 +73,6 @@ export async function authFetch(
     }
   })();
 
-  if (method === 'GET') {
-    // store the in-flight promise so concurrent callers reuse it
-    inFlight.set(key, promise.then(r => {
-      inFlight.delete(key);
-      return r;
-    }).catch(err => {
-      inFlight.delete(key);
-      throw err;
-    }));
-  }
-
   try {
     const response = await promise;
 
@@ -134,7 +101,6 @@ export async function authFetch(
       return response;
     }
 
-    // return a clone for callers so the underlying response can be reused safely
     return response;
   } catch (err) {
     console.error("[AuthFetch] Network error:", err);
