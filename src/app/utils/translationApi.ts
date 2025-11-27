@@ -1,6 +1,139 @@
 import { authFetch } from './authFetch';
 import { streamJsonl } from './streaming';
 
+/**
+ * Extract a string value from plain text content using position information
+ * Uses metadata's charRanges (line/char positions) to extract the actual value
+ * 
+ * @param content - The raw file content as plain text string
+ * @param charRange - Position info: { start: [line, char], end: [line, char] }
+ * @returns The extracted string value, or empty string if extraction fails
+ */
+function extractValueFromPosition(
+  content: string,
+  charRange: { start: [number, number]; end: [number, number] } | undefined
+): string {
+  if (!charRange || !content) {
+    return '';
+  }
+
+  const lines = content.split('\n');
+  const [startLine, startChar] = charRange.start;
+  const [endLine, endChar] = charRange.end;
+
+  // Lines are 1-indexed in the metadata
+  if (startLine < 1 || startLine > lines.length) {
+    return '';
+  }
+
+  try {
+    if (startLine === endLine) {
+      // Single line value
+      const line = lines[startLine - 1];
+      // Extract the value part (after the colon, between quotes for JSON)
+      const extracted = line.substring(startChar, endChar);
+      return parseJsonStringValue(extracted);
+    } else {
+      // Multi-line value (rare for JSON, common for markdown)
+      const extractedLines: string[] = [];
+      for (let i = startLine - 1; i < endLine && i < lines.length; i++) {
+        if (i === startLine - 1) {
+          extractedLines.push(lines[i].substring(startChar));
+        } else if (i === endLine - 1) {
+          extractedLines.push(lines[i].substring(0, endChar));
+        } else {
+          extractedLines.push(lines[i]);
+        }
+      }
+      return parseJsonStringValue(extractedLines.join('\n'));
+    }
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Parse the value portion of a JSON key-value pair
+ * Handles: "key": "value" or "key": "value",
+ * Returns just the value content without quotes
+ */
+function parseJsonStringValue(extracted: string): string {
+  // Find the colon that separates key from value
+  const colonIndex = extracted.indexOf(':');
+  if (colonIndex === -1) {
+    // No colon found, might be just the value
+    return extractQuotedString(extracted);
+  }
+
+  // Get everything after the colon
+  const afterColon = extracted.substring(colonIndex + 1).trim();
+  return extractQuotedString(afterColon);
+}
+
+/**
+ * Extract the content of a quoted string
+ * Handles JSON string escaping
+ */
+function extractQuotedString(str: string): string {
+  const trimmed = str.trim();
+  
+  // Find opening quote
+  const openQuote = trimmed.indexOf('"');
+  if (openQuote === -1) {
+    // Not a quoted string, return as-is (for non-JSON formats)
+    return trimmed.replace(/,\s*$/, '');
+  }
+
+  // Find closing quote (handle escaped quotes)
+  // Count consecutive backslashes before quote - if odd, quote is escaped
+  let closeQuote = -1;
+  let i = openQuote + 1;
+  while (i < trimmed.length) {
+    if (trimmed[i] === '"') {
+      // Count consecutive backslashes before this quote
+      let backslashCount = 0;
+      let j = i - 1;
+      while (j >= openQuote + 1 && trimmed[j] === '\\') {
+        backslashCount++;
+        j--;
+      }
+      // Quote is escaped only if odd number of backslashes precede it
+      if (backslashCount % 2 === 0) {
+        closeQuote = i;
+        break;
+      }
+    }
+    i++;
+  }
+
+  if (closeQuote === -1) {
+    // No closing quote found, return content after opening quote
+    return trimmed.substring(openQuote + 1);
+  }
+
+  // Extract content between quotes
+  const content = trimmed.substring(openQuote + 1, closeQuote);
+  
+  // Unescape JSON string escapes
+  return unescapeJsonString(content);
+}
+
+/**
+ * Unescape JSON string escape sequences
+ * Order matters: replace \\\\ first to avoid affecting other escape sequences
+ */
+function unescapeJsonString(str: string): string {
+  // Replace escaped backslash first (\\) -> (\)
+  // This must happen first to avoid affecting other escape sequences like \n, \t
+  return str
+    .replace(/\\\\/g, '\x00')  // Temporarily replace \\\\ with null char
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\x00/g, '\\');   // Replace null char back to single backslash
+}
+
 // Store JSONL types used by the client streaming API
 export interface StoreEntry {
   src: string; // source commit hash
@@ -47,9 +180,12 @@ export type UiMergedTranslation = MergedTranslation & { storeEntry?: StoreEntry 
 
 /**
  * File data structure returned from the API (GitHub-based)
+ * 
+ * raw: Plain text content of the file (NOT parsed JSON)
+ * metadata: Contains position information (charRanges) for extracting values
  */
 export interface FileData {
-  raw: Record<string, any>;
+  raw: string;  // Plain text file content
   metadata: {
     gitBlame: Record<string, GitBlameInfo>;
     charRanges: Record<string, CharRange>;
@@ -64,6 +200,9 @@ export interface FileData {
 /**
  * Fetch file from GitHub via the API
  * Uses the files endpoint which now fetches directly from GitHub
+ * 
+ * Returns raw file content as plain text (NOT parsed JSON)
+ * Values are extracted using metadata's charRanges position info
  */
 export async function fetchFileFromGitHub(
   projectName: string,
@@ -88,9 +227,9 @@ export async function fetchFileFromGitHub(
       throw new Error('Failed to fetch file');
     }
 
-    // The endpoint now returns raw content (JSON) directly
-    // We need to reconstruct the FileData structure expected by the app
-    const rawContent = await response.json();
+    // Get raw content as plain text (NOT parsed JSON)
+    // Values will be extracted using metadata's charRanges position info
+    const rawContent = await response.text();
 
     // Get commit SHA from ETag header (remove quotes)
     const etag = response.headers.get('ETag');
@@ -103,10 +242,12 @@ export async function fetchFileFromGitHub(
         charRanges: {},
         sourceHashes: {}
       },
-      sourceHash: '', // We could calculate this if needed, but for now leave empty
+      sourceHash: '',
       commitSha,
       fetchedAt: new Date().toISOString(),
-      totalKeys: Object.keys(rawContent).length
+      // totalKeys is 0 when metadata is not yet available
+      // Will be updated when metadata is fetched separately
+      totalKeys: 0
     };
   } catch (error) {
     console.error('[GitHub] Fetch error:', error);
@@ -171,7 +312,39 @@ export async function* streamStore(
 }
 
 /**
+ * Get all translation keys from file data
+ * Uses metadata keys (which are properly flattened by client-library)
+ * Keys come from charRanges, sourceHashes, or gitBlame
+ */
+function getKeysFromFileData(fileData: FileData): string[] {
+  // Priority 1: Use keys from charRanges (generated by client-library with position info)
+  const charRangeKeys = Object.keys(fileData.metadata.charRanges || {});
+  if (charRangeKeys.length > 0) {
+    return charRangeKeys;
+  }
+
+  // Priority 2: Use keys from sourceHashes (also generated by client-library)
+  const sourceHashKeys = Object.keys(fileData.metadata.sourceHashes || {});
+  if (sourceHashKeys.length > 0) {
+    return sourceHashKeys;
+  }
+
+  // Priority 3: Use keys from gitBlame
+  const gitBlameKeys = Object.keys(fileData.metadata.gitBlame || {});
+  if (gitBlameKeys.length > 0) {
+    return gitBlameKeys;
+  }
+
+  // No metadata available - return empty array
+  // The UI should show an error or prompt user to run client-library
+  return [];
+}
+
+/**
  * Merge file data and D1 data (legacy - for backward compatibility)
+ * 
+ * Extracts values using metadata's charRanges position info
+ * Does NOT parse JSON - treats source as plain text
  */
 export function mergeTranslations(
   fileData: FileData | null,
@@ -186,15 +359,21 @@ export function mergeTranslations(
 
   const merged: MergedTranslation[] = [];
 
-  for (const [key, sourceValue] of Object.entries(fileData.raw)) {
+  // Get keys from metadata
+  const keys = getKeysFromFileData(fileData);
+
+  for (const key of keys) {
+    const charRange = fileData.metadata.charRanges?.[key];
+    // Extract value using position info from metadata (string manipulation, not JSON parse)
+    const sourceValue = extractValueFromPosition(fileData.raw, charRange);
     const webTrans = webTransMap.get(key);
 
     merged.push({
       key,
-      sourceValue: String(sourceValue),
-      currentValue: webTrans?.value || String(sourceValue),
+      sourceValue,
+      currentValue: webTrans?.value || sourceValue,
       gitBlame: fileData.metadata.gitBlame?.[key],
-      charRange: fileData.metadata.charRanges?.[key],
+      charRange,
       webTranslation: webTrans,
       isValid: webTrans?.isValid ?? true,
     });
@@ -206,6 +385,9 @@ export function mergeTranslations(
 /**
  * Merge source file, target file, and D1 web translations
  * This properly handles the case where source and target are different files
+ * 
+ * Extracts values using metadata's charRanges position info
+ * Does NOT parse JSON - treats source as plain text
  */
 export function mergeTranslationsWithSource(
   sourceFileData: FileData | null,
@@ -219,22 +401,25 @@ export function mergeTranslationsWithSource(
     webTransMap.set(trans.key, trans);
   }
 
-  const targetMap = new Map<string, any>();
-  if (targetFileData) {
-    for (const [key, value] of Object.entries(targetFileData.raw)) {
-      targetMap.set(key, value);
-    }
-  }
-
   const merged: MergedTranslation[] = [];
 
-  for (const [key, sourceValue] of Object.entries(sourceFileData.raw)) {
+  // Get keys from source metadata
+  const keys = getKeysFromFileData(sourceFileData);
+
+  for (const key of keys) {
+    const sourceCharRange = sourceFileData.metadata.charRanges?.[key];
+    const targetCharRange = targetFileData?.metadata.charRanges?.[key];
+
+    // Extract values using position info from metadata (string manipulation, not JSON parse)
+    const sourceValue = extractValueFromPosition(sourceFileData.raw, sourceCharRange);
+    const targetValue = targetFileData 
+      ? extractValueFromPosition(targetFileData.raw, targetCharRange)
+      : '';
     const webTrans = webTransMap.get(key);
-    const targetValue = targetMap.get(key);
 
     // Priority: web translation > target file > empty (don't use source as fallback)
     // If there's no translation, leave it empty so users know to translate it
-    const currentValue = webTrans?.value || (targetValue ? String(targetValue) : '');
+    const currentValue = webTrans?.value || targetValue || '';
 
     // isValid flag:
     // - Git-imported translations are always valid
@@ -244,10 +429,10 @@ export function mergeTranslationsWithSource(
 
     merged.push({
       key,
-      sourceValue: String(sourceValue),
+      sourceValue,
       currentValue,
       gitBlame: sourceFileData.metadata.gitBlame?.[key],
-      charRange: sourceFileData.metadata.charRanges?.[key],
+      charRange: sourceCharRange,
       webTranslation: webTrans,
       isValid,
     });
