@@ -62,14 +62,14 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
     }
   };
 
-  // Get virtual suggestions for current key
-  const relevantVirtualSuggestions = () => {
+  // Get virtual suggestions (from repository)
+  const getVirtualSuggestions = () => {
     return props.virtualSuggestions || [];
   };
 
   const hasContent = () => {
     return (props.suggestions && props.suggestions.length > 0) || 
-           relevantVirtualSuggestions().length > 0;
+           getVirtualSuggestions().length > 0;
   };
 
   return (
@@ -91,7 +91,7 @@ export function TranslationSuggestionsPanel(props: TranslationSuggestionsPanelPr
         <Show when={!props.isLoading && hasContent()}>
           <div class="space-y-2" style={{ 'max-height': '300px', 'overflow-y': 'auto' }}>
             {/* Virtual Suggestions from Repository (Phase 2: Hybrid Buffer) */}
-            <For each={relevantVirtualSuggestions()}>
+            <For each={getVirtualSuggestions()}>
               {(vs) => (
                 <div class="panel" style={{ 
                   'border-left': '3px solid var(--accent)',

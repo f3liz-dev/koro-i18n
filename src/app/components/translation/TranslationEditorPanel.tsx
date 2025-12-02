@@ -61,12 +61,16 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
     return props.virtualSuggestions.filter(vs => vs.key === key);
   };
 
-  // Get reconciliation badge
-  const getReconciliationBadge = () => {
+  // Badge configuration type for type safety
+  type BadgeConfig = { class: string; text: string; icon: string };
+
+  // Get reconciliation badge with exhaustive type checking
+  const getReconciliationBadge = (): BadgeConfig | null => {
     const status = reconciliationStatus();
     if (!status) return null;
     
-    switch (status.status) {
+    const statusType = status.status;
+    switch (statusType) {
       case 'committed':
         return { class: 'badge success', text: 'Committed', icon: '✓' };
       case 'waiting':
@@ -77,8 +81,11 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
         return { class: 'badge', text: 'Redundant', icon: '○' };
       case 'external':
         return { class: 'badge', text: 'External', icon: '↗' };
-      default:
+      default: {
+        // Exhaustive check: if we get here, statusType is 'never'
+        const _exhaustiveCheck: never = statusType;
         return null;
+      }
     }
   };
 

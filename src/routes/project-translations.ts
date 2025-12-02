@@ -436,7 +436,8 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
           }
         } else {
           // No D1 record for this key
-          if (repoValue !== undefined && repoValue !== '' && repoValue !== source[key]) {
+          const sourceValue = source[key];
+          if (repoValue !== undefined && repoValue !== '' && sourceValue !== undefined && repoValue !== sourceValue) {
             // Repo has a value different from source → Virtual suggestion
             reconciliation[key] = { status: 'external', repoValue };
             virtualSuggestions.push({ key, value: repoValue, source: 'repository' });
