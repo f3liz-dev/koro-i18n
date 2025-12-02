@@ -72,6 +72,7 @@ export const WebTranslationStatus = t.union([
   t.literal('approved'),
   t.literal('rejected'),
   t.literal('deleted'),
+  t.literal('committed'), // Added for Phase 1: Lazy Reconciliation
 ]);
 export type WebTranslationStatus = t.TypeOf<typeof WebTranslationStatus>;
 

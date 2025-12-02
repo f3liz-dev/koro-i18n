@@ -75,8 +75,9 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
     const { user, project } = getContext(c);
     const { language, filename, key, value } = c.req.valid('json');
 
-    // Get source hash from GitHub for validation tracking
+    // Get source hash and current repository value from GitHub for validation
     let sourceHash: string | undefined;
+    let repositoryValue: string | undefined;
     try {
       const githubToken = await getUserGitHubToken(prisma, user.userId);
       if (githubToken) {
@@ -84,16 +85,34 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
         if (parts.length === 2 && parts[0] && parts[1]) {
           const [owner, repo] = parts;
           const octokit = new Octokit({ auth: githubToken });
+          
+          // Fetch source file for source hash
           const sourceFile = await fetchSingleFileFromGitHub(
             octokit, owner, repo, project.sourceLanguage, filename, 'main'
           );
           if (sourceFile) {
             sourceHash = sourceFile.metadata.sourceHashes?.[key];
           }
+          
+          // Fetch target file to check current repository value (spam prevention)
+          const targetFile = await fetchSingleFileFromGitHub(
+            octokit, owner, repo, language, filename, 'main'
+          );
+          if (targetFile?.contents) {
+            repositoryValue = targetFile.contents[key];
+          }
         }
       }
     } catch (e) {
-      console.warn('Failed to get source hash from GitHub', e);
+      console.warn('Failed to get source hash or repository value from GitHub', e);
+    }
+
+    // Spam Prevention: Prevent submitting a translation identical to repository content
+    if (repositoryValue !== undefined && value === repositoryValue) {
+      return c.json({ 
+        success: false, 
+        error: 'This translation already exists in the repository.' 
+      }, 400);
     }
 
     const id = crypto.randomUUID();
@@ -267,6 +286,24 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
   // ============================================================================
 
   /**
+   * Reconciliation status for lazy sync (Phase 1: Hybrid Buffer)
+   * Compares D1 (Database) vs Repo (GitHub) content
+   * 
+   * Status meanings:
+   * - 'committed': D1 Approved + Repo matches D1 → Translation is live
+   * - 'redundant': D1 Pending + Repo matches D1 → Marked as system redundant (no credit)
+   * - 'waiting': D1 Approved + Repo differs → Waiting for GitHub Action sync
+   * - 'conflict': D1 Approved + Repo has different value → External change, needs resolution
+   * - 'external': No D1 record + Repo has value → Virtual suggestion from repository
+   */
+  type ReconciliationStatus = 'committed' | 'redundant' | 'waiting' | 'conflict' | 'external';
+
+  interface ReconciliationInfo {
+    status: ReconciliationStatus;
+    repoValue?: string;
+  }
+
+  /**
    * Get all translation data for a file in one call
    * This is the primary endpoint for the translation editor
    * 
@@ -275,6 +312,8 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
    * - target: Array of target translations (from target language file)
    * - pending: Array of pending web translations
    * - approved: Array of approved web translations
+   * - reconciliation: Lazy reconciliation info comparing D1 vs Repo
+   * - virtualSuggestions: Repository values that differ from or don't exist in D1
    */
   app.get('/file/:language/:filename', async (c) => {
     const { user, project } = getContext(c);
@@ -352,11 +391,67 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
         .filter(t => t.status === 'approved')
         .map(t => serializeTranslation(t, project.name));
 
+      // ========================================================================
+      // Lazy Reconciliation Engine (Phase 1: Hybrid Buffer)
+      // Compare D1 (Database) vs Repo (GitHub) content
+      // ========================================================================
+      const reconciliation: Record<string, ReconciliationInfo> = {};
+      const virtualSuggestions: Array<{
+        key: string;
+        value: string;
+        source: 'repository';
+      }> = [];
+
+      // Build a map of D1 translations by key
+      const d1TranslationsByKey = new Map<string, { status: string; value: string }>();
+      for (const trans of webTranslations) {
+        d1TranslationsByKey.set(trans.key, { status: trans.status, value: trans.value });
+      }
+
+      // Compare each key
+      for (const key of Object.keys(source)) {
+        const repoValue = target[key];
+        const d1Trans = d1TranslationsByKey.get(key);
+
+        if (d1Trans) {
+          // D1 has a record for this key
+          if (d1Trans.status === 'approved') {
+            if (repoValue === d1Trans.value) {
+              // D1 Approved + Repo matches → Mark as committed
+              reconciliation[key] = { status: 'committed', repoValue };
+            } else if (repoValue === undefined || repoValue === '') {
+              // D1 Approved + No Repo value → Waiting for sync
+              reconciliation[key] = { status: 'waiting' };
+            } else {
+              // D1 Approved + Repo has different value → Conflict!
+              reconciliation[key] = { status: 'conflict', repoValue };
+              // Add as virtual suggestion so user can resolve
+              virtualSuggestions.push({ key, value: repoValue, source: 'repository' });
+            }
+          } else if (d1Trans.status === 'pending') {
+            if (repoValue === d1Trans.value) {
+              // D1 Pending + Repo matches → System redundant (no credit)
+              reconciliation[key] = { status: 'redundant', repoValue };
+            }
+          }
+        } else {
+          // No D1 record for this key
+          const sourceValue = source[key];
+          if (repoValue !== undefined && repoValue !== '' && sourceValue !== undefined && repoValue !== sourceValue) {
+            // Repo has a value different from source → Virtual suggestion
+            reconciliation[key] = { status: 'external', repoValue };
+            virtualSuggestions.push({ key, value: repoValue, source: 'repository' });
+          }
+        }
+      }
+
       return c.json({
         source,
         target,
         pending,
         approved,
+        reconciliation,
+        virtualSuggestions,
         sourceLanguage: project.sourceLanguage,
         targetLanguage: language,
         filename,
