@@ -2,6 +2,23 @@ import { Show } from "solid-js";
 import { TranslationSuggestionsPanel } from "./TranslationSuggestionsPanel";
 import type { UiMergedTranslation as MergedTranslation, WebTranslation } from "../../utils/translationApi";
 
+/**
+ * Virtual suggestion from repository (Phase 2: Hybrid Buffer)
+ */
+interface VirtualSuggestion {
+  key: string;
+  value: string;
+  source: 'repository';
+}
+
+/**
+ * Reconciliation status info (Phase 1: Lazy Reconciliation)
+ */
+interface ReconciliationInfo {
+  status: 'committed' | 'redundant' | 'waiting' | 'conflict' | 'external';
+  repoValue?: string;
+}
+
 interface TranslationEditorPanelProps {
   selectedKey: string | null;
   translations: MergedTranslation[];
@@ -10,6 +27,8 @@ interface TranslationEditorPanelProps {
   translationValue: string;
   showSuggestions: boolean;
   suggestions: WebTranslation[];
+  virtualSuggestions?: VirtualSuggestion[];
+  reconciliation?: Record<string, ReconciliationInfo>;
   currentIndex: number;
   totalCount: number;
   isSaving: boolean;
@@ -19,6 +38,7 @@ interface TranslationEditorPanelProps {
   onToggleSuggestions: () => void;
   onApproveSuggestion?: (id: string) => void;
   onRejectSuggestion?: (id: string) => void;
+  onImportFromRepo?: (key: string, value: string) => void;
   onPrevious: () => void;
   onNext: () => void;
 }
@@ -26,6 +46,41 @@ interface TranslationEditorPanelProps {
 export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
   const translation = () =>
     props.translations.find((t) => t.key === props.selectedKey);
+
+  // Get reconciliation status for current key
+  const reconciliationStatus = () => {
+    const key = props.selectedKey;
+    if (!key || !props.reconciliation) return null;
+    return props.reconciliation[key];
+  };
+
+  // Get virtual suggestions for current key
+  const currentVirtualSuggestions = () => {
+    const key = props.selectedKey;
+    if (!key || !props.virtualSuggestions) return [];
+    return props.virtualSuggestions.filter(vs => vs.key === key);
+  };
+
+  // Get reconciliation badge
+  const getReconciliationBadge = () => {
+    const status = reconciliationStatus();
+    if (!status) return null;
+    
+    switch (status.status) {
+      case 'committed':
+        return { class: 'badge success', text: 'Committed', icon: '✓' };
+      case 'waiting':
+        return { class: 'badge warning', text: 'Waiting for Sync', icon: '⏳' };
+      case 'conflict':
+        return { class: 'badge danger', text: 'Conflict', icon: '⚠️' };
+      case 'redundant':
+        return { class: 'badge', text: 'Redundant', icon: '○' };
+      case 'external':
+        return { class: 'badge', text: 'External', icon: '↗' };
+      default:
+        return null;
+    }
+  };
 
   return (
     <div class="card" style={{
@@ -90,14 +145,25 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
               }}>
                 {translation()!.key}
               </code>
-              <Show when={!translation()?.isValid}>
-                <span class="badge warning">
-                  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  Outdated
-                </span>
-              </Show>
+              <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+                <Show when={!translation()?.isValid}>
+                  <span class="badge warning">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Outdated
+                  </span>
+                </Show>
+                {/* Reconciliation Status Badge (Phase 1: Hybrid Buffer) */}
+                <Show when={getReconciliationBadge()}>
+                  {(badge) => (
+                    <span class={badge().class} title={`Reconciliation status: ${badge().text}`}>
+                      <span style={{ 'margin-right': '0.25rem' }}>{badge().icon}</span>
+                      {badge().text}
+                    </span>
+                  )}
+                </Show>
+              </div>
             </div>
             <div style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'space-between' }}>
               <button onClick={props.onToggleSuggestions} class="btn ghost sm">
@@ -279,9 +345,11 @@ export function TranslationEditorPanel(props: TranslationEditorPanelProps) {
           <TranslationSuggestionsPanel
             show={props.showSuggestions}
             suggestions={props.suggestions}
+            virtualSuggestions={currentVirtualSuggestions()}
             isLoading={props.isLoading}
             onApprove={props.onApproveSuggestion}
             onReject={props.onRejectSuggestion}
+            onImportFromRepo={props.onImportFromRepo}
           />
         </div>
       </Show>

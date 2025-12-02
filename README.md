@@ -183,6 +183,23 @@ POST /api/projects/:name/apply/committed
   → { success: true, count }
 ```
 
+## Manual Merge Protocol
+
+> **⚠️ Deprecation Notice:** Direct manual commits to translation files are discouraged. Use the Koro platform for proper attribution and workflow management.
+
+If you must merge translations manually (e.g., from Crowdin exports), please follow these guidelines:
+
+1. **Use the Export Endpoint First**: Before any manual merge, check `/api/projects/:name/apply/export` for pending translations to avoid conflicts.
+
+2. **Proper Attribution**: Add `Co-authored-by` trailers to preserve contributor credits:
+   ```
+   Co-authored-by: Username <email@example.com>
+   ```
+
+3. **Mark as Committed**: After merging, notify the platform by calling `POST /api/projects/:name/apply/committed` with the translation IDs.
+
+4. **Conflict Resolution**: The platform detects external changes. When the repository content differs from approved translations, contributors are prompted to resolve conflicts in the editor.
+
 ## License
 
 MIT
