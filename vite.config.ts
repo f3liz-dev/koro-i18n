@@ -1,12 +1,16 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
-import solid from 'vite-plugin-solid';
+import elmPlugin from 'vite-plugin-elm';
 
 export default defineConfig({
   plugins: [
-    solid({ ssr: false }),
+    elmPlugin({
+      debug: false,
+      optimize: true,
+    }),
   ],
   root: 'src/app',
+  publicDir: resolve(__dirname, 'src/app/public'),
   build: {
     outDir: '../../dist/frontend',
     emptyOutDir: true,
@@ -18,7 +22,11 @@ export default defineConfig({
       },
     },
   },
-  resolve: { alias: { '@': resolve(__dirname, 'src') } },
+  resolve: { 
+    alias: { 
+      '@': resolve(__dirname, 'src')
+    } 
+  },
   server: {
     port: 5173,
     proxy: { '/api': { target: 'http://localhost:8787', changeOrigin: true } },
