@@ -1,12 +1,12 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
-import solid from 'vite-plugin-solid';
+import elmPlugin from 'vite-plugin-elm';
 
 export default defineConfig({
   plugins: [
-    solid({ ssr: false }),
+    elmPlugin(),
   ],
-  root: 'src/app',
+  root: 'src/elm',
   build: {
     outDir: '../../dist/frontend',
     emptyOutDir: true,
