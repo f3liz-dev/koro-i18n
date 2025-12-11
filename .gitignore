@@ -50,3 +50,6 @@ coverage/
 rust-worker/target/
 rust-worker/build/
 rust-worker/Cargo.lock
+
+# Elm
+elm-stuff/

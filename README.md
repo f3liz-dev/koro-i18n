@@ -145,7 +145,7 @@ npm run test
 
 ## Tech Stack
 
-- **Frontend**: SolidJS + Vite + UnoCSS
+- **Frontend**: Elm + Vite + Minimal CSS
 - **Backend**: Cloudflare Workers + Hono + Prisma (D1)
 - **Auth**: GitHub OAuth + OIDC (for GitHub Actions)
 
