@@ -31,10 +31,16 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+        cache: 'pnpm'
 
     - name: Check for config file
       id: check-config
@@ -68,8 +74,8 @@ runs:
         fi
         
         cd "$CLIENT_LIB_PATH"
-        npm install
-        npm run build
+        pnpm install
+        pnpm run build
         
         # Export the CLI path for subsequent steps
         CLI_PATH="$CLIENT_LIB_PATH/dist/cli.js"

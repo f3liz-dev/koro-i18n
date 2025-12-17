@@ -45,10 +45,16 @@ runs:
     # =========================================================================
     # Setup
     # =========================================================================
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+        cache: 'pnpm'
 
     - name: Check config exists
       id: check-config
@@ -105,8 +111,8 @@ runs:
         fi
         
         cd "$CLIENT_LIB_PATH"
-        npm install --silent
-        npm run build --silent
+        pnpm install --frozen-lockfile
+        pnpm run build
         
         CLI_PATH="$CLIENT_LIB_PATH/dist/cli.js"
         echo "cli-path=$CLI_PATH" >> $GITHUB_OUTPUT

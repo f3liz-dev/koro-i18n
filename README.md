@@ -87,25 +87,25 @@ jobs:
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Generate Prisma client
-npm run prisma:generate
+pnpm run prisma:generate
 
 # Run locally (frontend + workers)
-npm run dev:all
+pnpm run dev:all
 
 # Run tests
-npm run test
+pnpm run test
 
 # Type check
-npm run type-check
+pnpm run type-check
 
 # Build for production
-npm run build
+pnpm run build
 
 # Deploy to Cloudflare
-npm run deploy
+pnpm run deploy
 ```
 
 ## Tech Stack
