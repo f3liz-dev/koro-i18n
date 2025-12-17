@@ -4,6 +4,7 @@
  * Provides authentication and project context loading
  * with proper typing throughout
  */
+import { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { getCookie, deleteCookie } from 'hono/cookie';
 import { Octokit } from '@octokit/rest';
@@ -20,7 +21,7 @@ import { unauthorized, forbidden, notFound, error } from './responses';
 /**
  * Extract auth token from cookie or Authorization header
  */
-function extractToken(c: any): string | undefined {
+function extractToken(c: Context): string | undefined {
   // Try cookie first (web UI)
   const cookieToken = getCookie(c, 'auth_token');
   if (cookieToken) return cookieToken;

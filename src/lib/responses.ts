@@ -4,6 +4,7 @@
  * Provides standardized response patterns with proper caching and ETags
  */
 import { Context } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { CACHE_CONFIGS, buildCacheControl, CacheConfig } from './cache-headers';
 
 // ============================================================================
@@ -32,12 +33,12 @@ export function jsonResponse<T>(
   c: Context,
   data: T,
   options: {
-    status?: number;
+    status?: ContentfulStatusCode;
     cache?: CacheConfig;
     etag?: string;
   } = {}
 ): Response {
-  const response = c.json(data, options.status as any);
+  const response = c.json(data, options.status);
   
   if (options.cache) {
     response.headers.set('Cache-Control', buildCacheControl(options.cache));
@@ -63,12 +64,12 @@ export function success<T = void>(c: Context, data?: T, extra?: Record<string, u
 export function error(
   c: Context, 
   message: string, 
-  status: number = 400, 
+  status: ContentfulStatusCode = 400, 
   details?: string | string[]
 ): Response {
   const body: ApiError = { error: message };
   if (details) body.details = details;
-  return c.json(body, status as any);
+  return c.json(body, status);
 }
 
 /**
