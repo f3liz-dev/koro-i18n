@@ -22,8 +22,8 @@ const wrangler = spawn('wrangler', ['dev'], {
 
 // Watch for frontend changes and rebuild
 console.log('👀 Watching for frontend changes...');
-watch('./src/app', { recursive: true }, async (eventType, filename) => {
-  if (filename && (filename.endsWith('.tsx') || filename.endsWith('.ts') || filename.endsWith('.css'))) {
+watch('./src', { recursive: true }, async (eventType, filename) => {
+  if (filename && (filename.endsWith('.elm') || filename.endsWith('.css') || filename.endsWith('.js'))) {
     console.log(`\n📝 Change detected: ${filename}`);
     console.log('🔨 Rebuilding frontend...');
     try {

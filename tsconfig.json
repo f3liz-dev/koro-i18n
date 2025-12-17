@@ -7,15 +7,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
     "strict": false,
     "skipLibCheck": true,
     "outDir": "./dist",
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] },
-    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+    "lib": ["ES2022"]
   },
-  "include": ["src/workers.ts", "src/oidc.ts", "src/app/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/app/**/*"]
 }
