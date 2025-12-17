@@ -20,9 +20,9 @@ import { unauthorized, forbidden, notFound, error } from './responses';
 /**
  * Extract auth token from cookie or Authorization header
  */
-function extractToken(c: { req: { header: (name: string) => string | undefined }, cookie: (name: string) => string | undefined }): string | undefined {
+function extractToken(c: any): string | undefined {
   // Try cookie first (web UI)
-  const cookieToken = getCookie(c as any, 'auth_token');
+  const cookieToken = getCookie(c, 'auth_token');
   if (cookieToken) return cookieToken;
   
   // Try Authorization header (API clients)

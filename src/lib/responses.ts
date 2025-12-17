@@ -37,7 +37,7 @@ export function jsonResponse<T>(
     etag?: string;
   } = {}
 ): Response {
-  const response = c.json(data, options.status);
+  const response = c.json(data, options.status as any);
   
   if (options.cache) {
     response.headers.set('Cache-Control', buildCacheControl(options.cache));
@@ -68,7 +68,7 @@ export function error(
 ): Response {
   const body: ApiError = { error: message };
   if (details) body.details = details;
-  return c.json(body, status);
+  return c.json(body, status as any);
 }
 
 /**

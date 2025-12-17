@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { createFileRoutes } from './files';
 import { PrismaClient } from '../generated/prisma';
+import type { Env } from '../lib/context';
 
 describe('Translation History and Validation', () => {
   let app: Hono;
@@ -13,7 +14,7 @@ describe('Translation History and Validation', () => {
       JWT_SECRET: 'test-secret',
       ENVIRONMENT: 'test',
       PLATFORM_URL: 'https://test.example.com',
-    };
+    } as unknown as Env;
     app = new Hono();
     app.route('/api/projects', createFileRoutes(prisma, env));
   });

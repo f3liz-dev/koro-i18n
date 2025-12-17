@@ -1,6 +1,36 @@
 # koro-i18n
 
-A lightweight, intuitive i18n platform powered by Cloudflare Workers.
+A lightweight, production-ready i18n platform powered by Elm and Cloudflare Workers.
+
+## Architecture
+
+- **Frontend**: Elm - Pure functional programming for a reliable, fast UI
+- **Backend**: Cloudflare Workers + Hono - Edge-first, zero cold starts
+- **Database**: D1 (SQLite) via Prisma - Serverless, no cost at rest
+- **Auth**: GitHub OAuth + OIDC for GitHub Actions
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Your Repository                                    │
+│                                                                             │
+│  koro.config.json              locales/                                      │
+│  (configuration)               ├── en/common.json  (source)                 │
+│                                └── ja/common.json  (target)                 │
+└─────────────────────────────────┬───────────────────────────────────────────┘
+                                  │
+                    GitHub Action syncs translations
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Koro Platform (Cloudflare Workers)                     │
+│                                                                             │
+│  Elm Frontend (Static)          Hono API (Edge)                              │
+│  • Pure functional UI           • GitHub OAuth                               │
+│  • Type-safe views              • Translation CRUD                           │
+│  • Fast, reliable               • Prisma + D1                                │
+│                                 • OIDC for Actions                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ## Quick Start
 
@@ -53,80 +83,6 @@ jobs:
           project-name: your-project-name
 ```
 
-That's it! Your translations will sync automatically.
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Your Repository                                    │
-│                                                                             │
-│  koro.config.json              locales/                                      │
-│  (configuration)               ├── en/common.json  (source)                 │
-│                                └── ja/common.json  (target)                 │
-│                                                                             │
-│  Optional: .koro-i18n/translations.jsonl  (generated metadata)              │
-└─────────────────────────────────┬───────────────────────────────────────────┘
-                                  │
-                    GitHub Action runs `npx @koro-i18n/client generate`
-                    to create metadata (optional, for advanced use cases)
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Koro i18n Platform (Backend)                           │
-│                                                                             │
-│  API Endpoints:                                                              │
-│  • GET  /api/projects/:name/translations/file/:lang/:file                   │
-│    → Returns source + target translations in one call                        │
-│  • POST /api/projects/:name/translations                                     │
-│    → Submit new translation                                                  │
-│  • GET  /api/projects/:name/apply/export                                     │
-│    → Export approved translations for GitHub Action                          │
-│                                                                             │
-│  Storage: D1 (web-submitted translations only)                               │
-└─────────────────────────────────┬───────────────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Web Frontend (SolidJS)                                 │
-│                                                                             │
-│  Translation Editor:                                                         │
-│  • Fetches all data in single API call                                       │
-│  • Side-by-side source/target view                                           │
-│  • Submit, approve, reject translations                                      │
-│  • Filter by status, search by key/value                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Data Flow
-
-1. **Fetch**: Frontend requests `/translations/file/:lang/:file`
-   - Backend fetches source and target files from GitHub
-   - Backend fetches web translations from D1
-   - Returns unified response with all data
-
-2. **Edit**: User submits translation via web UI
-   - Stored in D1 as "pending" status
-   - Owner can approve/reject
-
-3. **Sync**: GitHub Action runs periodically
-   - Calls `/apply/export` to get approved translations
-   - Commits translations back to repository
-   - Marks translations as "committed"
-
-## CLI
-
-```bash
-# Initialize config
-npx @koro-i18n/client init
-
-# Validate config and find translation files
-npx @koro-i18n/client validate
-
-# Generate metadata (optional, for advanced use)
-npx @koro-i18n/client generate
-```
-
 ## Development
 
 ```bash
@@ -136,18 +92,32 @@ npm install
 # Generate Prisma client
 npm run prisma:generate
 
-# Run locally
+# Run locally (frontend + workers)
 npm run dev:all
 
 # Run tests
 npm run test
+
+# Type check
+npm run type-check
+
+# Build for production
+npm run build
+
+# Deploy to Cloudflare
+npm run deploy
 ```
 
 ## Tech Stack
 
-- **Frontend**: SolidJS + Vite + UnoCSS
-- **Backend**: Cloudflare Workers + Hono + Prisma (D1)
-- **Auth**: GitHub OAuth + OIDC (for GitHub Actions)
+| Component | Technology | Why |
+|-----------|------------|-----|
+| Frontend | Elm | Type-safe, no runtime exceptions, fast |
+| Backend | Cloudflare Workers | Edge computing, no cold starts, free tier |
+| HTTP | Hono | Lightweight, fast, built for Workers |
+| Database | D1 + Prisma | SQLite at the edge, type-safe queries |
+| Auth | GitHub OAuth | Developer-first, secure |
+| Styling | Vanilla CSS | Simple, no build step, performant |
 
 ## API Reference
 
@@ -155,50 +125,38 @@ npm run test
 
 ```
 GET /api/projects/:name/translations/file/:lang/:file
-  → { source, target, pending, approved, sourceLanguage, targetLanguage, filename, commitSha }
+  → Source + target translations in one call
 
 POST /api/projects/:name/translations
-  Body: { language, filename, key, value }
-  → { success: true, id }
+  → Submit new translation
 
 PATCH /api/projects/:name/translations/:id
-  Body: { status: "approved" | "rejected" }
-  → { success: true }
+  → Approve or reject translation
 
 DELETE /api/projects/:name/translations/:id
-  → { success: true }
+  → Delete translation
 ```
 
-### Apply Endpoints (for GitHub Actions)
+### Apply Endpoints (GitHub Actions)
 
 ```
 GET /api/projects/:name/apply/preview
-  → { preview: { translations, files } }
+  → Preview pending translations
 
 GET /api/projects/:name/apply/export
-  → { translations, files, contributors }
+  → Export approved translations
 
 POST /api/projects/:name/apply/committed
-  Body: { translationIds: [...] }
-  → { success: true, count }
+  → Mark translations as committed
 ```
 
-## Manual Merge Protocol
+## Design Principles
 
-> **⚠️ Deprecation Notice:** Direct manual commits to translation files are discouraged. Use the Koro platform for proper attribution and workflow management.
-
-If you must merge translations manually (e.g., from Crowdin exports), please follow these guidelines:
-
-1. **Use the Export Endpoint First**: Before any manual merge, check `/api/projects/:name/apply/export` for pending translations to avoid conflicts.
-
-2. **Proper Attribution**: Add `Co-authored-by` trailers to preserve contributor credits:
-   ```
-   Co-authored-by: Username <email@example.com>
-   ```
-
-3. **Mark as Committed**: After merging, notify the platform by calling `POST /api/projects/:name/apply/committed` with the translation IDs.
-
-4. **Conflict Resolution**: The platform detects external changes. When the repository content differs from approved translations, contributors are prompted to resolve conflicts in the editor.
+1. **Zero Cost at Rest**: D1 and Workers have generous free tiers
+2. **Edge-First**: All computation happens at the edge, near users
+3. **Type Safety**: Elm eliminates frontend runtime errors
+4. **Minimal Dependencies**: Only essential, well-maintained libraries
+5. **Developer Experience**: Easy setup, clear documentation
 
 ## License
 
