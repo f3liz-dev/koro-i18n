@@ -149,7 +149,7 @@ view model =
                             uniqueLangs =
                                 model.counts
                                     |> List.map .language
-                                    |> List.unique
+                                    |> unique
                         in
                         if List.isEmpty uniqueLangs then
                             div [ class "empty-state" ]
@@ -213,3 +213,17 @@ viewTranslationRow savingKey translation =
                 ]
             ]
         ]
+
+{-| Return a list with duplicates removed while preserving order -}
+unique : List comparable -> List comparable
+unique list =
+    list
+        |> List.foldl
+            (\term acc ->
+                if List.member term acc then
+                    acc
+                else
+                    term :: acc
+            )
+            []
+        |> List.reverse
