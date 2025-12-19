@@ -14,7 +14,20 @@ export default defineConfig({
     outDir: '../../dist/frontend',
     emptyOutDir: true,
     target: 'esnext',
-    minify: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
+
+          // Put Elm-compiled output and per-page JS into separate chunk(s)
+          if (id.endsWith('.elm') || id.includes('/Pages/')) {
+            return 'elm-pages';
+          }
+        }
+      }
+    }
   },
   server: {
     port: 5173,
