@@ -109,7 +109,10 @@ view model =
     div [ class "container main" ]
         [ div [ class "flex justify-between items-center mb-6" ]
             [ div []
-                [ h1 [ class "text-2xl font-bold" ] [ text ("Translating " ++ model.filename) ]
+                [ if String.isEmpty model.filename then
+                    h1 [ class "text-2xl font-bold" ] [ text "Languages" ]
+                  else
+                    h1 [ class "text-2xl font-bold" ] [ text ("Translating " ++ model.filename) ]
                 , p [ class "text-sm text-secondary" ] [ text (model.projectName ++ " • " ++ model.language) ]
                 ]
             , div [ class "flex gap-2" ]
