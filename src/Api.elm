@@ -111,8 +111,8 @@ getTranslations projectName language filename msg =
         , expect = Http.expectJson msg (Decode.list translationDecoder)
         }
 
-getTranslationCounts : String -> (Result Http.Error (List TranslationCount) -> msg) -> Cmd msg
-getTranslationCounts projectName msg =
+getTranslationCounts : String -> String -> (Result Http.Error (List TranslationCount) -> msg) -> Cmd msg
+getTranslationCounts projectName language msg =
     let
         countDecoder =
             Decode.map3 TranslationCount
@@ -121,9 +121,13 @@ getTranslationCounts projectName msg =
                 (Decode.field "count" Decode.int)
 
         expectDecoder = Decode.field "counts" (Decode.list countDecoder)
+
+        url =
+            baseUrl ++ "/projects/" ++ projectName ++ "/translations/counts"
+                ++ (if String.isEmpty language then "" else "?language=" ++ language)
     in
     Http.get
-        { url = baseUrl ++ "/projects/" ++ projectName ++ "/translations/counts"
+        { url = url
         , expect = Http.expectJson msg expectDecoder
         }
 

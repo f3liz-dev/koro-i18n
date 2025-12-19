@@ -42,21 +42,21 @@ type Msg
 
 init : String -> String -> String -> ( Model, Cmd Msg )
 init projectName language filename =
-    ( { projectName = projectName
-      , language = language
-      , filename = filename
-      , translations = []
+        ( { projectName = projectName
+            , language = language
+            , filename = filename
+            , translations = []
             , counts = []
             , loading = True
-      , error = Nothing
-      , filter = ""
-      , saving = Nothing
-      }
+            , error = Nothing
+            , filter = ""
+            , saving = Nothing
+            }
         , if String.isEmpty filename then
-                Api.getTranslationCounts projectName GotCounts
+                Api.getTranslationCounts projectName language GotCounts
             else
                 Api.getTranslations projectName language filename GotTranslations
-    )
+        )
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -147,24 +147,45 @@ view model =
                                 List.filter (matchesFilter model.filter) model.translations
                     in
                     if String.isEmpty model.filename then
-                        -- Show list of available languages (aggregate from counts)
-                        let
-                            uniqueLangs =
-                                model.counts
-                                    |> List.map .language
-                                    |> unique
-                        in
-                        if List.isEmpty uniqueLangs then
-                            div [ class "empty-state" ]
-                                [ div [ class "icon" ] [ text "🔍" ]
-                                , h3 [ class "title" ] [ text "No languages found" ]
-                                ]
+                        if String.isEmpty model.language then
+                            -- Show list of available languages (aggregate from counts)
+                            let
+                                uniqueLangs =
+                                    model.counts
+                                        |> List.map .language
+                                        |> unique
+                            in
+                            if List.isEmpty uniqueLangs then
+                                div [ class "empty-state" ]
+                                    [ div [ class "icon" ] [ text "🔍" ]
+                                    , h3 [ class "title" ] [ text "No languages found" ]
+                                    ]
+                            else
+                                div [ class "grid gap-4" ]
+                                    (List.map (\lang ->
+                                        div [ class "card" ]
+                                            [ a [ href ("/projects/" ++ model.projectName ++ "/translations/" ++ lang ++ "/editor") ] [ text lang ] ]
+                                    ) uniqueLangs)
                         else
-                            div [ class "grid gap-4" ]
-                                (List.map (\lang ->
-                                    div [ class "card" ]
-                                        [ a [ href ("/projects/" ++ model.projectName ++ "/translations?language=" ++ lang) ] [ text lang ] ]
-                                ) uniqueLangs)
+                            -- Language selected but no filename: show filenames for this language
+                            let
+                                filesForLang =
+                                    model.counts
+                                        |> List.filter (\c -> c.language == model.language)
+                                        |> List.map .filename
+                                        |> unique
+                            in
+                            if List.isEmpty filesForLang then
+                                div [ class "empty-state" ]
+                                    [ div [ class "icon" ] [ text "🔍" ]
+                                    , h3 [ class "title" ] [ text "No files found for " ++ model.language ]
+                                    ]
+                            else
+                                div [ class "grid gap-4" ]
+                                    (List.map (\fn ->
+                                        div [ class "card" ]
+                                            [ a [ href ("/projects/" ++ model.projectName ++ "/translations/" ++ model.language ++ "/editor?filename=" ++ fn) ] [ text fn ] ]
+                                    ) filesForLang)
                     else
                         if List.isEmpty filteredTranslations then
                             div [ class "empty-state" ]
