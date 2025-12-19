@@ -128,13 +128,30 @@ stepUrl backendUrl url auth =
                 ( CreateProject createModel, Cmd.map CreateProjectMsg createCmd )
 
         Just (TranslationEditorRoute projectName maybeLang maybeFile) ->
-             requireAuth backendUrl auth <|
-                let
-                    lang = Maybe.withDefault "en" maybeLang
-                    file = Maybe.withDefault "default.json" maybeFile
-                    ( editorModel, editorCmd ) = Pages.Translation.Editor.init projectName lang file
-                in
-                ( TranslationEditor editorModel, Cmd.map TranslationEditorMsg editorCmd )
+            let
+                lang = Maybe.withDefault "en" maybeLang
+                file = Maybe.withDefault "default.json" maybeFile
+            in
+            case auth of
+                Auth.LoggedIn _ ->
+                    let
+                        ( editorModel, editorCmd ) = Pages.Translation.Editor.init projectName lang file
+                    in
+                    ( TranslationEditor editorModel, Cmd.map TranslationEditorMsg editorCmd )
+
+                Auth.Checking ->
+                    -- Don't execute network commands while auth is still being checked;
+                    -- initialize model so UI can show a loading state but avoid unauthenticated API calls
+                    let
+                        ( editorModel, _ ) = Pages.Translation.Editor.init projectName lang file
+                    in
+                    ( TranslationEditor editorModel, Cmd.none )
+
+                Auth.LoggedOut ->
+                    let
+                        ( loginModel, loginCmd ) = Pages.Login.init backendUrl
+                    in
+                    ( Login loginModel, Cmd.map LoginMsg loginCmd )
 
         Nothing ->
             ( NotFound, Cmd.none )

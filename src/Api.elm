@@ -29,6 +29,12 @@ type alias Translation =
     , isValid : Bool
     }
 
+type alias TranslationCount =
+    { language : String
+    , filename : String
+    , count : Int
+    }
+
 -- DECODERS
 
 projectDecoder : Decode.Decoder Project
@@ -103,6 +109,22 @@ getTranslations projectName language filename msg =
     Http.get
         { url = url
         , expect = Http.expectJson msg (Decode.list translationDecoder)
+        }
+
+getTranslationCounts : String -> (Result Http.Error (List TranslationCount) -> msg) -> Cmd msg
+getTranslationCounts projectName msg =
+    let
+        countDecoder =
+            Decode.map3 TranslationCount
+                (Decode.field "language" Decode.string)
+                (Decode.field "filename" Decode.string)
+                (Decode.field "count" Decode.int)
+
+        expectDecoder = Decode.field "counts" (Decode.list countDecoder)
+    in
+    Http.get
+        { url = baseUrl ++ "/projects/" ++ projectName ++ "/translations/counts"
+        , expect = Http.expectJson msg expectDecoder
         }
 
 saveTranslation : String -> String -> String -> String -> String -> (Result Http.Error () -> msg) -> Cmd msg

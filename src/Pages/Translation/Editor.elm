@@ -12,6 +12,7 @@ type alias Model =
     , language : String
     , filename : String
     , translations : List Translation
+    , counts : List TranslationCount
     , loading : Bool
     , error : Maybe String
     , filter : String
@@ -25,8 +26,15 @@ type alias Translation =
     , isValid : Bool
     }
 
+type alias TranslationCount =
+    { language : String
+    , filename : String
+    , count : Int
+    }
+
 type Msg
     = GotTranslations (Result Http.Error (List Translation))
+    | GotCounts (Result Http.Error (List TranslationCount))
     | FilterChanged String
     | UpdateTranslation String String
     | SaveTranslation String String
@@ -38,12 +46,16 @@ init projectName language filename =
       , language = language
       , filename = filename
       , translations = []
-      , loading = True
+            , counts = []
+            , loading = True
       , error = Nothing
       , filter = ""
       , saving = Nothing
       }
-    , Api.getTranslations projectName language filename GotTranslations
+        , if String.isEmpty filename then
+                Api.getTranslationCounts projectName GotCounts
+            else
+                Api.getTranslations projectName language filename GotTranslations
     )
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -56,6 +68,14 @@ update msg model =
 
                 Err _ ->
                     ( { model | loading = False, error = Just "Failed to load translations" }, Cmd.none )
+
+        GotCounts result ->
+            case result of
+                Ok counts ->
+                    ( { model | counts = counts, loading = False }, Cmd.none )
+
+                Err _ ->
+                    ( { model | loading = False, error = Just "Failed to load translation counts" }, Cmd.none )
 
         FilterChanged filter ->
             ( { model | filter = filter }, Cmd.none )
@@ -123,14 +143,34 @@ view model =
                             else
                                 List.filter (matchesFilter model.filter) model.translations
                     in
-                    if List.isEmpty filteredTranslations then
-                        div [ class "empty-state" ]
-                            [ div [ class "icon" ] [ text "🔍" ]
-                            , h3 [ class "title" ] [ text "No translations found" ]
-                            ]
+                    if String.isEmpty model.filename then
+                        -- Show list of available languages (aggregate from counts)
+                        let
+                            uniqueLangs =
+                                model.counts
+                                    |> List.map .language
+                                    |> List.unique
+                        in
+                        if List.isEmpty uniqueLangs then
+                            div [ class "empty-state" ]
+                                [ div [ class "icon" ] [ text "🔍" ]
+                                , h3 [ class "title" ] [ text "No languages found" ]
+                                ]
+                        else
+                            div [ class "grid gap-4" ]
+                                (List.map (\lang ->
+                                    div [ class "card" ]
+                                        [ a [ href ("/projects/" ++ model.projectName ++ "/translations?language=" ++ lang) ] [ text lang ] ]
+                                ) uniqueLangs)
                     else
-                        div [ class "grid gap-4" ]
-                            (List.map (viewTranslationRow model.saving) filteredTranslations)
+                        if List.isEmpty filteredTranslations then
+                            div [ class "empty-state" ]
+                                [ div [ class "icon" ] [ text "🔍" ]
+                                , h3 [ class "title" ] [ text "No translations found" ]
+                                ]
+                        else
+                            div [ class "grid gap-4" ]
+                                (List.map (viewTranslationRow model.saving) filteredTranslations)
         ]
 
 matchesFilter : String -> Translation -> Bool
