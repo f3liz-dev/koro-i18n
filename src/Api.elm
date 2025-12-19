@@ -35,7 +35,7 @@ projectDecoder : Decode.Decoder Project
 projectDecoder =
     Decode.map2 Project
         (Decode.field "name" Decode.string)
-        (Decode.field "description" Decode.string)
+        (Decode.map (Maybe.withDefault "") (Decode.maybe (Decode.field "description" Decode.string)))
 
 userDecoder : Decode.Decoder User
 userDecoder =
