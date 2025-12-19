@@ -10,7 +10,7 @@ const execAsync = promisify(exec);
 console.log('🚀 Building frontend...');
 
 // Initial build
-await execAsync('npm run build');
+await execAsync('pnpm run build');
 console.log('✅ Frontend built');
 
 // Start wrangler
@@ -27,7 +27,7 @@ watch('./src', { recursive: true }, async (eventType, filename) => {
     console.log(`\n📝 Change detected: ${filename}`);
     console.log('🔨 Rebuilding frontend...');
     try {
-      await execAsync('npm run build');
+      await execAsync('pnpm run build');
       console.log('✅ Frontend rebuilt\n');
     } catch (error) {
       console.error('❌ Build failed:', error.message);
