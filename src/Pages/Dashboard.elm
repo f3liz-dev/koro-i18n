@@ -59,7 +59,7 @@ view model =
 
 viewProjectCard : Api.Project -> Html Msg
 viewProjectCard project =
-    div [ class "card interactive" ]
+    a [ href ("/projects/" ++ project.name), class "card interactive" ]
         [ h3 [ class "font-bold mb-2" ] [ text project.name ]
         , p [ class "text-sm text-secondary mb-4" ] [ text project.description ]
         , div [ class "flex justify-between items-center" ]
