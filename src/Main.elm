@@ -25,6 +25,7 @@ type alias Model =
     , url : Url.Url
     , page : Page
     , auth : Auth.Model
+    , backendUrl : String
     }
 
 type Page
@@ -65,7 +66,7 @@ type Msg
     | CreateProjectMsg Pages.Project.Create.Msg
     | TranslationEditorMsg Pages.Translation.Editor.Msg
 
-main : Program () Model Msg
+main : Program String Model Msg
 main =
     Browser.application
         { init = init
@@ -76,11 +77,11 @@ main =
         , onUrlChange = UrlChanged
         }
 
-init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
-init _ url key =
+init : String -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init backendUrl url key =
     let
         ( page, pageCmd ) =
-            stepUrl url Auth.init
+            stepUrl backendUrl url Auth.init
 
         authCmd =
             Api.getUser GotUser
@@ -89,12 +90,13 @@ init _ url key =
       , url = url
       , page = page
       , auth = Auth.init
+      , backendUrl = backendUrl
       }
     , Cmd.batch [ pageCmd, authCmd ]
     )
 
-stepUrl : Url.Url -> Auth.Model -> ( Page, Cmd Msg )
-stepUrl url auth =
+stepUrl : String -> Url.Url -> Auth.Model -> ( Page, Cmd Msg )
+stepUrl backendUrl url auth =
     let
         maybeRoute =
             Parser.parse parser url
@@ -105,26 +107,26 @@ stepUrl url auth =
 
         Just LoginRoute ->
             let
-                ( loginModel, loginCmd ) = Pages.Login.init
+                ( loginModel, loginCmd ) = Pages.Login.init backendUrl
             in
             ( Login loginModel, Cmd.map LoginMsg loginCmd )
 
         Just DashboardRoute ->
-            requireAuth auth <|
+            requireAuth backendUrl auth <|
                 let
                     ( dashboardModel, dashboardCmd ) = Pages.Dashboard.init
                 in
                 ( Dashboard dashboardModel, Cmd.map DashboardMsg dashboardCmd )
 
         Just CreateProjectRoute ->
-            requireAuth auth <|
+            requireAuth backendUrl auth <|
                 let
                     ( createModel, createCmd ) = Pages.Project.Create.init
                 in
                 ( CreateProject createModel, Cmd.map CreateProjectMsg createCmd )
 
         Just (TranslationEditorRoute projectName maybeLang maybeFile) ->
-             requireAuth auth <|
+             requireAuth backendUrl auth <|
                 let
                     lang = Maybe.withDefault "en" maybeLang
                     file = Maybe.withDefault "default.json" maybeFile
@@ -135,8 +137,8 @@ stepUrl url auth =
         Nothing ->
             ( NotFound, Cmd.none )
 
-requireAuth : Auth.Model -> ( Page, Cmd Msg ) -> ( Page, Cmd Msg )
-requireAuth auth ( page, cmd ) =
+requireAuth : String -> Auth.Model -> ( Page, Cmd Msg ) -> ( Page, Cmd Msg )
+requireAuth backendUrl auth ( page, cmd ) =
     case auth of
         Auth.LoggedIn _ ->
             ( page, cmd )
@@ -146,7 +148,7 @@ requireAuth auth ( page, cmd ) =
 
         Auth.LoggedOut ->
             let
-                ( loginModel, loginCmd ) = Pages.Login.init
+                ( loginModel, loginCmd ) = Pages.Login.init backendUrl
             in
             ( Login loginModel, Cmd.map LoginMsg loginCmd )
 
@@ -164,7 +166,7 @@ update msg model =
         UrlChanged url ->
             let
                 ( page, cmd ) =
-                    stepUrl url model.auth
+                    stepUrl model.backendUrl url model.auth
             in
             ( { model | url = url, page = page }, cmd )
 
@@ -173,7 +175,7 @@ update msg model =
                 Ok user ->
                     let
                         newAuth = Auth.LoggedIn user
-                        ( newPage, newCmd ) = stepUrl model.url newAuth
+                        ( newPage, newCmd ) = stepUrl model.backendUrl model.url newAuth
                     in
                     ( { model | auth = newAuth, page = newPage }
                     , newCmd
@@ -182,7 +184,7 @@ update msg model =
                 Err _ ->
                     let
                         newAuth = Auth.LoggedOut
-                        ( newPage, newCmd ) = stepUrl model.url newAuth
+                        ( newPage, newCmd ) = stepUrl model.backendUrl model.url newAuth
                     in
                      ( { model | auth = newAuth, page = newPage }
                     , newCmd

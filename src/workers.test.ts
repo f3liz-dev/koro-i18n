@@ -88,6 +88,21 @@ describe('API Endpoints', () => {
       expect(cacheControl).not.toContain('no-store');
       expect(cacheControl).not.toContain('no-cache');
     });
+
+    it('should redirect to GitHub when starting OAuth at /api/auth/github', async () => {
+      const env = createMockEnv();
+      const app = createWorkerApp(env);
+
+      const req = new Request('http://localhost/api/auth/github', { method: 'GET' });
+      const res = await app.fetch(req, env, {} as ExecutionContext);
+
+      // Should be a redirect to GitHub's OAuth authorize URL
+      expect(res.status).toBe(302);
+      const location = res.headers.get('Location') || res.headers.get('location');
+      expect(location).toBeTruthy();
+      expect(location).toContain('github.com/login/oauth/authorize');
+      expect(location).toContain(`client_id=${env.GITHUB_CLIENT_ID}`);
+    });
   });
 
   describe('JSON flattening', () => {

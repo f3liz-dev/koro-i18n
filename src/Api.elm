@@ -62,7 +62,7 @@ getProjects : (Result Http.Error (List Project) -> msg) -> Cmd msg
 getProjects msg =
     Http.get
         { url = baseUrl ++ "/projects"
-        , expect = Http.expectJson msg (Decode.list projectDecoder)
+        , expect = Http.expectJson msg (Decode.field "projects" (Decode.list projectDecoder))
         }
 
 createProject : { name : String, description : String } -> (Result Http.Error Project -> msg) -> Cmd msg
