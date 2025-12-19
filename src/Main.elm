@@ -48,7 +48,8 @@ parser =
         -- Support both full translation editor paths and bare project paths
         , Parser.map (\name -> TranslationEditorRoute name Nothing Nothing) (Parser.s "projects" </> Parser.string)
         -- Direct editor path: /projects/:projectName/translations/:language/editor?filename=...
-        , Parser.map TranslationEditorRoute (Parser.s "projects" </> Parser.string </> Parser.s "translations" </> Parser.string </> Parser.s "editor" <?> Query.string "filename")
+        , Parser.map (\projectName lang maybeFile -> TranslationEditorRoute projectName (Just lang) maybeFile)
+            (Parser.s "projects" </> Parser.string </> Parser.s "translations" </> Parser.string </> Parser.s "editor" <?> Query.string "filename")
         , Parser.map TranslationEditorRoute (Parser.s "projects" </> Parser.string </> Parser.s "translations" <?> Query.string "language" <?> Query.string "filename")
         ]
 

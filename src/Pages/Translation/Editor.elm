@@ -178,7 +178,7 @@ view model =
                             if List.isEmpty filesForLang then
                                 div [ class "empty-state" ]
                                     [ div [ class "icon" ] [ text "🔍" ]
-                                    , h3 [ class "title" ] [ text "No files found for " ++ model.language ]
+                                    , h3 [ class "title" ] [ text ("No files found for " ++ model.language) ]
                                     ]
                             else
                                 div [ class "grid gap-4" ]
