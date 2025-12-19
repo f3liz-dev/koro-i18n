@@ -132,10 +132,15 @@ stepUrl backendUrl url auth =
 
         Just (TranslationEditorRoute projectName maybeLang maybeFile) ->
             let
-                    lang = Maybe.withDefault "en" maybeLang
-                    -- When visiting /projects/:projectName without a filename, use empty string
-                    -- so the editor shows the languages view (counts) instead of a default file
-                    file = Maybe.withDefault "" maybeFile
+                -- If no language is specified for the project root, use an empty
+                -- language string so the editor requests aggregated counts for
+                -- all languages. Previously this defaulted to "en" which made
+                -- the project root show only English counts.
+                lang = Maybe.withDefault "" maybeLang
+                -- When visiting /projects/:projectName without a filename,
+                -- use empty string so the editor shows the languages view
+                -- (counts) instead of a default file
+                file = Maybe.withDefault "" maybeFile
             in
             case auth of
                 Auth.LoggedIn _ ->
