@@ -15,6 +15,7 @@ import Pages.Home
 import Pages.Login
 import Pages.Dashboard
 import Pages.Project.Create
+import Pages.Project.View as ProjectView
 import Pages.Translation.Editor
 import Pages.NotFound
 
@@ -33,6 +34,7 @@ type Page
     | Login Pages.Login.Model
     | Dashboard Pages.Dashboard.Model
     | CreateProject Pages.Project.Create.Model
+    | ProjectViewPage ProjectView.Model
     | TranslationEditor Pages.Translation.Editor.Model
     | NotFound
 
@@ -45,12 +47,13 @@ parser =
         , Parser.map LoginRoute (Parser.s "login")
         , Parser.map DashboardRoute (Parser.s "dashboard")
         , Parser.map CreateProjectRoute (Parser.s "projects" </> Parser.s "new")
-        -- Support both full translation editor paths and bare project paths
-        , Parser.map (\name -> TranslationEditorRoute name Nothing Nothing) (Parser.s "projects" </> Parser.string)
         -- Direct editor path: /projects/:projectName/translations/:language/editor?filename=...
         , Parser.map (\projectName lang maybeFile -> TranslationEditorRoute projectName (Just lang) maybeFile)
             (Parser.s "projects" </> Parser.string </> Parser.s "translations" </> Parser.string </> Parser.s "editor" <?> Query.string "filename")
+        -- Editor via query params: /projects/:projectName/translations?language=...&filename=...
         , Parser.map TranslationEditorRoute (Parser.s "projects" </> Parser.string </> Parser.s "translations" <?> Query.string "language" <?> Query.string "filename")
+        -- Project root (after more specific translation routes to avoid shadowing)
+        , Parser.map ProjectViewRoute (Parser.s "projects" </> Parser.string)
         ]
 
 type Route
@@ -59,6 +62,7 @@ type Route
     | DashboardRoute
     | CreateProjectRoute
     | TranslationEditorRoute String (Maybe String) (Maybe String)
+    | ProjectViewRoute String
 
 -- UPDATE
 
@@ -69,6 +73,7 @@ type Msg
     | LoginMsg Pages.Login.Msg
     | DashboardMsg Pages.Dashboard.Msg
     | CreateProjectMsg Pages.Project.Create.Msg
+    | ProjectViewMsg ProjectView.Msg
     | TranslationEditorMsg Pages.Translation.Editor.Msg
 
 main : Program String Model Msg
@@ -162,6 +167,13 @@ stepUrl backendUrl url auth =
                         ( loginModel, loginCmd ) = Pages.Login.init backendUrl
                     in
                     ( Login loginModel, Cmd.map LoginMsg loginCmd )
+
+        Just (ProjectViewRoute projectName) ->
+            requireAuth backendUrl auth <|
+                let
+                    ( projectModel, projectCmd ) = ProjectView.init projectName
+                in
+                ( ProjectViewPage projectModel, Cmd.map ProjectViewMsg projectCmd )
 
         Nothing ->
             ( NotFound, Cmd.none )
@@ -272,6 +284,20 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
+        ProjectViewMsg projectMsg ->
+            case model.page of
+                ProjectViewPage projectModel ->
+                    let
+                        ( newProjectModel, projectCmd ) =
+                            ProjectView.update projectMsg projectModel
+                    in
+                    ( { model | page = ProjectViewPage newProjectModel }
+                    , Cmd.map ProjectViewMsg projectCmd
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
         TranslationEditorMsg editorMsg ->
              case model.page of
                 TranslationEditor editorModel ->
@@ -304,6 +330,7 @@ view model =
             Login loginModel -> Html.map LoginMsg (Pages.Login.view loginModel)
             Dashboard dashboardModel -> Html.map DashboardMsg (Pages.Dashboard.view dashboardModel)
             CreateProject createModel -> Html.map CreateProjectMsg (Pages.Project.Create.view createModel)
+            ProjectViewPage projectModel -> Html.map ProjectViewMsg (ProjectView.view projectModel)
             TranslationEditor editorModel -> Html.map TranslationEditorMsg (Pages.Translation.Editor.view editorModel)
             NotFound -> Pages.NotFound.view
         , viewFooter
