@@ -50,3 +50,5 @@ coverage/
 rust-worker/target/
 rust-worker/build/
 rust-worker/Cargo.lock
+
+elm-stuff/

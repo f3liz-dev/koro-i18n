@@ -45,6 +45,8 @@ parser =
         , Parser.map LoginRoute (Parser.s "login")
         , Parser.map DashboardRoute (Parser.s "dashboard")
         , Parser.map CreateProjectRoute (Parser.s "projects" </> Parser.s "new")
+        -- Support both full translation editor paths and bare project paths
+        , Parser.map (\name -> TranslationEditorRoute name Nothing Nothing) (Parser.s "projects" </> Parser.string)
         , Parser.map TranslationEditorRoute (Parser.s "projects" </> Parser.string </> Parser.s "translations" <?> Query.string "language" <?> Query.string "filename")
         ]
 
