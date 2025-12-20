@@ -1,14 +1,12 @@
 import { defineConfig } from 'vite';
-import elmPlugin from 'vite-plugin-elm';
 
 /**
- * Vite configuration for Elm frontend
+ * Vite configuration for vanilla JavaScript frontend
  * 
- * This configuration builds the Elm frontend for the Cloudflare Workers backend.
+ * This configuration builds the frontend for the Cloudflare Workers backend.
  * The built assets are served from the Workers static assets.
  */
 export default defineConfig({
-  plugins: [elmPlugin()],
   root: 'src/app',
   build: {
     outDir: '../../dist/frontend',
@@ -19,11 +17,6 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('node_modules')) {
             return 'vendor';
-          }
-
-          // Put Elm-compiled output and per-page JS into separate chunk(s)
-          if (id.endsWith('.elm') || id.includes('/Pages/')) {
-            return 'elm-pages';
           }
         }
       }

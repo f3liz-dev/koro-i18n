@@ -3,10 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>i18n Platform</title>
+    <meta name="description" content="Koro i18n - A lightweight translation management platform" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>Koro i18n Platform</title>
+    <link rel="stylesheet" href="./styles/minimal.css" />
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="./index.js"></script>
+    <div id="app">
+      <!-- Header -->
+      <header class="header">
+        <div class="inner">
+          <a href="/" class="brand">Koro i18n</a>
+          <nav class="nav" id="nav"></nav>
+        </div>
+      </header>
+      
+      <!-- Main content -->
+      <main id="main" class="container main">
+        <div class="flex justify-center p-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </main>
+      
+      <!-- Footer -->
+      <footer class="footer">
+        © 2025 Koro i18n Platform. All rights reserved.
+      </footer>
+    </div>
+    <script type="module" src="./main.js"></script>
   </body>
 </html>
