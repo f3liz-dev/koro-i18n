@@ -429,7 +429,28 @@ async function renderProjectViewPage(projectName) {
 async function renderTranslationsPage(projectName, language, filename) {
   const main = document.getElementById('main');
   const searchParams = new URLSearchParams(window.location.search);
-  const filenameParam = filename || searchParams.get('filename') || '';
+  // Robustly decode filename from query or parameter. Some browsers/links may double-encode
+  // the filename (percent-encoded slashes). Normalize by repeatedly decoding until stable.
+  function robustDecode(value) {
+    if (!value) return '';
+    try {
+      let prev = null;
+      let cur = String(value);
+      // Limit iterations to avoid infinite loops
+      for (let i = 0; i < 5; i++) {
+        const decoded = decodeURIComponent(cur);
+        if (decoded === cur) break;
+        prev = cur;
+        cur = decoded;
+      }
+      return cur;
+    } catch (e) {
+      return value;
+    }
+  }
+
+  const filenameParamRaw = filename || searchParams.get('filename') || '';
+  const filenameParam = robustDecode(filenameParamRaw);
 
   // Determine what view to show
   const showEditor = language && filenameParam;

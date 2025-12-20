@@ -11,7 +11,7 @@ import { authMiddleware } from '../lib/auth';
 import { createProjectMiddleware } from '../lib/project-middleware';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 import { generateTranslationsETag, generateHistoryETag, checkETagMatch, create304Response } from '../lib/etag-db';
-import { getUserGitHubToken, fetchSingleFileFromGitHub } from '../lib/github-repo-fetcher';
+import { getUserGitHubToken, fetchSingleFileFromGitHub, fetchGeneratedManifest } from '../lib/github-repo-fetcher';
 import { ensureUserCanModerateTranslation } from '../lib/translation-access';
 import type { Env, AppEnv, AuthUser, ProjectContext } from '../lib/context';
 import { CreateTranslationSchema, validateJson } from '../lib/schemas';
@@ -277,6 +277,55 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
       filename: c.filename,
       count: c._count.id,
     }));
+
+    // Merge DB counts with repository manifest files (manifest takes precedence for listing files)
+    // DB contains only diffs; to present a complete list of languages/files we merge manifest entries
+    try {
+      const { user } = getContext(c);
+      const githubToken = await getUserGitHubToken(prisma, user.userId);
+      const parts = project.repository?.trim().split('/');
+
+      // Build quick lookup from DB counts
+      const countMap = new Map<string, number>();
+      for (const r of result) {
+        countMap.set(`${r.language}:${r.filename}`, r.count);
+      }
+
+      if (parts && parts.length === 2) {
+        const [owner, repo] = parts;
+        const octokit = githubToken ? new Octokit({ auth: githubToken }) : new Octokit();
+        const manifest = await fetchGeneratedManifest(octokit, owner, repo);
+        if (manifest) {
+          const merged: Array<{ language: string; filename: string; count: number }> = [];
+          const seen = new Set<string>();
+
+          // Use manifest files as the canonical list; attach DB counts when present
+          for (const f of manifest.files) {
+            const key = `${f.language}:${f.filename}`;
+            seen.add(key);
+            merged.push({
+              language: f.language,
+              filename: f.filename,
+              count: countMap.get(key) || 0,
+            });
+          }
+
+          // Include any DB-only entries that are not present in the manifest
+          for (const [k, cnt] of countMap.entries()) {
+            if (!seen.has(k)) {
+              const [lang, ...rest] = k.split(':');
+              const filename = rest.join(':');
+              merged.push({ language: lang, filename, count: cnt });
+            }
+          }
+
+          return c.json({ counts: merged });
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch/merge manifest for counts:', e);
+      // Fall through to return DB counts only
+    }
 
     return c.json({ counts: result });
   });
