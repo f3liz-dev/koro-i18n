@@ -13,9 +13,6 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'esnext',
     rollupOptions: {
-      input: {
-        main: 'src/app/index.html'
-      },
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {

@@ -11,6 +11,15 @@ import './styles/minimal.css';
 
 const API_BASE = '/api';
 
+// Validation patterns
+const PATTERNS = {
+  projectName: /^[a-zA-Z0-9_-]+$/,
+  repository: /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/
+};
+
+// UI timing constants (in milliseconds)
+const BUTTON_RESET_DELAY = 2000;
+
 // ============================================================================
 // State Management
 // ============================================================================
@@ -22,6 +31,32 @@ const state = {
   },
   currentPath: window.location.pathname
 };
+
+// ============================================================================
+// URL Builder Helpers
+// ============================================================================
+
+/**
+ * Build a project API URL
+ * @param {string} projectName - The project name
+ * @param {string} [path=''] - Additional path segments
+ * @returns {string} The full API URL
+ */
+function projectUrl(projectName, path = '') {
+  const base = `${API_BASE}/projects/${encodeURIComponent(projectName)}`;
+  return path ? `${base}/${path}` : base;
+}
+
+/**
+ * Build a translation file API URL
+ * @param {string} projectName - The project name
+ * @param {string} language - The language code
+ * @param {string} filename - The filename
+ * @returns {string} The full API URL
+ */
+function translationFileUrl(projectName, language, filename) {
+  return `${projectUrl(projectName, 'translations/file')}/${encodeURIComponent(language)}/${encodeURIComponent(filename)}`;
+}
 
 // ============================================================================
 // API Client
@@ -310,12 +345,12 @@ function setupCreateProjectForm() {
     const description = document.getElementById('project-description').value.trim();
 
     // Validation
-    if (!name.match(/^[a-zA-Z0-9_-]+$/)) {
+    if (!PATTERNS.projectName.test(name)) {
       errorDiv.innerHTML = renderError('Project name can only contain letters, numbers, dashes, and underscores');
       return;
     }
 
-    if (!repository.match(/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/)) {
+    if (!PATTERNS.repository.test(repository)) {
       errorDiv.innerHTML = renderError('Repository must be in owner/repo format');
       return;
     }
@@ -437,7 +472,7 @@ async function renderTranslationsPage(projectName, language, filename) {
   try {
     if (showEditor) {
       // Fetch translation data for the file
-      const data = await apiFetch(`${API_BASE}/projects/${encodeURIComponent(projectName)}/translations/file/${encodeURIComponent(language)}/${encodeURIComponent(filenameParam)}`);
+      const data = await apiFetch(translationFileUrl(projectName, language, filenameParam));
       
       const source = data?.source || {};
       const target = data?.target || {};
@@ -457,9 +492,10 @@ async function renderTranslationsPage(projectName, language, filename) {
       
     } else {
       // Fetch counts
+      const countsPath = 'translations/counts';
       const countsUrl = showLanguages 
-        ? `${API_BASE}/projects/${encodeURIComponent(projectName)}/translations/counts`
-        : `${API_BASE}/projects/${encodeURIComponent(projectName)}/translations/counts?language=${encodeURIComponent(language)}`;
+        ? projectUrl(projectName, countsPath)
+        : `${projectUrl(projectName, countsPath)}?language=${encodeURIComponent(language)}`;
       
       const data = await apiFetch(countsUrl);
       const counts = data?.counts || [];
@@ -578,7 +614,7 @@ function renderTranslationEditor(container, translations, projectName, language,
         btn.textContent = 'Saving...';
 
         try {
-          await apiFetch(`${API_BASE}/projects/${encodeURIComponent(projectName)}/translations`, {
+          await apiFetch(projectUrl(projectName, 'translations'), {
             method: 'POST',
             body: JSON.stringify({ language, filename, key, value })
           });
@@ -590,7 +626,7 @@ function renderTranslationEditor(container, translations, projectName, language,
             btn.classList.remove('success');
             btn.classList.add('primary');
             btn.disabled = false;
-          }, 2000);
+          }, BUTTON_RESET_DELAY);
         } catch (error) {
           btn.textContent = 'Error';
           btn.classList.remove('primary');
@@ -600,7 +636,7 @@ function renderTranslationEditor(container, translations, projectName, language,
             btn.classList.remove('danger');
             btn.classList.add('primary');
             btn.disabled = false;
-          }, 2000);
+          }, BUTTON_RESET_DELAY);
         }
       });
     });
@@ -694,7 +730,8 @@ async function render() {
 // ============================================================================
 
 async function init() {
-  // Handle browser back/forward
+  // Handle browser back/forward navigation
+  // Note: This listener is only added once during app initialization
   window.addEventListener('popstate', () => {
     state.currentPath = window.location.pathname;
     render();
