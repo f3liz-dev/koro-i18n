@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Koro i18n - Editor" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <title>Koro i18n — Editor</title>
+    <link rel="stylesheet" href="./styles/minimal.css" />
+  </head>
+  <body data-page="editor">
+    <div id="app">
+      <header class="header">
+        <div class="inner">
+          <a href="/" class="brand">Koro i18n</a>
+          <nav class="nav" id="nav"></nav>
+        </div>
+      </header>
+
+      <main id="main" class="container main">
+        <div class="flex justify-center p-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </main>
+
+      <footer class="footer">
+        © 2025 Koro i18n Platform. All rights reserved.
+      </footer>
+    </div>
+    <template id="editor-shell-template">
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h1 class="text-2xl font-bold" id="editor-title">Translations</h1>
+          <p class="text-sm text-secondary" id="editor-subtitle"></p>
+        </div>
+        <div class="flex gap-2">
+          <a id="editor-back-link" class="btn ghost nav-link">Back to Project</a>
+        </div>
+      </div>
+      <div class="mb-6">
+        <input type="text" class="input" id="filter-input" placeholder="Search keys or translations..." />
+      </div>
+      <div id="content-area">
+        <div class="flex justify-center p-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    </template>
+    <template id="editor-info-template">
+      <div class="message info">Editor loaded. Source files are read from the repository on GitHub and merged with web translations from the database. You can suggest translations inline; project moderators can approve or reject suggestions.</div>
+    </template>
+    <script type="module" src="./main-editor.ts"></script>
+  </body>
+</html>

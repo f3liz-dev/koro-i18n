@@ -31,6 +31,18 @@
         © 2025 Koro i18n Platform. All rights reserved.
       </footer>
     </div>
-    <script type="module" src="./main.js"></script>
+    <template id="home-template">
+      <div class="flex flex-col items-center justify-center space-y-4" style="min-height: 60vh;">
+        <h1 class="text-4xl font-bold" style="font-size: 2.5rem;">Welcome to Koro i18n</h1>
+        <p class="text-lg text-secondary max-w-lg text-center">
+          A lightweight translation management platform. Translate your applications with ease.
+        </p>
+        <div class="flex gap-4 mt-6">
+          <a href="/login" class="btn primary lg">Get Started</a>
+          <a href="https://github.com/f3liz-dev/koro-i18n" target="_blank" class="btn ghost lg">View on GitHub</a>
+        </div>
+      </div>
+    </template>
+    <script type="module" src="./main-home.ts"></script>
   </body>
 </html>
