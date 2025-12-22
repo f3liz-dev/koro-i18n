@@ -296,14 +296,27 @@ function renderEditor() {
 
             // Keyboard shortcuts
             const keyHandler = (e: KeyboardEvent) => {
-              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              const key = (e.key || '').toString().toLowerCase();
+
+              // Allow Ctrl/Cmd+Enter to submit even when focus is inside the textarea
+              if ((e.ctrlKey || e.metaKey) && key === 'enter') {
                 e.preventDefault();
                 submit.click();
                 return;
               }
-              if (e.key === 'j') { e.preventDefault(); navigate(1); }
-              if (e.key === 'k') { e.preventDefault(); navigate(-1); }
-              if (e.key === 'Escape') { textarea.blur(); sidebar.style.display = 'block'; focusedOnly = false; focusToggle.textContent = 'Focus mode'; }
+
+              // Don't intercept navigation keys while the user is typing in inputs or textareas
+              const active = document.activeElement as HTMLElement | null;
+              const isTyping = !!active && (
+                active.tagName === 'INPUT' ||
+                active.tagName === 'TEXTAREA' ||
+                (active as HTMLElement).isContentEditable
+              );
+              if (isTyping) return;
+
+              if (key === 'j') { e.preventDefault(); navigate(1); }
+              if (key === 'k') { e.preventDefault(); navigate(-1); }
+              if (key === 'escape') { textarea.blur(); sidebar.style.display = 'block'; focusedOnly = false; focusToggle.textContent = 'Focus mode'; }
             };
             document.addEventListener('keydown', keyHandler);
             // cleanup on re-render by returning handler to be removable
