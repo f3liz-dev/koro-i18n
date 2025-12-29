@@ -63,6 +63,12 @@ function renderEditor() {
             arr.push(a);
             approvedByKey.set(a.key, arr);
           }
+          const virtualSuggestionsByKey = new Map<string, Array<{ key: string; value: string; source: string }>>();
+          for (const v of data.virtualSuggestions || []) {
+            const arr = virtualSuggestionsByKey.get(v.key) || [];
+            arr.push(v);
+            virtualSuggestionsByKey.set(v.key, arr);
+          }
 
           const keys = Object.keys(data.source).sort();
           if (keys.length === 0) {
@@ -156,17 +162,134 @@ function renderEditor() {
             repoVal.textContent = data.target[key] ?? '';
             panel.appendChild(repoVal);
 
+            // Suggestions pane section - before the textarea
+            const suggestionsPane = document.createElement('div');
+            suggestionsPane.className = 'card p-4 mb-4 bg-secondary-bg';
+            
+            const suggestionsHeader = document.createElement('div');
+            suggestionsHeader.className = 'label mb-2';
+            suggestionsHeader.textContent = 'Suggestions';
+            suggestionsPane.appendChild(suggestionsHeader);
+
+            // Virtual suggestions (from GitHub repository) - treated as approved
+            const virtualSuggestions = virtualSuggestionsByKey.get(key) || [];
+            const pendingList = pendingByKey.get(key) || [];
+            const approvedList = approvedByKey.get(key) || [];
+            
+            if (virtualSuggestions.length === 0 && pendingList.length === 0 && approvedList.length === 0) {
+              const noSuggestions = document.createElement('div');
+              noSuggestions.className = 'text-sm text-secondary';
+              noSuggestions.textContent = 'No suggestions available';
+              suggestionsPane.appendChild(noSuggestions);
+            }
+            
+            panel.appendChild(suggestionsPane);
+
             const editorLabel = document.createElement('div');
             editorLabel.className = 'label';
             editorLabel.textContent = 'Your translation';
             panel.appendChild(editorLabel);
 
+            // Determine the default value: use the latest between git and D1
+            let defaultValue = '';
+            const gitValue = data.target[key] ?? '';
+            const virtualSuggestionValue = virtualSuggestions[0]?.value ?? '';
+            const approvedValue = approvedList[0]?.value ?? '';
+            const pendingValue = pendingList[0]?.value ?? '';
+            
+            // Priority: pending (most recent user input) > approved > virtual (git) > target (git file)
+            if (pendingValue) {
+              defaultValue = pendingValue;
+            } else if (approvedValue) {
+              defaultValue = approvedValue;
+            } else if (virtualSuggestionValue) {
+              defaultValue = virtualSuggestionValue;
+            } else if (gitValue) {
+              defaultValue = gitValue;
+            }
+
             const textarea = document.createElement('textarea');
             textarea.className = 'input';
             textarea.style.width = '100%';
-            textarea.value = (pendingByKey.get(key)?.[0]?.value) ?? data.target[key] ?? '';
+            textarea.value = defaultValue;
             textarea.placeholder = 'Enter your translation...';
             panel.appendChild(textarea);
+
+            // Now add the suggestion items with "Use" buttons after textarea is defined
+            // Show virtual suggestions (GitHub values) as approved suggestions
+            for (const vs of virtualSuggestions) {
+              const vsRow = document.createElement('div');
+              vsRow.className = 'flex items-center gap-2 mt-2 p-2 border border-success rounded';
+              const badge = document.createElement('span');
+              badge.className = 'badge success';
+              badge.textContent = 'Git';
+              vsRow.appendChild(badge);
+              const t = document.createElement('div');
+              t.className = 'flex-1';
+              t.textContent = vs.value;
+              vsRow.appendChild(t);
+              const useBtn = document.createElement('button');
+              useBtn.className = 'btn success small';
+              useBtn.textContent = 'Use';
+              vsRow.appendChild(useBtn);
+              
+              useBtn.addEventListener('click', () => {
+                textarea.value = vs.value;
+                textarea.focus();
+              });
+              
+              suggestionsPane.appendChild(vsRow);
+            }
+
+            // Show approved D1 suggestions
+            for (const a of approvedList) {
+              const aRow = document.createElement('div');
+              aRow.className = 'flex items-center gap-2 mt-2 p-2 border border-info rounded';
+              const badge = document.createElement('span');
+              badge.className = 'badge info';
+              badge.textContent = 'Approved';
+              aRow.appendChild(badge);
+              const t = document.createElement('div');
+              t.className = 'flex-1';
+              t.textContent = `${a.value} (by ${a.username || 'unknown'})`;
+              aRow.appendChild(t);
+              const useBtn = document.createElement('button');
+              useBtn.className = 'btn info small';
+              useBtn.textContent = 'Use';
+              aRow.appendChild(useBtn);
+              
+              useBtn.addEventListener('click', () => {
+                textarea.value = a.value;
+                textarea.focus();
+              });
+              
+              suggestionsPane.appendChild(aRow);
+            }
+
+            // Show pending D1 suggestions
+            for (const p of pendingList) {
+              const pRow = document.createElement('div');
+              pRow.className = 'flex items-center gap-2 mt-2 p-2 border border-secondary rounded';
+              const badge = document.createElement('span');
+              badge.className = 'badge';
+              badge.textContent = 'Pending';
+              pRow.appendChild(badge);
+              const t = document.createElement('div');
+              t.className = 'flex-1';
+              t.textContent = `${p.value} (by ${p.username || 'unknown'})`;
+              pRow.appendChild(t);
+              const useBtn = document.createElement('button');
+              useBtn.className = 'btn ghost small';
+              useBtn.textContent = 'Use';
+              pRow.appendChild(useBtn);
+              
+              useBtn.addEventListener('click', () => {
+                textarea.value = p.value;
+                textarea.focus();
+              });
+              
+              suggestionsPane.appendChild(pRow);
+            }
 
             // Focus textarea for quick editing
             setTimeout(() => {
@@ -210,16 +333,17 @@ function renderEditor() {
             feedbackContainer.className = 'mt-2';
             panel.appendChild(feedbackContainer);
 
-            // Pending list
-            const pendingList = pendingByKey.get(key) || [];
-            if (pendingList.length > 0) {
-              const pl = document.createElement('div');
-              pl.className = 'mt-4';
-              pl.innerHTML = '<div class="label">Pending suggestions</div>';
-              for (const p of pendingList) {
+            // Moderation actions for pending suggestions (for moderators)
+            const pendingListForModeration = pendingByKey.get(key) || [];
+            if (pendingListForModeration.length > 0) {
+              const moderationPane = document.createElement('div');
+              moderationPane.className = 'mt-4 card p-4 bg-warning-bg';
+              moderationPane.innerHTML = '<div class="label mb-2">Moderate suggestions</div>';
+              for (const p of pendingListForModeration) {
                 const pRow = document.createElement('div');
                 pRow.className = 'flex items-center gap-2 mt-2';
                 const t = document.createElement('div');
+                t.className = 'flex-1';
                 t.textContent = `${p.value} (by ${p.username || 'unknown'})`;
                 pRow.appendChild(t);
 
@@ -238,12 +362,12 @@ function renderEditor() {
                 del.textContent = 'Delete';
                 pRow.appendChild(del);
 
-                pl.appendChild(pRow);
+                moderationPane.appendChild(pRow);
 
                 approve.addEventListener('click', async () => {
                   try {
-              approve.disabled = true;
-              await approveTranslation(proj, p.id, 'approved');
+                    approve.disabled = true;
+                    await approveTranslation(proj, p.id, 'approved');
                     await refreshData();
                   } catch (e) {
                     alert('Failed to approve: ' + (e as Error).message);
@@ -277,7 +401,7 @@ function renderEditor() {
                   }
                 });
               }
-              panel.appendChild(pl);
+              panel.appendChild(moderationPane);
             }
 
             // Handlers
