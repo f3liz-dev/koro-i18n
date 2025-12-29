@@ -538,10 +538,12 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
           const progressData = progressByLanguage.get(mf.language);
           if (progressData) {
             // Find the progress entry for this file
-            // The filepath in progress uses <lang> placeholder, need to match
+            // The filepath in progress uses <lang> placeholder (e.g., "locales/<lang>/common.json")
+            // The manifest filename is just the base name (e.g., "common.json")
+            // Match by checking if the progress filepath ends with the manifest filename
             for (const [filepath, keys] of Object.entries(progressData)) {
-              // Simple filename matching (the progress file uses the base filename)
-              if (filepath.includes(mf.filename) || mf.filename.includes(filepath)) {
+              const progressBasename = filepath.split('/').pop() || '';
+              if (progressBasename === mf.filename || filepath.endsWith(`/${mf.filename}`) || filepath === mf.filename) {
                 githubTranslatedCount = keys.length;
                 break;
               }
