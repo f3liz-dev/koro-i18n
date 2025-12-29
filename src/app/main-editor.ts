@@ -292,12 +292,14 @@ function renderEditor() {
                 feedback.className = 'message success';
                 feedback.textContent = 'Translation submitted for review';
                 feedbackContainer.appendChild(feedback);
+                // Brief delay so user can see the feedback before panel refreshes
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 await refreshData();
               } catch (e) {
+                feedbackContainer.innerHTML = '';
                 const feedback = document.createElement('div');
                 feedback.className = 'message error';
                 feedback.textContent = 'Failed to submit: ' + (e as Error).message;
-                feedbackContainer.innerHTML = '';
                 feedbackContainer.appendChild(feedback);
               } finally {
                 submit.disabled = false;
