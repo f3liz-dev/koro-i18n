@@ -24,15 +24,18 @@
     "@octokit/rest": "^22.0.1",
     "@prisma/adapter-d1": "^6.19.0",
     "@prisma/client": "^6.19.0",
+    "alien-signals": "^3.1.2",
     "hono": "^4.6.3",
     "jose": "^6.1.0",
-    "valibot": "^1.2.0"
+    "valibot": "^1.2.0",
+    "vue": "^3.5.26"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251106.1",
     "@types/node": "^24.10.0",
     "@typescript-eslint/eslint-plugin": "^8.46.3",
     "@typescript-eslint/parser": "^8.46.3",
+    "@vitejs/plugin-vue": "^6.0.3",
     "elm": "0.19.1-6",
     "eslint": "^9.39.1",
     "prisma": "^6.19.0",

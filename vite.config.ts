@@ -1,12 +1,14 @@
 import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
 
 /**
- * Vite configuration for vanilla JavaScript frontend
+ * Vite configuration for Vue frontend
  * 
  * This configuration builds the frontend for the Cloudflare Workers backend.
  * The built assets are served from the Workers static assets.
  */
 export default defineConfig({
+  plugins: [vue()],
   root: 'src/app',
   build: {
     outDir: '../../dist/frontend',
