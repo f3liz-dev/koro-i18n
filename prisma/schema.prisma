@@ -74,7 +74,9 @@ model R2File {
 }
 
 // Web Translations (user-submitted translations via web UI)
-// GitHub imports are NOT stored here - they're in R2
+// GitHub repository is the source of truth - it stores original and translated resources
+// This table stores DIFFS only: user suggestions that are pending approval/commit
+// These are NOT stored in GitHub until approved and synced by GitHub Actions
 model WebTranslation {
   id              String   @id
   projectId       String

@@ -21,6 +21,7 @@ import {
   streamSingleFileFromGitHub,
   streamFileFromGitHub,
   fetchManifestJsonlStream,
+  fetchProgressTranslatedFile,
 } from '../lib/github-repo-fetcher';
 
 // ============================================================================
@@ -72,6 +73,46 @@ function streamingResponse(
   };
   if (etag) headers['ETag'] = etag;
   return new Response(stream, { headers });
+}
+
+/**
+ * Find translated key count from progress data for a given file
+ * 
+ * Matching rules:
+ * - Progress filepath uses <lang> placeholder: "locales/<lang>/common.json"
+ * - Manifest filename is just the base name: "common.json"
+ * - Match by comparing base filenames or checking if progress filepath ends with manifest filename
+ * 
+ * @param progressData Map of filepath (with <lang> placeholder) to array of translated keys
+ * @param manifestFilename The filename from the manifest (e.g., "common.json")
+ * @returns Number of translated keys found, or 0 if no match
+ */
+function findTranslatedKeysCount(
+  progressData: Record<string, string[]>,
+  manifestFilename: string
+): number {
+  const matches: string[] = [];
+  
+  for (const [filepath, keys] of Object.entries(progressData)) {
+    const progressBasename = filepath.split('/').pop() || '';
+    
+    // Try multiple matching strategies for robustness
+    if (progressBasename === manifestFilename ||           // Exact basename match
+        filepath.endsWith(`/${manifestFilename}`) ||       // Path ends with filename
+        filepath === manifestFilename) {                   // Direct match
+      matches.push(filepath);
+    }
+  }
+  
+  // Log warning if multiple files match (indicates ambiguous matching)
+  if (matches.length > 1) {
+    console.warn(
+      `[summary] Multiple progress files matched for ${manifestFilename}: ${matches.join(', ')}. ` +
+      `Using first match: ${matches[0]}`
+    );
+  }
+  
+  return matches.length > 0 ? progressData[matches[0]].length : 0;
 }
 
 // ============================================================================
@@ -449,6 +490,13 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
 
   /**
    * Get translation summary with progress info
+   * 
+   * Translation percentage calculation:
+   * The GitHub repository is the source of truth for translations.
+   * The koro-i18n server only stores DIFFS (approved suggestions not yet committed).
+   * 
+   * translatedKeys = keys already in GitHub (from progress-translated files) + approved diffs from DB
+   * translationPercentage = (translatedKeys / totalKeys) * 100
    */
   app.get('/summary', async (c) => {
     const branch = c.req.query('branch') || 'main';
@@ -488,7 +536,7 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
         ? manifest.files.filter(f => f.language === language)
         : manifest.files;
 
-      // Get translation counts from DB
+      // Get approved translation DIFFS from koro-i18n DB (these are pending commit to GitHub)
       const translationCounts = await prisma.webTranslation.groupBy({
         by: ['language', 'filename'],
         where: {
@@ -500,15 +548,70 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
         _count: { id: true },
       });
 
-      const countMap = new Map<string, number>();
+      const dbDiffCountMap = new Map<string, number>();
       for (const tc of translationCounts) {
-        countMap.set(`${tc.language}:${tc.filename}`, tc._count.id);
+        dbDiffCountMap.set(`${tc.language}:${tc.filename}`, tc._count.id);
+      }
+
+      // Fetch progress-translated files from GitHub for each language
+      // This tells us which keys are already translated in the repository
+      const languagesInManifest = new Set(filteredFiles.map(f => f.language));
+      const progressByLanguage = new Map<string, Record<string, string[]>>();
+      
+      // Fetch progress files concurrently for better performance
+      // Use Promise.allSettled to handle individual failures gracefully
+      const progressFetchPromises = Array.from(languagesInManifest)
+        .filter(lang => lang !== project.sourceLanguage) // Skip source language
+        .map(async (lang) => {
+          try {
+            const progressData = await fetchProgressTranslatedFile(
+              github.octokit, github.owner, github.repo, lang, branch
+            );
+            return { lang, progressData, success: true };
+          } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : 'Unknown error';
+            console.warn(`[summary] Failed to fetch progress file for ${lang}: ${msg}`);
+            return { lang, progressData: null, success: false };
+          }
+        });
+      
+      const progressResults = await Promise.allSettled(progressFetchPromises);
+      for (const result of progressResults) {
+        if (result.status === 'fulfilled' && result.value.progressData) {
+          progressByLanguage.set(result.value.lang, result.value.progressData);
+        }
       }
 
       const filesWithProgress = filteredFiles.map(mf => {
-        const translatedCount = countMap.get(`${mf.language}:${mf.filename}`) || 0;
         const totalKeys = mf.totalKeys || 0;
+        
+        // Count keys already translated in GitHub repository
+        let githubTranslatedCount = 0;
+        if (mf.language !== project.sourceLanguage) {
+          const progressData = progressByLanguage.get(mf.language);
+          if (progressData) {
+            githubTranslatedCount = findTranslatedKeysCount(progressData, mf.filename);
+          }
+        } else {
+          // Source language is always 100% translated
+          githubTranslatedCount = totalKeys;
+        }
 
+        // Count approved diffs from koro-i18n DB (not yet committed to GitHub)
+        const dbDiffCount = dbDiffCountMap.get(`${mf.language}:${mf.filename}`) || 0;
+        
+        // Total translated = what's in GitHub + approved diffs pending commit
+        let translatedKeys = githubTranslatedCount + dbDiffCount;
+        
+        // Log warning if count exceeds total (indicates data inconsistency)
+        if (translatedKeys > totalKeys) {
+          console.warn(
+            `[summary] Translation count exceeds total for ${mf.language}/${mf.filename}: ` +
+            `github=${githubTranslatedCount}, db=${dbDiffCount}, total=${totalKeys}`
+          );
+          translatedKeys = totalKeys;
+        }
+        
         let lastUpdated: Date;
         try {
           lastUpdated = new Date(mf.lastUpdated);
@@ -522,8 +625,8 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
           filename: mf.filename,
           lang: mf.language,
           totalKeys,
-          translatedKeys: Math.min(translatedCount, totalKeys),
-          translationPercentage: totalKeys > 0 ? Math.round((translatedCount / totalKeys) * 100) : 0,
+          translatedKeys,
+          translationPercentage: totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0,
           lastUpdated,
           commitHash: mf.commitHash,
         };
