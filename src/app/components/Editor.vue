@@ -366,9 +366,12 @@ async function submitTranslation() {
 async function approveSuggestion(id: number, status: 'approved' | 'rejected') {
   try {
     await approveTranslation(props.project, id, status);
+    feedbackMessage.value = `Suggestion ${status} successfully`;
+    feedbackType.value = 'success';
     await refreshData();
   } catch (e) {
-    alert('Failed to moderate: ' + (e as Error).message);
+    feedbackMessage.value = 'Failed to moderate: ' + (e as Error).message;
+    feedbackType.value = 'error';
   }
 }
 
@@ -376,9 +379,12 @@ async function deleteSuggestion(id: number) {
   if (!confirm('Delete this suggestion?')) return;
   try {
     await deleteTranslation(props.project, id);
+    feedbackMessage.value = 'Suggestion deleted successfully';
+    feedbackType.value = 'success';
     await refreshData();
   } catch (e) {
-    alert('Failed to delete suggestion: ' + (e as Error).message);
+    feedbackMessage.value = 'Failed to delete suggestion: ' + (e as Error).message;
+    feedbackType.value = 'error';
   }
 }
 
