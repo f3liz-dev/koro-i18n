@@ -21,6 +21,7 @@ import {
   streamSingleFileFromGitHub,
   streamFileFromGitHub,
   fetchManifestJsonlStream,
+  fetchProgressTranslatedFile,
 } from '../lib/github-repo-fetcher';
 
 // ============================================================================
@@ -449,6 +450,13 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
 
   /**
    * Get translation summary with progress info
+   * 
+   * Translation percentage calculation:
+   * The GitHub repository is the source of truth for translations.
+   * The koro-i18n server only stores DIFFS (approved suggestions not yet committed).
+   * 
+   * translatedKeys = keys already in GitHub (from progress-translated files) + approved diffs from DB
+   * translationPercentage = (translatedKeys / totalKeys) * 100
    */
   app.get('/summary', async (c) => {
     const branch = c.req.query('branch') || 'main';
@@ -488,7 +496,7 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
         ? manifest.files.filter(f => f.language === language)
         : manifest.files;
 
-      // Get translation counts from DB
+      // Get approved translation DIFFS from koro-i18n DB (these are pending commit to GitHub)
       const translationCounts = await prisma.webTranslation.groupBy({
         by: ['language', 'filename'],
         where: {
@@ -500,15 +508,56 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
         _count: { id: true },
       });
 
-      const countMap = new Map<string, number>();
+      const dbDiffCountMap = new Map<string, number>();
       for (const tc of translationCounts) {
-        countMap.set(`${tc.language}:${tc.filename}`, tc._count.id);
+        dbDiffCountMap.set(`${tc.language}:${tc.filename}`, tc._count.id);
+      }
+
+      // Fetch progress-translated files from GitHub for each language
+      // This tells us which keys are already translated in the repository
+      const languagesInManifest = new Set(filteredFiles.map(f => f.language));
+      const progressByLanguage = new Map<string, Record<string, string[]>>();
+      
+      for (const lang of languagesInManifest) {
+        if (lang === project.sourceLanguage) continue; // Skip source language
+        
+        const progressData = await fetchProgressTranslatedFile(
+          github.octokit, github.owner, github.repo, lang, branch
+        );
+        if (progressData) {
+          progressByLanguage.set(lang, progressData);
+        }
       }
 
       const filesWithProgress = filteredFiles.map(mf => {
-        const translatedCount = countMap.get(`${mf.language}:${mf.filename}`) || 0;
         const totalKeys = mf.totalKeys || 0;
+        
+        // Count keys already translated in GitHub repository
+        let githubTranslatedCount = 0;
+        if (mf.language !== project.sourceLanguage) {
+          const progressData = progressByLanguage.get(mf.language);
+          if (progressData) {
+            // Find the progress entry for this file
+            // The filepath in progress uses <lang> placeholder, need to match
+            for (const [filepath, keys] of Object.entries(progressData)) {
+              // Simple filename matching (the progress file uses the base filename)
+              if (filepath.includes(mf.filename) || mf.filename.includes(filepath)) {
+                githubTranslatedCount = keys.length;
+                break;
+              }
+            }
+          }
+        } else {
+          // Source language is always 100% translated
+          githubTranslatedCount = totalKeys;
+        }
 
+        // Count approved diffs from koro-i18n DB (not yet committed to GitHub)
+        const dbDiffCount = dbDiffCountMap.get(`${mf.language}:${mf.filename}`) || 0;
+        
+        // Total translated = what's in GitHub + approved diffs pending commit
+        const translatedKeys = Math.min(githubTranslatedCount + dbDiffCount, totalKeys);
+        
         let lastUpdated: Date;
         try {
           lastUpdated = new Date(mf.lastUpdated);
@@ -522,8 +571,8 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
           filename: mf.filename,
           lang: mf.language,
           totalKeys,
-          translatedKeys: Math.min(translatedCount, totalKeys),
-          translationPercentage: totalKeys > 0 ? Math.round((translatedCount / totalKeys) * 100) : 0,
+          translatedKeys,
+          translationPercentage: totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0,
           lastUpdated,
           commitHash: mf.commitHash,
         };

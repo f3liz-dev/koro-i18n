@@ -3,6 +3,11 @@
  * 
  * Handles translation CRUD, history, and suggestions
  * within the context of a specific project
+ * 
+ * Architecture Note:
+ * - GitHub repository: Source of truth (stores original + translated resources)
+ * - Koro-i18n database: Stores DIFFS only (user-submitted translation suggestions)
+ * - Server role: Diff management and suggestion tracking, not primary storage
  */
 import { Hono } from 'hono';
 import { Octokit } from '@octokit/rest';

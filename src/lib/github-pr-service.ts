@@ -8,6 +8,11 @@ import { PrismaClient } from '../generated/prisma/';
  * 2. A GitHub Action in the client repository fetches the diff
  * 3. The GitHub Action creates the PR (with proper write permissions)
  * 
+ * Important: The koro-i18n server is a DIFF MANAGEMENT system.
+ * - GitHub repository: Source of truth (contains original + translated resources)
+ * - Koro-i18n database: Only stores DIFFS (user-submitted translation suggestions)
+ * - Translation percentage: Should reflect GitHub repository status + pending diffs
+ * 
  * Note: We don't create PRs directly because the OAuth token from GitHub login
  * has read-only scope and cannot write to user repositories.
  */

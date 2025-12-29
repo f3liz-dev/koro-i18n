@@ -2,6 +2,12 @@
  * Apply routes
  * 
  * Handles exporting approved translations for GitHub Actions to create PRs
+ * 
+ * Server Role Clarification:
+ * The koro-i18n server acts as a DIFF MANAGEMENT system:
+ * - GitHub repository: Holds actual translation files (source of truth)
+ * - Koro-i18n database: Holds user-submitted DIFFS (suggestions pending commit)
+ * - This endpoint exports approved diffs for GitHub Actions to apply to the repository
  */
 import { Hono } from 'hono';
 import { PrismaClient } from '../generated/prisma/';
