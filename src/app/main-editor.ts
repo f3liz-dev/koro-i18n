@@ -131,6 +131,12 @@ function renderEditor() {
             const key = filteredKeys[currentIndex];
             panel.innerHTML = '';
 
+            // Progress indicator
+            const progress = document.createElement('div');
+            progress.className = 'mb-4 text-sm text-secondary';
+            progress.textContent = `Translating key ${currentIndex + 1} of ${filteredKeys.length}`;
+            panel.appendChild(progress);
+
             const keyHeader = document.createElement('div');
             keyHeader.className = 'mb-2';
             keyHeader.innerHTML = `<h2 class="font-bold">${key}</h2>`;
@@ -143,7 +149,7 @@ function renderEditor() {
 
             const repoLabel = document.createElement('div');
             repoLabel.className = 'label';
-            repoLabel.textContent = 'Repository value';
+            repoLabel.textContent = 'Current text';
             panel.appendChild(repoLabel);
             const repoVal = document.createElement('div');
             repoVal.className = 'mb-4';
@@ -152,14 +158,14 @@ function renderEditor() {
 
             const editorLabel = document.createElement('div');
             editorLabel.className = 'label';
-            editorLabel.textContent = 'Your suggestion';
+            editorLabel.textContent = 'Your translation';
             panel.appendChild(editorLabel);
 
             const textarea = document.createElement('textarea');
             textarea.className = 'input';
             textarea.style.width = '100%';
             textarea.value = (pendingByKey.get(key)?.[0]?.value) ?? data.target[key] ?? '';
-            textarea.placeholder = 'Enter translation suggestion...';
+            textarea.placeholder = 'Enter your translation...';
             panel.appendChild(textarea);
 
             // Focus textarea for quick editing
@@ -174,8 +180,13 @@ function renderEditor() {
 
             const submit = document.createElement('button');
             submit.className = 'btn primary';
-            submit.textContent = 'Submit suggestion (Ctrl+Enter)';
+            submit.textContent = 'Submit (Ctrl+Enter)';
             controls.appendChild(submit);
+
+            const skip = document.createElement('button');
+            skip.className = 'btn ghost';
+            skip.textContent = 'Skip';
+            controls.appendChild(skip);
 
             const prev = document.createElement('button');
             prev.className = 'btn ghost';
@@ -193,6 +204,11 @@ function renderEditor() {
             controls.appendChild(focusToggle);
 
             panel.appendChild(controls);
+
+            // Submission feedback message container
+            const feedbackContainer = document.createElement('div');
+            feedbackContainer.className = 'mt-2';
+            panel.appendChild(feedbackContainer);
 
             // Pending list
             const pendingList = pendingByKey.get(key) || [];
@@ -269,16 +285,29 @@ function renderEditor() {
               try {
                 submit.disabled = true;
                 submit.textContent = 'Submitting...';
+                feedbackContainer.innerHTML = '';
                 await submitTranslation(proj, lang, file, key, textarea.value);
+                // Show success feedback
+                const feedback = document.createElement('div');
+                feedback.className = 'message success';
+                feedback.textContent = 'Translation submitted for review';
+                feedbackContainer.appendChild(feedback);
+                // Brief delay so user can see the feedback before panel refreshes
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 await refreshData();
               } catch (e) {
-                alert('Failed to submit: ' + (e as Error).message);
+                feedbackContainer.innerHTML = '';
+                const feedback = document.createElement('div');
+                feedback.className = 'message error';
+                feedback.textContent = 'Failed to submit: ' + (e as Error).message;
+                feedbackContainer.appendChild(feedback);
               } finally {
                 submit.disabled = false;
-                submit.textContent = 'Submit suggestion (Ctrl+Enter)';
+                submit.textContent = 'Submit (Ctrl+Enter)';
               }
             });
 
+            skip.addEventListener('click', () => navigate(1));
             prev.addEventListener('click', () => navigate(-1));
             next.addEventListener('click', () => navigate(1));
 
