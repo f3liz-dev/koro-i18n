@@ -63,7 +63,7 @@ function renderEditor() {
             arr.push(a);
             approvedByKey.set(a.key, arr);
           }
-          const virtualSuggestionsByKey = new Map<string, any[]>();
+          const virtualSuggestionsByKey = new Map<string, Array<{ key: string; value: string; source: string }>>();
           for (const v of data.virtualSuggestions || []) {
             const arr = virtualSuggestionsByKey.get(v.key) || [];
             arr.push(v);
@@ -216,87 +216,79 @@ function renderEditor() {
             panel.appendChild(textarea);
 
             // Now add the suggestion items with "Use" buttons after textarea is defined
-            if (virtualSuggestions.length > 0 || pendingList.length > 0 || approvedList.length > 0) {
-              // Clear the "no suggestions" message if it was added
-              const noSuggestions = suggestionsPane.querySelector('.text-sm.text-secondary');
-              if (noSuggestions) {
-                noSuggestions.remove();
-              }
+            // Show virtual suggestions (GitHub values) as approved suggestions
+            for (const vs of virtualSuggestions) {
+              const vsRow = document.createElement('div');
+              vsRow.className = 'flex items-center gap-2 mt-2 p-2 border border-success rounded';
+              const badge = document.createElement('span');
+              badge.className = 'badge success';
+              badge.textContent = 'Git';
+              vsRow.appendChild(badge);
+              const t = document.createElement('div');
+              t.className = 'flex-1';
+              t.textContent = vs.value;
+              vsRow.appendChild(t);
+              const useBtn = document.createElement('button');
+              useBtn.className = 'btn success small';
+              useBtn.textContent = 'Use';
+              vsRow.appendChild(useBtn);
+              
+              useBtn.addEventListener('click', () => {
+                textarea.value = vs.value;
+                textarea.focus();
+              });
+              
+              suggestionsPane.appendChild(vsRow);
+            }
 
-              // Show virtual suggestions (GitHub values) as approved suggestions
-              for (const vs of virtualSuggestions) {
-                const vsRow = document.createElement('div');
-                vsRow.className = 'flex items-center gap-2 mt-2 p-2 border border-success rounded';
-                const badge = document.createElement('span');
-                badge.className = 'badge success';
-                badge.textContent = 'Git';
-                vsRow.appendChild(badge);
-                const t = document.createElement('div');
-                t.className = 'flex-1';
-                t.textContent = vs.value;
-                vsRow.appendChild(t);
-                const useBtn = document.createElement('button');
-                useBtn.className = 'btn success small';
-                useBtn.textContent = 'Use';
-                vsRow.appendChild(useBtn);
-                
-                useBtn.addEventListener('click', () => {
-                  textarea.value = vs.value;
-                  textarea.focus();
-                });
-                
-                suggestionsPane.appendChild(vsRow);
-              }
+            // Show approved D1 suggestions
+            for (const a of approvedList) {
+              const aRow = document.createElement('div');
+              aRow.className = 'flex items-center gap-2 mt-2 p-2 border border-info rounded';
+              const badge = document.createElement('span');
+              badge.className = 'badge info';
+              badge.textContent = 'Approved';
+              aRow.appendChild(badge);
+              const t = document.createElement('div');
+              t.className = 'flex-1';
+              t.textContent = `${a.value} (by ${a.username || 'unknown'})`;
+              aRow.appendChild(t);
+              const useBtn = document.createElement('button');
+              useBtn.className = 'btn info small';
+              useBtn.textContent = 'Use';
+              aRow.appendChild(useBtn);
+              
+              useBtn.addEventListener('click', () => {
+                textarea.value = a.value;
+                textarea.focus();
+              });
+              
+              suggestionsPane.appendChild(aRow);
+            }
 
-              // Show approved D1 suggestions
-              for (const a of approvedList) {
-                const aRow = document.createElement('div');
-                aRow.className = 'flex items-center gap-2 mt-2 p-2 border border-info rounded';
-                const badge = document.createElement('span');
-                badge.className = 'badge info';
-                badge.textContent = 'Approved';
-                aRow.appendChild(badge);
-                const t = document.createElement('div');
-                t.className = 'flex-1';
-                t.textContent = `${a.value} (by ${a.username || 'unknown'})`;
-                aRow.appendChild(t);
-                const useBtn = document.createElement('button');
-                useBtn.className = 'btn info small';
-                useBtn.textContent = 'Use';
-                aRow.appendChild(useBtn);
-                
-                useBtn.addEventListener('click', () => {
-                  textarea.value = a.value;
-                  textarea.focus();
-                });
-                
-                suggestionsPane.appendChild(aRow);
-              }
-
-              // Show pending D1 suggestions
-              for (const p of pendingList) {
-                const pRow = document.createElement('div');
-                pRow.className = 'flex items-center gap-2 mt-2 p-2 border border-secondary rounded';
-                const badge = document.createElement('span');
-                badge.className = 'badge';
-                badge.textContent = 'Pending';
-                pRow.appendChild(badge);
-                const t = document.createElement('div');
-                t.className = 'flex-1';
-                t.textContent = `${p.value} (by ${p.username || 'unknown'})`;
-                pRow.appendChild(t);
-                const useBtn = document.createElement('button');
-                useBtn.className = 'btn ghost small';
-                useBtn.textContent = 'Use';
-                pRow.appendChild(useBtn);
-                
-                useBtn.addEventListener('click', () => {
-                  textarea.value = p.value;
-                  textarea.focus();
-                });
-                
-                suggestionsPane.appendChild(pRow);
-              }
+            // Show pending D1 suggestions
+            for (const p of pendingList) {
+              const pRow = document.createElement('div');
+              pRow.className = 'flex items-center gap-2 mt-2 p-2 border border-secondary rounded';
+              const badge = document.createElement('span');
+              badge.className = 'badge';
+              badge.textContent = 'Pending';
+              pRow.appendChild(badge);
+              const t = document.createElement('div');
+              t.className = 'flex-1';
+              t.textContent = `${p.value} (by ${p.username || 'unknown'})`;
+              pRow.appendChild(t);
+              const useBtn = document.createElement('button');
+              useBtn.className = 'btn ghost small';
+              useBtn.textContent = 'Use';
+              pRow.appendChild(useBtn);
+              
+              useBtn.addEventListener('click', () => {
+                textarea.value = p.value;
+                textarea.focus();
+              });
+              
+              suggestionsPane.appendChild(pRow);
             }
 
             // Focus textarea for quick editing
