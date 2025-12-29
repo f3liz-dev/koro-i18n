@@ -75,6 +75,35 @@ function streamingResponse(
   return new Response(stream, { headers });
 }
 
+/**
+ * Find translated key count from progress data for a given file
+ * 
+ * Matching rules:
+ * - Progress filepath uses <lang> placeholder: "locales/<lang>/common.json"
+ * - Manifest filename is just the base name: "common.json"
+ * - Match by comparing base filenames or checking if progress filepath ends with manifest filename
+ * 
+ * @param progressData Map of filepath (with <lang> placeholder) to array of translated keys
+ * @param manifestFilename The filename from the manifest (e.g., "common.json")
+ * @returns Number of translated keys found, or 0 if no match
+ */
+function findTranslatedKeysCount(
+  progressData: Record<string, string[]>,
+  manifestFilename: string
+): number {
+  for (const [filepath, keys] of Object.entries(progressData)) {
+    const progressBasename = filepath.split('/').pop() || '';
+    
+    // Try multiple matching strategies for robustness
+    if (progressBasename === manifestFilename ||           // Exact basename match
+        filepath.endsWith(`/${manifestFilename}`) ||       // Path ends with filename
+        filepath === manifestFilename) {                   // Direct match
+      return keys.length;
+    }
+  }
+  return 0;
+}
+
 // ============================================================================
 // Route Factory
 // ============================================================================
@@ -518,12 +547,18 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
       const languagesInManifest = new Set(filteredFiles.map(f => f.language));
       const progressByLanguage = new Map<string, Record<string, string[]>>();
       
-      for (const lang of languagesInManifest) {
-        if (lang === project.sourceLanguage) continue; // Skip source language
-        
-        const progressData = await fetchProgressTranslatedFile(
-          github.octokit, github.owner, github.repo, lang, branch
-        );
+      // Fetch progress files concurrently for better performance
+      const progressFetchPromises = Array.from(languagesInManifest)
+        .filter(lang => lang !== project.sourceLanguage) // Skip source language
+        .map(async (lang) => {
+          const progressData = await fetchProgressTranslatedFile(
+            github.octokit, github.owner, github.repo, lang, branch
+          );
+          return { lang, progressData };
+        });
+      
+      const progressResults = await Promise.all(progressFetchPromises);
+      for (const { lang, progressData } of progressResults) {
         if (progressData) {
           progressByLanguage.set(lang, progressData);
         }
@@ -537,17 +572,7 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
         if (mf.language !== project.sourceLanguage) {
           const progressData = progressByLanguage.get(mf.language);
           if (progressData) {
-            // Find the progress entry for this file
-            // The filepath in progress uses <lang> placeholder (e.g., "locales/<lang>/common.json")
-            // The manifest filename is just the base name (e.g., "common.json")
-            // Match by checking if the progress filepath ends with the manifest filename
-            for (const [filepath, keys] of Object.entries(progressData)) {
-              const progressBasename = filepath.split('/').pop() || '';
-              if (progressBasename === mf.filename || filepath.endsWith(`/${mf.filename}`) || filepath === mf.filename) {
-                githubTranslatedCount = keys.length;
-                break;
-              }
-            }
+            githubTranslatedCount = findTranslatedKeysCount(progressData, mf.filename);
           }
         } else {
           // Source language is always 100% translated
@@ -558,7 +583,16 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
         const dbDiffCount = dbDiffCountMap.get(`${mf.language}:${mf.filename}`) || 0;
         
         // Total translated = what's in GitHub + approved diffs pending commit
-        const translatedKeys = Math.min(githubTranslatedCount + dbDiffCount, totalKeys);
+        let translatedKeys = githubTranslatedCount + dbDiffCount;
+        
+        // Log warning if count exceeds total (indicates data inconsistency)
+        if (translatedKeys > totalKeys) {
+          console.warn(
+            `[summary] Translation count exceeds total for ${mf.language}/${mf.filename}: ` +
+            `github=${githubTranslatedCount}, db=${dbDiffCount}, total=${totalKeys}`
+          );
+          translatedKeys = totalKeys;
+        }
         
         let lastUpdated: Date;
         try {
