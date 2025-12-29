@@ -26,7 +26,7 @@
     </div>
     <div v-else class="flex gap-4">
       <!-- Sidebar -->
-      <div class="card p-4" style="width: 34%">
+      <div v-show="!focusMode" class="card p-4" style="width: 34%">
         <div style="max-height: 60vh; overflow: auto">
           <button
             v-for="(key, idx) in filteredKeys"
