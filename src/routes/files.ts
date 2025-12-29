@@ -91,6 +91,8 @@ function findTranslatedKeysCount(
   progressData: Record<string, string[]>,
   manifestFilename: string
 ): number {
+  const matches: string[] = [];
+  
   for (const [filepath, keys] of Object.entries(progressData)) {
     const progressBasename = filepath.split('/').pop() || '';
     
@@ -98,10 +100,19 @@ function findTranslatedKeysCount(
     if (progressBasename === manifestFilename ||           // Exact basename match
         filepath.endsWith(`/${manifestFilename}`) ||       // Path ends with filename
         filepath === manifestFilename) {                   // Direct match
-      return keys.length;
+      matches.push(filepath);
     }
   }
-  return 0;
+  
+  // Log warning if multiple files match (indicates ambiguous matching)
+  if (matches.length > 1) {
+    console.warn(
+      `[summary] Multiple progress files matched for ${manifestFilename}: ${matches.join(', ')}. ` +
+      `Using first match: ${matches[0]}`
+    );
+  }
+  
+  return matches.length > 0 ? progressData[matches[0]].length : 0;
 }
 
 // ============================================================================
@@ -548,19 +559,26 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
       const progressByLanguage = new Map<string, Record<string, string[]>>();
       
       // Fetch progress files concurrently for better performance
+      // Use Promise.allSettled to handle individual failures gracefully
       const progressFetchPromises = Array.from(languagesInManifest)
         .filter(lang => lang !== project.sourceLanguage) // Skip source language
         .map(async (lang) => {
-          const progressData = await fetchProgressTranslatedFile(
-            github.octokit, github.owner, github.repo, lang, branch
-          );
-          return { lang, progressData };
+          try {
+            const progressData = await fetchProgressTranslatedFile(
+              github.octokit, github.owner, github.repo, lang, branch
+            );
+            return { lang, progressData, success: true };
+          } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : 'Unknown error';
+            console.warn(`[summary] Failed to fetch progress file for ${lang}: ${msg}`);
+            return { lang, progressData: null, success: false };
+          }
         });
       
-      const progressResults = await Promise.all(progressFetchPromises);
-      for (const { lang, progressData } of progressResults) {
-        if (progressData) {
-          progressByLanguage.set(lang, progressData);
+      const progressResults = await Promise.allSettled(progressFetchPromises);
+      for (const result of progressResults) {
+        if (result.status === 'fulfilled' && result.value.progressData) {
+          progressByLanguage.set(result.value.lang, result.value.progressData);
         }
       }
 
