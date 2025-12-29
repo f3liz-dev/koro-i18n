@@ -9,10 +9,12 @@ A lightweight, production-ready i18n platform powered by Elm and Cloudflare Work
 - **Database**: D1 (SQLite) via Prisma - Serverless, no cost at rest
 - **Auth**: GitHub OAuth + OIDC for GitHub Actions
 
+**Important**: Your GitHub repository is the source of truth for translations. The koro-i18n server manages translation suggestions (diffs) only. See [docs/SERVER_ROLE_ARCHITECTURE.md](docs/SERVER_ROLE_ARCHITECTURE.md) for details.
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           Your Repository                                    │
-│                                                                             │
+│                            (Source of Truth)                                 │
 │  koro.config.json              locales/                                      │
 │  (configuration)               ├── en/common.json  (source)                 │
 │                                └── ja/common.json  (target)                 │
@@ -23,7 +25,7 @@ A lightweight, production-ready i18n platform powered by Elm and Cloudflare Work
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       Koro Platform (Cloudflare Workers)                     │
-│                                                                             │
+│                         (Diff Management)                                    │
 │  Elm Frontend (Static)          Hono API (Edge)                              │
 │  • Pure functional UI           • GitHub OAuth                               │
 │  • Type-safe views              • Translation CRUD                           │
