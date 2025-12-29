@@ -84,7 +84,7 @@
           <div :class="['message', feedbackType]">{{ feedbackMessage }}</div>
         </div>
 
-        <!-- Suggestion panel positioned AFTER submit button (Crowdin-style) -->
+        <!-- History panel positioned AFTER submit button (Crowdin-style) -->
         <div class="card p-4 mt-4 bg-secondary-bg">
           <div class="label mb-2">History</div>
           <div v-if="allSuggestions.length === 0" class="text-sm text-secondary">
@@ -99,12 +99,6 @@
             >
               <span class="badge success">Git</span>
               <div class="flex-1">{{ suggestion.value }}</div>
-              <button
-                @click="useSuggestion(suggestion.value)"
-                class="btn success small"
-              >
-                Use
-              </button>
             </div>
 
             <!-- Approved D1 suggestions -->
@@ -117,12 +111,6 @@
               <div class="flex-1">
                 {{ suggestion.value }} (by {{ suggestion.username || 'unknown' }})
               </div>
-              <button
-                @click="useSuggestion(suggestion.value)"
-                class="btn info small"
-              >
-                Use
-              </button>
             </div>
 
             <!-- Pending D1 suggestions -->
@@ -135,12 +123,6 @@
               <div class="flex-1">
                 {{ suggestion.value }} (by {{ suggestion.username || 'unknown' }})
               </div>
-              <button
-                @click="useSuggestion(suggestion.value)"
-                class="btn ghost small"
-              >
-                Use
-              </button>
             </div>
           </div>
         </div>
@@ -185,8 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
-import { signal, computed as alienComputed, effect } from 'alien-signals';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import {
   fetchTranslationFile,
   submitTranslation as apiSubmitTranslation,
@@ -202,19 +183,8 @@ const props = defineProps<{
   filename: string;
 }>();
 
-// Signals for reactive state management
-const dataSignal = signal<TranslationFileData | null>(null);
-const loadingSignal = signal(true);
-const errorSignal = signal<string | null>(null);
-const searchQuerySignal = signal('');
-const currentIndexSignal = signal(0);
-const translationValueSignal = signal('');
-const submittingSignal = signal(false);
-const feedbackMessageSignal = signal('');
-const feedbackTypeSignal = signal<'success' | 'error'>('success');
-const focusModeSignal = signal(false);
-
-// Vue refs
+// Vue refs for reactive state
+const data = ref<TranslationFileData | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const searchQuery = ref('');
@@ -232,8 +202,6 @@ const subtitle = computed(() => `Project: ${props.project}`);
 const backLink = computed(
   () => `/project.html?name=${encodeURIComponent(props.project)}`
 );
-
-const data = computed(() => dataSignal.value);
 
 const allKeys = computed(() => {
   if (!data.value) return [];
@@ -322,11 +290,6 @@ function navigate(offset: number) {
     0,
     Math.min(filteredKeys.value.length - 1, currentIndex.value + offset)
   );
-}
-
-function useSuggestion(value: string) {
-  translationValue.value = value;
-  focusTextarea();
 }
 
 function toggleFocusMode() {
@@ -428,7 +391,7 @@ async function loadData() {
       props.language,
       props.filename
     );
-    dataSignal.value = result;
+    data.value = result;
     loading.value = false;
     updateTranslationValue();
     focusTextarea();
@@ -445,7 +408,7 @@ async function refreshData() {
       props.language,
       props.filename
     );
-    dataSignal.value = result;
+    data.value = result;
     if (currentIndex.value >= filteredKeys.value.length) {
       currentIndex.value = Math.max(0, filteredKeys.value.length - 1);
     }
@@ -482,9 +445,9 @@ onMounted(() => {
 
   document.addEventListener('keydown', handleDocumentKeydown);
 
-  return () => {
+  onUnmounted(() => {
     document.removeEventListener('keydown', handleDocumentKeydown);
-  };
+  });
 });
 </script>
 
