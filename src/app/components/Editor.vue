@@ -189,6 +189,15 @@ import {
 } from '../api';
 import type { TranslationFileData } from '../api';
 
+// Translation suggestion interface for better type safety
+interface TranslationSuggestion {
+  id: number;
+  key: string;
+  value: string;
+  username?: string;
+  [key: string]: any; // Allow other properties from serializeTranslation
+}
+
 // Props
 const props = defineProps<{
   project: string;
@@ -321,9 +330,8 @@ function getKeyStatus(key: string): 'git' | 'koro' | 'need' {
   const hasGitValue = data.value.target[key] && data.value.target[key] !== '';
   
   // Check if there's an approved or pending translation (koro)
-  // Note: approved and pending are typed as any[] but are expected to have .key property
-  const hasApproved = data.value.approved?.some((a: any) => a.key === key);
-  const hasPending = data.value.pending?.some((p: any) => p.key === key);
+  const hasApproved = (data.value.approved as TranslationSuggestion[])?.some(a => a.key === key);
+  const hasPending = (data.value.pending as TranslationSuggestion[])?.some(p => p.key === key);
   
   // Priority: Git > Koro > Need
   if (hasVirtual || hasGitValue) {
