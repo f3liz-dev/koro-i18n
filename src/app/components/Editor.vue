@@ -210,6 +210,13 @@ const focusMode = ref(false);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const sortMode = ref<'default' | 'alphabetical'>('default');
 
+// Sort priority mapping (defined once to avoid recreation)
+const SORT_PRIORITY = {
+  'need': 0,
+  'koro': 1,
+  'git': 2,
+} as const;
+
 // Computed values
 const title = computed(() => 'Editor');
 const subtitle = computed(() => `Project: ${props.project}`);
@@ -235,14 +242,8 @@ const sortedKeys = computed(() => {
     const statusB = getKeyStatus(b);
     
     // Priority order: need (0) < koro (1) < git (2)
-    const priorityMap: Record<string, number> = {
-      'need': 0,
-      'koro': 1,
-      'git': 2,
-    };
-    
-    const priorityA = priorityMap[statusA] ?? 0;
-    const priorityB = priorityMap[statusB] ?? 0;
+    const priorityA = SORT_PRIORITY[statusA];
+    const priorityB = SORT_PRIORITY[statusB];
     
     if (priorityA !== priorityB) {
       return priorityA - priorityB;
@@ -320,8 +321,9 @@ function getKeyStatus(key: string): 'git' | 'koro' | 'need' {
   const hasGitValue = data.value.target[key] && data.value.target[key] !== '';
   
   // Check if there's an approved or pending translation (koro)
-  const hasApproved = data.value.approved?.some(a => a.key === key);
-  const hasPending = data.value.pending?.some(p => p.key === key);
+  // Note: approved and pending are typed as any[] but are expected to have .key property
+  const hasApproved = data.value.approved?.some((a: any) => a.key === key);
+  const hasPending = data.value.pending?.some((p: any) => p.key === key);
   
   // Priority: Git > Koro > Need
   if (hasVirtual || hasGitValue) {
