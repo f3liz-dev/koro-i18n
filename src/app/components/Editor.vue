@@ -9,13 +9,18 @@
         <a :href="backLink" class="btn ghost nav-link">Back to Project</a>
       </div>
     </div>
-    <div class="mb-6">
+    <div class="mb-6 flex gap-2">
       <input
         type="text"
         class="input"
+        style="flex: 1"
         v-model="searchQuery"
         placeholder="Search keys or translations..."
       />
+      <select v-model="sortMode" class="input" style="width: auto">
+        <option value="default">Sort: Default</option>
+        <option value="alphabetical">Sort: A-Z</option>
+      </select>
     </div>
     <div v-if="loading" class="flex justify-center p-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -34,7 +39,12 @@
             @click="currentIndex = idx"
             :class="['btn ghost w-full text-left mb-2', { selected: idx === currentIndex }]"
           >
-            {{ key }}
+            <div class="flex items-center gap-2">
+              <span class="flex-1">{{ key }}</span>
+              <span v-if="getKeyStatus(key) === 'git'" class="badge success">Git</span>
+              <span v-else-if="getKeyStatus(key) === 'koro'" class="badge info">Koro</span>
+              <span v-else class="badge">Need</span>
+            </div>
           </button>
         </div>
       </div>
@@ -47,13 +57,16 @@
         <div class="mb-2">
           <h2 class="font-bold">{{ currentKey }}</h2>
         </div>
-        <div class="mb-4 text-sm text-secondary">
-          {{ sourceValue }}
+        <div class="mb-4">
+          <div class="label">Source text</div>
+          <div class="text-sm text-secondary">{{ sourceValue }}</div>
         </div>
-        <div class="label">Current text</div>
-        <div class="mb-4">{{ targetValue }}</div>
+        <div class="mb-4">
+          <div class="label">Current text</div>
+          <div>{{ targetValue || '(not translated)' }}</div>
+        </div>
 
-        <div class="label">Your translation</div>
+        <div class="label">Latest Translation</div>
         <textarea
           ref="textareaRef"
           class="input"
@@ -195,6 +208,7 @@ const feedbackMessage = ref('');
 const feedbackType = ref<'success' | 'error'>('success');
 const focusMode = ref(false);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const sortMode = ref<'default' | 'alphabetical'>('default');
 
 // Computed values
 const title = computed(() => 'Editor');
@@ -205,13 +219,44 @@ const backLink = computed(
 
 const allKeys = computed(() => {
   if (!data.value) return [];
-  return Object.keys(data.value.source).sort();
+  return Object.keys(data.value.source);
+});
+
+const sortedKeys = computed(() => {
+  const keys = [...allKeys.value];
+  
+  if (sortMode.value === 'alphabetical') {
+    return keys.sort();
+  }
+  
+  // Default sort: no history first, then koro, then git
+  return keys.sort((a, b) => {
+    const statusA = getKeyStatus(a);
+    const statusB = getKeyStatus(b);
+    
+    // Priority: 'need' < 'koro' < 'git'
+    const priorityMap: Record<string, number> = {
+      'need': 0,
+      'koro': 1,
+      'git': 2,
+    };
+    
+    const priorityA = priorityMap[statusA] ?? 0;
+    const priorityB = priorityMap[statusB] ?? 0;
+    
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+    
+    // If same priority, sort alphabetically
+    return a.localeCompare(b);
+  });
 });
 
 const filteredKeys = computed(() => {
   const query = searchQuery.value.trim();
-  if (!query) return allKeys.value;
-  return allKeys.value.filter((k) => k.includes(query));
+  if (!query) return sortedKeys.value;
+  return sortedKeys.value.filter((k) => k.includes(query));
 });
 
 const currentKey = computed(() => {
@@ -266,6 +311,27 @@ watch(searchQuery, () => {
 });
 
 // Methods
+function getKeyStatus(key: string): 'git' | 'koro' | 'need' {
+  if (!data.value) return 'need';
+  
+  // Check if there's a virtual suggestion (from git)
+  const hasVirtual = data.value.virtualSuggestions?.some(v => v.key === key);
+  // Check if there's a translation in target (git file)
+  const hasGitValue = data.value.target[key] && data.value.target[key] !== '';
+  
+  // Check if there's an approved or pending translation (koro)
+  const hasApproved = data.value.approved?.some(a => a.key === key);
+  const hasPending = data.value.pending?.some(p => p.key === key);
+  
+  // Priority: Git > Koro > Need
+  if (hasVirtual || hasGitValue) {
+    return 'git';
+  } else if (hasApproved || hasPending) {
+    return 'koro';
+  }
+  return 'need';
+}
+
 function updateTranslationValue() {
   // Priority: pending (most recent user input) > approved > virtual (git) > target (git file)
   const pendingValue = pendingSuggestions.value[0]?.value ?? '';
