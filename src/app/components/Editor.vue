@@ -229,12 +229,12 @@ const sortedKeys = computed(() => {
     return keys.sort();
   }
   
-  // Default sort: no history first, then koro, then git
+  // Default sort: need (priority 0) first, then koro (priority 1), then git (priority 2)
   return keys.sort((a, b) => {
     const statusA = getKeyStatus(a);
     const statusB = getKeyStatus(b);
     
-    // Priority: 'need' < 'koro' < 'git'
+    // Priority order: need (0) < koro (1) < git (2)
     const priorityMap: Record<string, number> = {
       'need': 0,
       'koro': 1,
