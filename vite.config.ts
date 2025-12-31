@@ -8,7 +8,9 @@ import vue from '@vitejs/plugin-vue';
  * The built assets are served from the Workers static assets.
  */
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue({
+    vapor: true
+  })],
   root: 'src/app',
   build: {
     outDir: '../../dist/frontend',
