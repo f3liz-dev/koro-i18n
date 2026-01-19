@@ -1,0 +1,64 @@
+# Koro i18n Push Source Keys Workflow
+# 
+# This workflow pushes source keys to the koro-i18n platform whenever
+# translation source files are updated.
+#
+# Usage:
+# 1. Copy this file to .github/workflows/koro-push.yml in your repository
+# 2. Create a project on the koro-i18n platform
+# 3. Configure your .koro-i18n.repo.config.toml
+# 4. The workflow will run on every push that modifies translation files
+
+name: Push Source Keys
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Customize these paths to match your translation files
+      - 'locales/**'
+      - 'i18n/**'
+      - 'translations/**'
+      - 'public/locales/**'
+
+permissions:
+  contents: read
+  id-token: write  # Required for OIDC authentication
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  push-keys:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install dependencies
+        run: npm install -g @koro-i18n/client
+      
+      - name: Validate config
+        run: koro validate
+      
+      - name: Push source keys
+        run: koro push
+        env:
+          # OIDC token is automatically provided by GitHub Actions
+          # No secrets needed!
+          KORO_API_URL: ${{ vars.KORO_API_URL || 'https://koro.f3liz.workers.dev' }}
+      
+      - name: Summary
+        run: |
+          echo "### ✅ Source Keys Synced" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Source keys have been synced to the koro-i18n platform." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY

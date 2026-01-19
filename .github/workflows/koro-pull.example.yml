@@ -1,0 +1,109 @@
+# Koro i18n Pull Translations Workflow
+# 
+# This workflow pulls approved translations from the koro-i18n platform
+# and creates a pull request with the changes.
+#
+# Usage:
+# 1. Copy this file to .github/workflows/koro-pull.yml in your repository
+# 2. Create a project on the koro-i18n platform
+# 3. Configure your .koro-i18n.repo.config.toml
+# 4. The workflow will run on schedule or when manually triggered
+
+name: Pull Translations
+
+on:
+  # Run on schedule (every day at 2 AM UTC)
+  schedule:
+    - cron: '0 2 * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      create_pr:
+        description: 'Create a pull request'
+        required: false
+        default: 'true'
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write  # Required for OIDC authentication
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  pull-translations:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install dependencies
+        run: npm install -g @koro-i18n/client
+      
+      - name: Validate config
+        run: koro validate
+      
+      - name: Pull translations
+        run: koro pull
+        env:
+          # OIDC token is automatically provided by GitHub Actions
+          # No secrets needed!
+          KORO_API_URL: ${{ vars.KORO_API_URL || 'https://koro.f3liz.workers.dev' }}
+      
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "### Changed Files" >> $GITHUB_STEP_SUMMARY
+            git diff --stat >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Create Pull Request
+        if: steps.changes.outputs.has_changes == 'true' && (github.event.inputs.create_pr == 'true' || github.event_name == 'schedule')
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore(i18n): update translations'
+          title: '🌐 Update translations'
+          body: |
+            This PR contains translation updates pulled from the koro-i18n platform.
+            
+            ## Changes
+            - Approved translations have been pulled and applied
+            - Review the changes below before merging
+            
+            ---
+            _This PR was automatically created by the [koro-i18n](https://github.com/f3liz-dev/koro-i18n) workflow._
+          branch: koro-i18n/update-translations
+          delete-branch: true
+          labels: |
+            i18n
+            automated
+      
+      - name: Summary
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          echo "### ✅ Translations Updated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "A pull request has been created with the latest translations." >> $GITHUB_STEP_SUMMARY
+      
+      - name: No changes
+        if: steps.changes.outputs.has_changes == 'false'
+        run: |
+          echo "### ℹ️ No Changes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "No new translations to pull." >> $GITHUB_STEP_SUMMARY

@@ -1,19 +1,21 @@
 #!/usr/bin/env node
 
 /**
- * Koro i18n Client Library v2
+ * Koro i18n Client Library v3
  * 
- * Simplified metadata generation for translation management.
+ * CLI tool for translation management.
  * 
- * Generates a single .koro-i18n/translations.jsonl file containing:
- * - Header with project config
- * - Translation entries with source values and optional git metadata
+ * Supports:
+ * - JSON, YAML file formats
+ * - Differential sync with platform
+ * - GitHub Actions OIDC authentication
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { glob } from 'glob';
 import { execSync } from 'child_process';
+import * as yaml from 'js-yaml';
 
 // ============================================================================
 // Types
@@ -26,6 +28,10 @@ export interface KoroConfig {
   files: {
     include: string[];
     exclude?: string[];
+  };
+  project?: {
+    name: string;
+    platformUrl?: string;
   };
 }
 
@@ -103,6 +109,46 @@ function flattenObject(obj: any, prefix = ''): Record<string, string> {
     }
   }
   return result;
+}
+
+/**
+ * Parse a translation file based on its extension
+ * Supports: .json, .yaml, .yml
+ */
+function parseTranslationFile(filePath: string, content: string): Record<string, any> | null {
+  const ext = path.extname(filePath).toLowerCase();
+  
+  try {
+    switch (ext) {
+      case '.json':
+        return JSON.parse(content);
+      case '.yaml':
+      case '.yml':
+        return yaml.load(content) as Record<string, any>;
+      default:
+        console.warn(`Unsupported file format: ${ext}`);
+        return null;
+    }
+  } catch (e) {
+    console.warn(`Failed to parse ${filePath}:`, e);
+    return null;
+  }
+}
+
+/**
+ * Serialize content to file format based on extension
+ */
+function serializeTranslationContent(filePath: string, content: Record<string, any>): string {
+  const ext = path.extname(filePath).toLowerCase();
+  
+  switch (ext) {
+    case '.yaml':
+    case '.yml':
+      return yaml.dump(content, { indent: 2, lineWidth: 120 });
+    case '.json':
+    default:
+      return JSON.stringify(content, null, 2) + '\n';
+  }
 }
 
 function getCommitSha(): string {
@@ -189,44 +235,55 @@ function findKeyLine(content: string, key: string): number {
 }
 
 // ============================================================================
-// Config Loading
+// Config Loading (TOML only)
 // ============================================================================
 
+export interface TomlConfig {
+  project: {
+    name: string;
+    platform_url?: string;
+  };
+  source: {
+    language: string;
+    include: string[];
+    exclude?: string[];
+  };
+  target: {
+    languages: string[];
+  };
+}
+
 export async function loadConfig(configPath?: string): Promise<KoroConfig | null> {
-  const jsonPath = configPath || 'koro.config.json';
-  if (fs.existsSync(jsonPath)) {
-    try {
-      const content = fs.readFileSync(jsonPath, 'utf-8');
-      return JSON.parse(content) as KoroConfig;
-    } catch (e) {
-      console.error(`Error parsing ${jsonPath}:`, e);
-      return null;
-    }
+  const tomlPath = configPath || '.koro-i18n.repo.config.toml';
+  
+  if (!fs.existsSync(tomlPath)) {
+    console.error(`Config file not found: ${tomlPath}`);
+    console.error('Create a .koro-i18n.repo.config.toml file or run: npx @koro-i18n/client init');
+    return null;
   }
 
-  // Try legacy TOML config
-  const tomlPath = '.koro-i18n.repo.config.toml';
-  if (fs.existsSync(tomlPath)) {
-    try {
-      const toml = await import('toml');
-      const content = fs.readFileSync(tomlPath, 'utf-8');
-      const legacy = toml.parse(content) as any;
-      return {
-        version: 1,
-        sourceLanguage: legacy.source.language,
-        targetLanguages: legacy.target.languages,
-        files: {
-          include: legacy.source.include || legacy.source.files || ['locales/{lang}/**/*.json'],
-          exclude: legacy.source.exclude,
-        },
-      };
-    } catch (e) {
-      console.error(`Error parsing ${tomlPath}:`, e);
-      return null;
-    }
+  try {
+    const toml = await import('toml');
+    const content = fs.readFileSync(tomlPath, 'utf-8');
+    const parsed = toml.parse(content) as TomlConfig;
+    
+    return {
+      version: 1,
+      sourceLanguage: parsed.source.language,
+      targetLanguages: parsed.target.languages,
+      files: {
+        include: parsed.source.include || ['locales/{lang}/**/*.json'],
+        exclude: parsed.source.exclude,
+      },
+      project: {
+        name: parsed.project.name,
+        platformUrl: parsed.project.platform_url,
+      },
+    };
+  } catch (e) {
+    console.error(`Error parsing ${tomlPath}:`, e);
+    return null;
   }
-
-  return null;
 }
 
 // ============================================================================
@@ -344,27 +401,44 @@ export function writeManifest(lines: ManifestLine[]): void {
 // ============================================================================
 
 function commandInit(): void {
-  if (fs.existsSync('koro.config.json')) {
-    console.log('koro.config.json already exists');
+  const configPath = '.koro-i18n.repo.config.toml';
+  
+  if (fs.existsSync(configPath)) {
+    console.log(`${configPath} already exists`);
     return;
   }
 
-  const defaultConfig: KoroConfig = {
-    version: 1,
-    sourceLanguage: 'en',
-    targetLanguages: ['ja', 'es', 'fr', 'de'],
-    files: {
-      include: ['locales/{lang}/**/*.json'],
-      exclude: ['**/node_modules/**'],
-    },
-  };
+  const defaultConfig = `# Koro I18n Platform Configuration
+# This file configures how translation files are processed and synced
 
-  fs.writeFileSync('koro.config.json', JSON.stringify(defaultConfig, null, 2) + '\n');
-  console.log('✓ Created koro.config.json');
+[project]
+name = "my-project"
+platform_url = "https://koro.f3liz.workers.dev"
+
+# Source language (the language you write your app in)
+[source]
+language = "en"
+include = [
+  "locales/{lang}/**/*.json"
+]
+exclude = [
+  "**/node_modules/**"
+]
+
+# Target languages (languages you want to translate to)
+[target]
+languages = [
+  "ja", "es", "fr", "de"
+]
+`;
+
+  fs.writeFileSync(configPath, defaultConfig);
+  console.log(`✓ Created ${configPath}`);
   console.log('');
   console.log('Next steps:');
-  console.log('1. Edit koro.config.json to match your project structure');
-  console.log('2. Run: npx @koro-i18n/client generate');
+  console.log('1. Edit .koro-i18n.repo.config.toml to match your project');
+  console.log('2. Set project.name to your project name on the platform');
+  console.log('3. Run: npx @koro-i18n/client push');
 }
 
 async function commandValidate(): Promise<void> {
@@ -412,12 +486,330 @@ async function commandGenerate(): Promise<void> {
 }
 
 // ============================================================================
+// Push Command
+// ============================================================================
+
+import { KoroApiClient, computeDiff, type LocalKey } from './api-client.js';
+
+async function commandPush(): Promise<void> {
+  const config = await loadConfig();
+  if (!config) {
+    console.error('No config found. Run: npx @koro-i18n/client init');
+    process.exit(1);
+  }
+
+  if (!config.project?.name) {
+    console.error('Project name not specified in config. Add [project] section with name.');
+    process.exit(1);
+  }
+
+  console.log('🚀 Pushing source keys to platform...\n');
+
+  // Parse local source files
+  const sourceFiles = await findSourceFiles(config);
+  if (sourceFiles.length === 0) {
+    console.error('No source files found. Check files.include patterns.');
+    process.exit(1);
+  }
+
+  console.log(`📂 Found ${sourceFiles.length} source file(s)`);
+
+  // Parse local keys
+  const localKeys: LocalKey[] = [];
+  for (const filePath of sourceFiles) {
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const parsed = parseTranslationFile(filePath, content);
+      if (!parsed) continue;
+      
+      const flattened = flattenObject(parsed);
+      
+      // Normalize filename relative to project root
+      const filename = filePath.replace(/\\/g, '/');
+      
+      for (const [key, value] of Object.entries(flattened)) {
+        localKeys.push({
+          filename,
+          key,
+          value,
+          hash: hashValue(value),
+        });
+      }
+    } catch (e) {
+      console.warn(`Warning: Could not parse ${filePath}:`, e);
+    }
+  }
+
+  console.log(`🔑 Found ${localKeys.length} keys in source files`);
+
+  // Get server hash manifest
+  const client = new KoroApiClient({
+    projectName: config.project.name,
+    baseUrl: config.project.platformUrl,
+  });
+
+  let serverManifest: Record<string, Record<string, string>> = {};
+  try {
+    const hashResult = await client.getHashManifest();
+    serverManifest = hashResult.manifest;
+    console.log(`☁️  Server has ${hashResult.totalKeys} keys`);
+  } catch (e: any) {
+    console.log('☁️  Server has no existing keys (new project)');
+  }
+
+  // Compute diff
+  const operations = computeDiff(serverManifest, localKeys);
+  
+  const adds = operations.filter(o => o.op === 'add').length;
+  const updates = operations.filter(o => o.op === 'update').length;
+  const deletes = operations.filter(o => o.op === 'delete').length;
+
+  if (operations.length === 0) {
+    console.log('\n✅ No changes detected. Keys are up to date.');
+    return;
+  }
+
+  console.log(`\n📊 Changes: +${adds} added, ~${updates} updated, -${deletes} deleted`);
+
+  // Sync to server
+  const commitSha = getCommitSha();
+  const result = await client.syncSourceKeys(operations, commitSha);
+
+  if (!result.success) {
+    console.error('❌ Sync failed:', result.error);
+    process.exit(1);
+  }
+
+  console.log('✅ Source keys synced successfully!');
+  if (result.results?.errors.length) {
+    console.warn('⚠️  Some errors occurred:', result.results.errors);
+  }
+
+  // Import existing translations (default behavior)
+  const translationFiles = await findTranslationFiles(config);
+  const nonSourceFiles = translationFiles.filter(f => !sourceFiles.includes(f));
+  
+  if (nonSourceFiles.length > 0) {
+    console.log(`\n📥 Importing ${nonSourceFiles.length} translation file(s)...`);
+    
+    const translations: Array<{
+      language: string;
+      filename: string;
+      key: string;
+      value: string;
+      hash?: string;
+    }> = [];
+
+    for (const filePath of nonSourceFiles) {
+      const language = extractLanguageFromPath(filePath, config);
+      if (!language) continue;
+
+      try {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const parsed = JSON.parse(content);
+        const flattened = flattenObject(parsed);
+        const filename = filePath.replace(/\\/g, '/');
+
+        for (const [key, value] of Object.entries(flattened)) {
+          // Find corresponding source hash
+          const sourceKey = localKeys.find(k => k.key === key);
+          translations.push({
+            language,
+            filename,
+            key,
+            value,
+            hash: sourceKey?.hash,
+          });
+        }
+      } catch (e) {
+        console.warn(`Warning: Could not parse ${filePath}:`, e);
+      }
+    }
+
+    if (translations.length > 0) {
+      const importResult = await client.importTranslations(translations, true);
+      if (importResult.success) {
+        console.log(`✅ Imported ${importResult.results?.imported || 0} translations`);
+        if (importResult.results?.skipped) {
+          console.log(`   (${importResult.results.skipped} skipped - already exist)`);
+        }
+      } else {
+        console.warn('⚠️  Import failed:', importResult.error);
+      }
+    }
+  }
+
+  console.log('\n✨ Push complete!');
+}
+
+// ============================================================================
+// Pull Command
+// ============================================================================
+
+async function commandPull(): Promise<void> {
+  const config = await loadConfig();
+  if (!config) {
+    console.error('No config found. Run: npx @koro-i18n/client init');
+    process.exit(1);
+  }
+
+  if (!config.project?.name) {
+    console.error('Project name not specified in config. Add [project] section with name.');
+    process.exit(1);
+  }
+
+  console.log('📥 Pulling approved translations...\n');
+
+  const client = new KoroApiClient({
+    projectName: config.project.name,
+    baseUrl: config.project.platformUrl,
+  });
+
+  const result = await client.pullTranslations({ status: 'approved' });
+  
+  if (!result.success) {
+    console.error('❌ Pull failed:', result.error);
+    process.exit(1);
+  }
+
+  if (result.translations.length === 0) {
+    console.log('ℹ️  No approved translations to pull.');
+    return;
+  }
+
+  console.log(`📦 Received ${result.translations.length} translations`);
+
+  // Group by filename
+  const fileGroups = new Map<string, Map<string, string>>();
+  for (const t of result.translations) {
+    const key = `${t.language}:${t.filename}`;
+    if (!fileGroups.has(key)) {
+      fileGroups.set(key, new Map());
+    }
+    fileGroups.get(key)!.set(t.key, t.value);
+  }
+
+  // Write files
+  let filesWritten = 0;
+  for (const [key, translations] of fileGroups) {
+    const [language, filename] = key.split(':');
+    
+    // Build nested object from flat keys
+    const nested: Record<string, any> = {};
+    for (const [flatKey, value] of translations) {
+      setNestedValue(nested, flatKey, value);
+    }
+
+    // Determine output path
+    const outputPath = determineOutputPath(filename, language, config);
+    
+    // Ensure directory exists
+    const dir = path.dirname(outputPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    // Merge with existing file if present
+    let finalContent = nested;
+    if (fs.existsSync(outputPath)) {
+      try {
+        const existingContent = fs.readFileSync(outputPath, 'utf-8');
+        const existing = parseTranslationFile(outputPath, existingContent);
+        if (existing) {
+          finalContent = deepMerge(existing, nested);
+        }
+      } catch {
+        // Use new content if can't parse existing
+      }
+    }
+
+    fs.writeFileSync(outputPath, serializeTranslationContent(outputPath, finalContent));
+    console.log(`  ✓ ${outputPath}`);
+    filesWritten++;
+  }
+
+  console.log(`\n✨ Pulled ${result.translations.length} translations to ${filesWritten} file(s)`);
+}
+
+// ============================================================================
+// Helper Functions for Push/Pull
+// ============================================================================
+
+async function findSourceFiles(config: KoroConfig): Promise<string[]> {
+  const files: string[] = [];
+  
+  for (const pattern of config.files.include) {
+    const globPattern = pattern.replace(/\{lang\}/g, config.sourceLanguage);
+    const matches = await glob(globPattern, {
+      ignore: config.files.exclude || [],
+    });
+    files.push(...matches);
+  }
+
+  return [...new Set(files)];
+}
+
+function extractLanguageFromPath(filePath: string, config: KoroConfig): string | null {
+  const allLanguages = [config.sourceLanguage, ...config.targetLanguages];
+  for (const lang of allLanguages) {
+    if (filePath.includes(`/${lang}/`) || filePath.includes(`/${lang}.json`) || 
+        filePath.includes(`\\${lang}\\`) || filePath.includes(`\\${lang}.json`)) {
+      return lang;
+    }
+  }
+  return null;
+}
+
+function setNestedValue(obj: Record<string, any>, flatKey: string, value: string): void {
+  const parts = flatKey.split('.');
+  let current = obj;
+  
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (!(part in current)) {
+      current[part] = {};
+    }
+    current = current[part];
+  }
+  
+  current[parts[parts.length - 1]] = value;
+}
+
+function deepMerge(target: Record<string, any>, source: Record<string, any>): Record<string, any> {
+  const result = { ...target };
+  
+  for (const key of Object.keys(source)) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      result[key] = deepMerge(result[key] || {}, source[key]);
+    } else {
+      result[key] = source[key];
+    }
+  }
+  
+  return result;
+}
+
+function determineOutputPath(filename: string, language: string, config: KoroConfig): string {
+  // Replace source language in path with target language
+  let outputPath = filename.replace(config.sourceLanguage, language);
+  
+  // If no change, append language suffix
+  if (outputPath === filename) {
+    const ext = path.extname(filename);
+    const base = filename.slice(0, -ext.length);
+    outputPath = `${base}.${language}${ext}`;
+  }
+  
+  return outputPath;
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const command = args[0] || 'generate';
+  const command = args[0] || 'help';
 
   switch (command) {
     case 'init':
@@ -429,20 +821,32 @@ async function main(): Promise<void> {
     case 'generate':
       await commandGenerate();
       break;
+    case 'push':
+      await commandPush();
+      break;
+    case 'pull':
+      await commandPull();
+      break;
     case 'help':
     case '--help':
     case '-h':
-      console.log('Koro i18n Client v2');
+      console.log('Koro i18n CLI v3');
       console.log('');
       console.log('Commands:');
-      console.log('  init      Create a koro.config.json file');
+      console.log('  init      Create a .koro-i18n.repo.config.toml file');
       console.log('  validate  Validate config and find translation files');
-      console.log('  generate  Generate translation manifest (default)');
+      console.log('  push      Sync source keys to platform (default imports translations)');
+      console.log('  pull      Download approved translations');
+      console.log('  generate  Generate translation manifest (legacy)');
       console.log('');
       console.log('Usage:');
       console.log('  npx @koro-i18n/client init');
-      console.log('  npx @koro-i18n/client validate');
-      console.log('  npx @koro-i18n/client generate');
+      console.log('  npx @koro-i18n/client push');
+      console.log('  npx @koro-i18n/client pull');
+      console.log('');
+      console.log('Environment:');
+      console.log('  KORO_API_URL   Platform URL (default: https://koro.f3liz.workers.dev)');
+      console.log('  KORO_TOKEN     Authentication token');
       break;
     default:
       console.error(`Unknown command: ${command}`);

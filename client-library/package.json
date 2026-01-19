@@ -1,10 +1,11 @@
 {
   "name": "@koro-i18n/client",
-  "version": "2.0.0",
-  "description": "Koro i18n CLI - Simple translation management",
+  "version": "3.0.0",
+  "description": "Koro i18n CLI - Translation management with differential sync",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
+    "koro": "./dist/cli.js",
     "koro-i18n": "./dist/cli.js"
   },
   "scripts": {
@@ -17,15 +18,18 @@
     "i18n",
     "internationalization",
     "translation",
-    "koro"
+    "koro",
+    "localization"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "glob": "^10.3.10",
+    "js-yaml": "^4.1.0",
     "toml": "^3.0.0"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.0.0",
     "rolldown": "^1.0.0-beta.50",
     "typescript": "^5.0.0"

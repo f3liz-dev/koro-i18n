@@ -24,6 +24,7 @@ model User {
   // Relations
   projects              Project[]
   webTranslations       WebTranslation[]
+  approvedTranslations  WebTranslation[]      @relation("ApprovedBy")
   webTranslationHistory WebTranslationHistory[]
   projectMemberships    ProjectMember[]
   addedMembers          ProjectMember[] @relation("AddedBy")
@@ -38,6 +39,26 @@ model OauthState {
   expiresAt DateTime
 
   @@index([expiresAt])
+}
+
+// Source Keys (synced via koro push)
+// This is the Source of Record for keys - stored in D1 for fast access
+model SourceKey {
+  id          String   @id
+  projectId   String
+  filename    String   // e.g., "settings/en-US.json"
+  key         String   // Flattened key: "header.title"
+  value       String   // Source value
+  hash        String   // Hash for change detection (16 chars)
+  context     String?  // Optional context for translators (future)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@unique([projectId, filename, key])
+  @@index([projectId])
+  @@index([projectId, filename])
+  @@index([hash])
 }
 
 // R2 File Index (GitHub imports - mutable, stored in R2)
@@ -85,7 +106,13 @@ model WebTranslation {
   key             String   // Flattened key (e.g., "common.welcome")
   value           String
   userId          String
-  status          String   @default("pending") // pending, approved, rejected, deleted
+  
+  // Workflow: draft (working) -> approved (ready for export)
+  status          String   @default("draft") // draft, approved
+  
+  // Approval tracking
+  approvedById    String?  // Who approved (null = self-approved or not yet approved)
+  approvedAt      DateTime? // When approved
   
   // Source tracking (for validation)
   sourceHash      String?  // Hash of source value when translated (for detecting changes)
@@ -95,9 +122,11 @@ model WebTranslation {
   updatedAt       DateTime @default(now()) @updatedAt
 
   // Relations
-  user    User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  history WebTranslationHistory[]
+  user       User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approvedBy User?                     @relation("ApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  history    WebTranslationHistory[]
 
+  @@unique([projectId, language, filename, key]) // One translation per key per language
   @@index([projectId, language, filename])
   @@index([status])
   @@index([projectId, language, filename, key])
@@ -152,12 +181,25 @@ model Project {
 }
 
 // Project members (users who have access to a project)
+// Crowdin-like 4-tier permission system
 model ProjectMember {
   id        String   @id
   projectId String
   userId    String
   status    String   @default("pending") // 'pending', 'approved', 'rejected'
-  role      String   @default("member")  // 'owner', 'member'
+  
+  // Role determines permission level:
+  // - owner: Full control, can delete project
+  // - manager: Manage members, settings, all languages
+  // - proofreader: Translate + approve for assigned languages (can self-approve)
+  // - translator: Translate only for assigned languages
+  role      String   @default("translator")
+  
+  // Language permissions (JSON array or null for all)
+  // Example: ["ja", "ko", "zh-CN"] - only these languages
+  // null = all languages (for owner/manager or unrestricted translator)
+  languages String?
+  
   addedBy   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
@@ -171,4 +213,6 @@ model ProjectMember {
   @@index([projectId])
   @@index([userId])
   @@index([projectId, status])
+  @@index([projectId, role])
 }
+

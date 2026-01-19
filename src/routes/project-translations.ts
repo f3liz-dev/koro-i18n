@@ -20,6 +20,7 @@ import { getUserGitHubToken, fetchSingleFileFromGitHub, fetchGeneratedManifest }
 import { ensureUserCanModerateTranslation } from '../lib/translation-access';
 import type { Env, AppEnv, AuthUser, ProjectContext } from '../lib/context';
 import { CreateTranslationSchema, validateJson } from '../lib/schemas';
+import { canTranslate, canApprove, parseLanguages, type MemberContext } from '../lib/permissions';
 
 // ============================================================================
 // Helper Types and Functions
@@ -80,6 +81,28 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
     const { user, project } = getContext(c);
     const { language, filename, key, value } = c.req.valid('json');
 
+    // Check user has permission to translate this language
+    const member = await prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: { projectId: project.id, userId: user.userId },
+        status: 'approved',
+      },
+    });
+
+    if (!member) {
+      return c.json({ error: 'Not a project member' }, 403);
+    }
+
+    const memberCtx: MemberContext = {
+      role: member.role as any,
+      languages: parseLanguages(member.languages),
+      userId: user.userId,
+    };
+
+    if (!canTranslate(memberCtx, language)) {
+      return c.json({ error: `No permission to translate ${language}` }, 403);
+    }
+
     // Get source hash and current repository value from GitHub for validation
     let sourceHash: string | undefined;
     let repositoryValue: string | undefined;
@@ -121,6 +144,52 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
     }
 
     const id = crypto.randomUUID();
+    
+    // Use upsert to handle unique constraint - one translation per key per language
+    const existing = await prisma.webTranslation.findUnique({
+      where: {
+        projectId_language_filename_key: {
+          projectId: project.id,
+          language,
+          filename,
+          key,
+        },
+      },
+    });
+
+    if (existing) {
+      // Update existing translation
+      await prisma.webTranslation.update({
+        where: { id: existing.id },
+        data: {
+          value,
+          userId: user.userId,
+          status: 'draft', // Reset to draft on update
+          sourceHash,
+          isValid: true,
+          updatedAt: new Date(),
+        },
+      });
+
+      await prisma.webTranslationHistory.create({
+        data: {
+          id: crypto.randomUUID(),
+          translationId: existing.id,
+          projectId: project.id,
+          language,
+          filename,
+          key,
+          value,
+          userId: user.userId,
+          action: 'submitted',
+          sourceHash,
+        },
+      });
+
+      return c.json({ success: true, id: existing.id, updated: true });
+    }
+
+    // Create new translation with 'draft' status
     await prisma.webTranslation.create({
       data: {
         id,
@@ -130,7 +199,7 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
         key,
         value,
         userId: user.userId,
-        status: 'pending',
+        status: 'draft', // New workflow: draft -> approved
         sourceHash,
         isValid: true,
       },
@@ -542,7 +611,7 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
   });
 
   /**
-   * Approve or reject a translation
+   * Approve or revert a translation to draft
    */
   app.patch('/:id', async (c) => {
     const { user, project } = getContext(c);
@@ -550,8 +619,8 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
     const body = await c.req.json();
     const status = body?.status;
     
-    if (!['approved', 'rejected'].includes(status)) {
-      return c.json({ error: 'Invalid status' }, 400);
+    if (!['approved', 'draft'].includes(status)) {
+      return c.json({ error: 'Invalid status. Use "approved" or "draft"' }, 400);
     }
 
     const translation = await prisma.webTranslation.findUnique({ where: { id } });
@@ -559,30 +628,37 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
       return c.json({ error: 'Not found' }, 404);
     }
 
-    try {
-      await ensureUserCanModerateTranslation(prisma, translation.projectId, user);
-    } catch (_) {
-      // Expected error when user doesn't have moderation permissions
-      return c.json({ error: 'Forbidden' }, 403);
+    // Check permission to approve
+    const member = await prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: { projectId: project.id, userId: user.userId },
+        status: 'approved',
+      },
+    });
+
+    if (!member) {
+      return c.json({ error: 'Not a project member' }, 403);
     }
 
-    // When approving, reject other translations for the same key
-    if (status === 'approved') {
-      await prisma.webTranslation.updateMany({
-        where: {
-          projectId: translation.projectId,
-          language: translation.language,
-          key: translation.key,
-          id: { not: translation.id },
-          status: { in: ['pending', 'approved'] },
-        },
-        data: { status: 'rejected' },
-      });
+    const memberCtx: MemberContext = {
+      role: member.role as any,
+      languages: parseLanguages(member.languages),
+      userId: user.userId,
+    };
+
+    // Only proofreader+ can approve
+    if (status === 'approved' && !canApprove(memberCtx, translation.language)) {
+      return c.json({ error: `No permission to approve ${translation.language}` }, 403);
     }
 
     const updated = await prisma.webTranslation.update({ 
       where: { id }, 
-      data: { status } 
+      data: { 
+        status,
+        approvedById: status === 'approved' ? user.userId : null,
+        approvedAt: status === 'approved' ? new Date() : null,
+        updatedAt: new Date(),
+      } 
     });
     
     await prisma.webTranslationHistory.create({
@@ -595,7 +671,7 @@ export function createProjectTranslationRoutes(prisma: PrismaClient, _env: Env) 
         key: updated.key,
         value: updated.value,
         userId: user.userId,
-        action: status === 'approved' ? 'approved' : 'rejected',
+        action: status === 'approved' ? 'approved' : 'reverted',
         sourceHash: updated.sourceHash,
       },
     });

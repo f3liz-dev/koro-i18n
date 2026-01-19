@@ -2,7 +2,7 @@
  * Project routes
  * 
  * Handles project CRUD, member management, and mounts sub-routes for
- * files, translations, and apply operations
+ * files, translations, source-keys, and apply operations
  */
 import { Hono } from 'hono';
 import { PrismaClient } from '../generated/prisma/';
@@ -10,6 +10,7 @@ import { authMiddleware } from '../lib/auth';
 import { createFileRoutes } from './files';
 import { createProjectTranslationRoutes } from './project-translations';
 import { createApplyRoutes } from './apply';
+import { createSourceKeysRoutes } from './source-keys';
 import { CACHE_CONFIGS, buildCacheControl } from '../lib/cache-headers';
 import { generateProjectsETag, checkETagMatch, create304Response } from '../lib/etag-db';
 import type { Env, AppEnv } from '../lib/context';
@@ -17,8 +18,17 @@ import {
   CreateProjectSchema, 
   UpdateProjectSchema, 
   ApproveMemberSchema,
+  UpdateMemberRoleSchema,
+  InviteMemberSchema,
   validateJson,
 } from '../lib/schemas';
+import {
+  canManageMembers,
+  canAssignRole,
+  parseLanguages,
+  serializeLanguages,
+  type Role,
+} from '../lib/permissions';
 
 export function createProjectRoutes(prisma: PrismaClient, env: Env) {
   const app = new Hono<AppEnv>();
@@ -30,6 +40,7 @@ export function createProjectRoutes(prisma: PrismaClient, env: Env) {
   app.route('/:projectName/files', createFileRoutes(prisma, env));
   app.route('/:projectName/translations', createProjectTranslationRoutes(prisma, env));
   app.route('/:projectName/apply', createApplyRoutes(prisma, env));
+  app.route('/:projectName/source-keys', createSourceKeysRoutes(prisma, env));
 
   // ============================================================================
   // Project CRUD
