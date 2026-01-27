@@ -1,0 +1,31 @@
+name: Pull Translations
+
+# This workflow only pulls approved translations from the platform
+# Use this on a schedule to regularly update your repository
+# with approved translations
+
+on:
+  schedule:
+    # Pull translations every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write    # Required for OIDC authentication
+      contents: write    # Required to commit translation changes
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Pull translations
+        uses: f3liz-dev/koro-i18n/.github/actions/sync@main
+        with:
+          project-name: 'your-project-name'  # Change this to your project name
+          platform-url: 'https://koro.f3liz.workers.dev'
+          action: 'pull'
+          commit-changes: 'true'
+          commit-message: 'chore: pull translations from Koro i18n'

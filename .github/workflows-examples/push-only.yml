@@ -1,0 +1,33 @@
+name: Push Source Keys
+
+# This workflow only pushes source language keys to the platform
+# Use this when you want to update the platform with new keys
+# without pulling translations back
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'locales/en/**'  # Adjust to your source language path
+  workflow_dispatch:
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write    # Required for OIDC authentication
+      contents: read
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for git blame
+      
+      - name: Push source keys
+        uses: f3liz-dev/koro-i18n/.github/actions/sync@main
+        with:
+          project-name: 'your-project-name'  # Change this to your project name
+          platform-url: 'https://koro.f3liz.workers.dev'
+          action: 'push'
+          commit-changes: 'false'  # Don't commit anything

@@ -80,10 +80,13 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
    */
   app.get('/github', async (c) => {
     const state = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    await prisma.oauthState.create({
-      data: { state, timestamp: Date.now(), expiresAt },
+    // Store state in Durable Object instead of D1
+    const id = env.OAUTH_STATE.idFromName(state);
+    const stub = env.OAUTH_STATE.get(id);
+    await stub.fetch('http://do/create', {
+      method: 'POST',
+      body: JSON.stringify({ state, expiresInMs: 600000 }), // 10 minutes
     });
 
     // No scope = read-only access to public information only
@@ -107,15 +110,19 @@ export function createAuthRoutes(prisma: PrismaClient, env: Env) {
       return c.json({ error: 'Missing code or state' }, 400);
     }
 
-    const stateData = await prisma.oauthState.findFirst({
-      where: { state, expiresAt: { gt: new Date() } },
+    // Verify state using Durable Object
+    const id = env.OAUTH_STATE.idFromName(state);
+    const stub = env.OAUTH_STATE.get(id);
+    const verifyResponse = await stub.fetch('http://do/verify', {
+      method: 'POST',
+      body: JSON.stringify({ state }),
     });
+
+    const { valid } = await verifyResponse.json() as { valid: boolean };
     
-    if (!stateData) {
+    if (!valid) {
       return c.json({ error: 'Invalid or expired OAuth state' }, 400);
     }
-
-    await prisma.oauthState.delete({ where: { state } });
 
     try {
       const auth = await oauth({ type: 'oauth-user', code, state });

@@ -31,16 +31,11 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
       with:
-        version: 9
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm'
+        ruby-version: '3.2'
+        bundler-cache: false
 
     - name: Check for config file
       id: check-config
@@ -74,13 +69,10 @@ runs:
         fi
         
         cd "$CLIENT_LIB_PATH"
-        pnpm install
-        pnpm run build
+        gem build koro_i18n.gemspec
+        gem install ./koro_i18n-*.gem
         
-        # Export the CLI path for subsequent steps
-        CLI_PATH="$CLIENT_LIB_PATH/dist/cli.js"
-        echo "cli-path=$CLI_PATH" >> $GITHUB_OUTPUT
-        echo "✓ koro-i18n client installed and built at $CLI_PATH"
+        echo "✓ koro-i18n client installed"
 
     - name: Generate metadata
       id: generate
@@ -89,16 +81,15 @@ runs:
       env:
         CONFIG_PATH: ${{ inputs.config-path }}
         GITHUB_REPOSITORY: ${{ github.repository }}
-        CLI_PATH: ${{ steps.install-client.outputs.cli-path }}
       run: |
         # Run the koro-i18n client to generate metadata
-        node "$CLI_PATH" "$CONFIG_PATH"
+        koro generate
         
-        METADATA_PATH=".koro-i18n/koro-i18n.repo.generated.jsonl"
+        METADATA_PATH=".koro-i18n/translations.jsonl"
         
         if [ -f "$METADATA_PATH" ]; then
-          # Count files from JSONL header line
-          FILES_COUNT=$(node -e "const fs=require('fs');const lines=fs.readFileSync('$METADATA_PATH','utf-8').trim().split('\n');const header=JSON.parse(lines[0]);console.log(header.totalFiles)")
+          # Count file entries from JSONL
+          FILES_COUNT=$(grep -c '"type":"file"' "$METADATA_PATH" || echo "0")
           echo "metadata-path=$METADATA_PATH" >> $GITHUB_OUTPUT
           echo "files-count=$FILES_COUNT" >> $GITHUB_OUTPUT
           echo "✓ Metadata generated with $FILES_COUNT files"
@@ -118,22 +109,8 @@ runs:
         git config user.email "github-actions[bot]@users.noreply.github.com"
 
         # Check if .koro-i18n directory exists and has the generated JSONL manifest
-        if [ -f ".koro-i18n/koro-i18n.repo.generated.jsonl" ]; then
-          git add .koro-i18n/koro-i18n.repo.generated.jsonl
-          
-          # Also add progress-translated JSONL files if they exist
-          if [ -d ".koro-i18n/progress-translated" ]; then
-            git add .koro-i18n/progress-translated/
-          fi
-          
-          # Also add store JSONL files if they exist
-          if [ -d ".koro-i18n/store" ]; then
-            git add .koro-i18n/store/
-          fi
-
-          if [ -d ".koro-i18n/source" ]; then
-            git add .koro-i18n/source/
-          fi
+        if [ -f ".koro-i18n/translations.jsonl" ]; then
+          git add .koro-i18n/translations.jsonl
 
           # Check if there are changes to commit
           if git diff --staged --quiet; then

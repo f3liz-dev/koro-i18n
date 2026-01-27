@@ -1,0 +1,32 @@
+name: Generate Metadata
+
+# This workflow generates translation metadata for legacy workflows
+# Only use this if you need the legacy .koro-i18n/translations.jsonl file
+# Most users should use the sync action instead
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'locales/**'
+      - '.koro-i18n.repo.config.toml'
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for git blame
+      
+      - name: Generate metadata
+        uses: f3liz-dev/koro-i18n/.github/actions/generate-metadata@main
+        with:
+          config-path: '.koro-i18n.repo.config.toml'
+          commit-changes: 'true'
+          commit-message: 'chore: update koro-i18n metadata [skip ci]'

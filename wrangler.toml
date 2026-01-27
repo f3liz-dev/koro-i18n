@@ -23,6 +23,26 @@ binding = "DB"
 database_name = "koro-i18n-db"
 database_id = "bed11b2a-88f2-4a83-b0f3-f77ab3ca1050"
 
+# Durable Objects Configuration
+[[durable_objects.bindings]]
+name = "OAUTH_STATE"
+class_name = "OAuthStateDO"
+script_name = "koro"
+
+[[durable_objects.bindings]]
+name = "JWKS_CACHE"
+class_name = "JWKSCacheDO"
+script_name = "koro"
+
+[[durable_objects.bindings]]
+name = "GITHUB_RATE_LIMIT"
+class_name = "GitHubRateLimitDO"
+script_name = "koro"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["OAuthStateDO", "JWKSCacheDO", "GitHubRateLimitDO"]
+
 # # Development Environment
 # [env.development]
 # name = "i18n-platform-dev"

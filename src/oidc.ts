@@ -11,58 +11,37 @@ export interface GitHubOIDCToken {
   run_id: string;
 }
 
-// Cache for JWKS to avoid repeated fetches
-let jwksCache: { keys: JWK[], timestamp: number } | null = null;
-const CACHE_TTL = 3600000; // 1 hour in milliseconds
-
-// Export function to clear cache (mainly for testing)
-export function clearJWKSCache() {
-  jwksCache = null;
-}
-
-async function fetchGitHubJWKS(): Promise<{ keys: JWK[] }> {
-  // Return cached JWKS if still valid
-  if (jwksCache && Date.now() - jwksCache.timestamp < CACHE_TTL) {
-    return jwksCache;
-  }
-
-  const response = await fetch('https://token.actions.githubusercontent.com/.well-known/jwks');
-  if (!response.ok) {
-    throw new Error(`Failed to fetch JWKS: ${response.statusText}`);
-  }
+/**
+ * Find matching key from JWKS using Durable Object cache
+ */
+async function findMatchingKey(
+  kid: string | undefined, 
+  alg: string,
+  jwksCacheNamespace: DurableObjectNamespace
+): Promise<JWK> {
+  // Use singleton Durable Object for JWKS cache
+  const id = jwksCacheNamespace.idFromName('github-jwks');
+  const stub = jwksCacheNamespace.get(id);
   
-  const jwks = await response.json() as { keys: JWK[] };
-  
-  // Cache the JWKS
-  jwksCache = {
-    keys: jwks.keys,
-    timestamp: Date.now()
-  };
-  
-  return jwks;
-}
-
-async function findMatchingKey(kid: string | undefined, alg: string): Promise<JWK> {
-  const jwks = await fetchGitHubJWKS();
-  
-  // Find key by kid (Key ID) and alg (Algorithm)
-  const key = jwks.keys.find(k => {
-    if (kid && k.kid !== kid) return false;
-    if (k.alg && k.alg !== alg) return false;
-    return true;
+  const response = await stub.fetch('http://do/find', {
+    method: 'POST',
+    body: JSON.stringify({ kid, alg }),
   });
-  
-  if (!key) {
-    throw new Error(`No matching key found for kid: ${kid}, alg: ${alg}`);
+
+  if (!response.ok) {
+    const error = await response.json() as { error: string };
+    throw new Error(error.error);
   }
-  
+
+  const { key } = await response.json() as { key: JWK };
   return key;
 }
 
 export async function verifyGitHubOIDCToken(
   token: string,
   expectedAudience?: string,
-  expectedRepo?: string
+  expectedRepo?: string,
+  jwksCacheNamespace?: DurableObjectNamespace
 ): Promise<GitHubOIDCToken> {
   try {
     // Decode the header to get kid and alg
@@ -74,7 +53,27 @@ export async function verifyGitHubOIDCToken(
     }
     
     // Find the matching key from JWKS
-    const jwk = await findMatchingKey(kid, alg);
+    let jwk: JWK;
+    if (jwksCacheNamespace) {
+      // Use Durable Object cache (preferred in production)
+      jwk = await findMatchingKey(kid, alg, jwksCacheNamespace);
+    } else {
+      // Fallback: fetch directly from GitHub (for testing/dev without DO)
+      const response = await fetch('https://token.actions.githubusercontent.com/.well-known/jwks');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch JWKS: ${response.statusText}`);
+      }
+      const jwks = await response.json() as { keys: JWK[] };
+      const key = jwks.keys.find(k => {
+        if (kid && k.kid !== kid) return false;
+        if (k.alg && k.alg !== alg) return false;
+        return true;
+      });
+      if (!key) {
+        throw new Error(`No matching key found for kid: ${kid}, alg: ${alg}`);
+      }
+      jwk = key;
+    }
     
     const verifyOptions: any = {
       issuer: 'https://token.actions.githubusercontent.com',

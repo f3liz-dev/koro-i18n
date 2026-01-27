@@ -1,88 +1,112 @@
-# Koro i18n Client
+# Koro i18n Ruby Client
 
-CLI for managing translations with the Koro i18n platform.
+Ruby CLI for managing translations with the Koro i18n platform.
+
+## Installation
+
+```bash
+gem install koro_i18n
+```
+
+Or add to your Gemfile:
+
+```ruby
+gem 'koro_i18n'
+```
 
 ## Quick Start
 
 ```bash
 # Initialize config
-npx @koro-i18n/client init
+koro init
 
 # Validate config and find translation files
-npx @koro-i18n/client validate
+koro validate
 
-# Generate metadata (for GitHub Action preprocessing)
-npx @koro-i18n/client generate
+# Push source keys to platform
+koro push
+
+# Pull approved translations
+koro pull
 ```
 
 ## Configuration
 
-Create `koro.config.json` in your repository root:
-
-```json
-{
-  "version": 1,
-  "sourceLanguage": "en",
-  "targetLanguages": ["ja", "es", "fr", "de"],
-  "files": {
-    "include": ["locales/{lang}/**/*.json"],
-    "exclude": ["**/node_modules/**"]
-  }
-}
-```
-
-### Legacy TOML Config
-
-The CLI also supports the legacy `.koro-i18n.repo.config.toml` format:
+Create `.koro-i18n.repo.config.toml` in your repository root:
 
 ```toml
 [project]
 name = "my-project"
+platform_url = "https://koro.f3liz.workers.dev"
 
 [source]
 language = "en"
-include = ["locales/{lang}/**/*.json"]
+include = [
+  "locales/{lang}/**/*.json"
+]
+exclude = [
+  "**/node_modules/**"
+]
 
 [target]
-languages = ["ja", "es", "fr"]
+languages = ["ja", "es", "fr", "de"]
 ```
 
 ## Commands
 
 ### `init`
-Create a new `koro.config.json` file with sensible defaults.
+Create a new `.koro-i18n.repo.config.toml` file with sensible defaults.
 
 ### `validate`
 Validate your config and list all translation files found.
 
+### `push`
+Sync source keys to the platform and optionally import existing translations.
+
+### `pull`
+Download approved translations from the platform and write to local files.
+
 ### `generate`
-Generate the `.koro-i18n/` metadata files that the platform reads. This is typically run by the GitHub Action, not manually.
+Generate the `.koro-i18n/` metadata files (legacy command).
 
-## GitHub Action Integration
+## Supported File Formats
 
-The recommended way to use this is through the sync action:
+- **JSON** (`.json`)
+- **YAML** (`.yaml`, `.yml`)
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `KORO_API_URL` | Platform URL | `https://koro.f3liz.workers.dev` |
+| `KORO_TOKEN` | Authentication token | - |
+
+## GitHub Actions Integration
+
+The CLI supports GitHub Actions OIDC authentication automatically when running in GitHub Actions.
 
 ```yaml
-- uses: f3liz-dev/koro-i18n/.github/actions/sync@main
+- uses: ruby/setup-ruby@v1
   with:
-    project-name: my-project
+    ruby-version: '3.2'
+    bundler-cache: true
+
+- name: Push translations
+  run: bundle exec koro push
 ```
 
-This will automatically:
-1. Run the CLI to generate metadata
-2. Commit the metadata to your repository
-3. Pull approved translations from the platform
+## Development
 
-## Generated Files
+```bash
+# Install dependencies
+bundle install
 
-The CLI generates these files in `.koro-i18n/`:
+# Run tests
+bundle exec rspec
 
-- `koro-i18n.repo.generated.jsonl` - Manifest listing all translation files
-- `store/{lang}.jsonl` - Translation status for each target language
-- `source/{lang}.jsonl` - Source keys and positions
-- `progress-translated/{lang}.jsonl` - Translation progress
-
-These files should be committed to your repository. The platform reads them directly from GitHub.
+# Run linter
+bundle exec rubocop
+```
 
 ## License
 

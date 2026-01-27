@@ -8,6 +8,11 @@ import { CACHE_CONFIGS, buildCacheControl } from './lib/cache-headers';
 import { etagMiddleware } from './lib/etag-middleware';
 import type { Env } from './lib/context';
 
+// Export Durable Objects
+export { OAuthStateDO } from './durable-objects/OAuthStateDO';
+export { JWKSCacheDO } from './durable-objects/JWKSCacheDO';
+export { GitHubRateLimitDO } from './durable-objects/GitHubRateLimitDO';
+
 // Re-export the Env type for backwards compatibility
 export type { Env } from './lib/context';
 
@@ -74,13 +79,11 @@ async function serveStatic(request: Request, env: Env): Promise<Response> {
   }
 
   try {
-    // @ts-ignore
-    const asset = await env.ASSETS.fetch(new URL(path, request.url));
+    const asset = await env.ASSETS!.fetch(new URL(path, request.url));
     return asset;
   } catch {
     try {
-      // @ts-ignore
-      return await env.ASSETS.fetch(new URL('/index.html', request.url));
+      return await env.ASSETS!.fetch(new URL('/index.html', request.url));
     } catch {
       return new Response('Not Found', { status: 404 });
     }

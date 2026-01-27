@@ -79,7 +79,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       // We don't know the repository yet, so we can't validate it here strictly against a project
       // But we verify the token is valid from GitHub.
       // The route handler should check if the repository matches the project.
-      const oidc = await verifyGitHubOIDCToken(token, platformUrl);
+      const oidc = await verifyGitHubOIDCToken(token, platformUrl, undefined, c.env.JWKS_CACHE);
       payload = {
         userId: 'oidc-user',
         username: oidc.actor,

@@ -19,6 +19,11 @@ export interface Env {
   DB: D1Database;
   ASSETS?: Fetcher;
   
+  // Durable Objects
+  OAUTH_STATE: DurableObjectNamespace;
+  JWKS_CACHE: DurableObjectNamespace;
+  GITHUB_RATE_LIMIT: DurableObjectNamespace;
+  
   // Secrets
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;

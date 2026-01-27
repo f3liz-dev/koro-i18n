@@ -215,9 +215,9 @@ runs:
         # Build commit message
         if [ -n "$CO_AUTHORS" ]; then
           echo "✓ Adding $(echo "$CO_AUTHORS" | wc -l) co-author(s)"
-          COMMIT_MSG="$COMMIT_MESSAGE
+          COMMIT_MSG="${COMMIT_MESSAGE}
 
-$CO_AUTHORS"
+${CO_AUTHORS}"
         else
           COMMIT_MSG="$COMMIT_MESSAGE"
         fi
