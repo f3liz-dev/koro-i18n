@@ -29,7 +29,12 @@ export interface FileEntry {
 
 export async function fetchProjectFiles(projectName: string, language?: string): Promise<FileEntry[]> {
   const qs = language ? `?language=${encodeURIComponent(language)}` : '';
-  const res = await fetch(`/api/projects/${encodeURIComponent(projectName)}/files${qs}`, { credentials: 'include' });
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectName)}/files${qs}`, { 
+    credentials: 'include',
+    headers: {
+      'Cache-Control': 'max-age=60'
+    }
+  });
   if (!res.ok) throw new Error('Failed to fetch files');
   const data = await res.json();
   return data.files || [];
@@ -40,6 +45,8 @@ export interface SummaryEntry {
   lang: string;
   totalKeys: number;
   translatedKeys: number;
+  gitTranslatedKeys?: number;
+  gitTranslationPercentage?: number;
   translationPercentage: number;
   lastUpdated?: string;
   commitHash?: string;
@@ -47,7 +54,12 @@ export interface SummaryEntry {
 
 export async function fetchFilesSummary(projectName: string, language?: string): Promise<{ files: SummaryEntry[]; sourceLanguage?: string }> {
   const qs = language ? `?lang=${encodeURIComponent(language)}` : '';
-  const res = await fetch(`/api/projects/${encodeURIComponent(projectName)}/files/summary${qs}`, { credentials: 'include' });
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectName)}/files/summary${qs}`, { 
+    credentials: 'include',
+    headers: {
+      'Cache-Control': 'max-age=60'
+    }
+  });
   if (!res.ok) throw new Error('Failed to fetch summary');
   return await res.json();
 }

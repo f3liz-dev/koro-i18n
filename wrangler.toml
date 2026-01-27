@@ -39,9 +39,18 @@ name = "GITHUB_RATE_LIMIT"
 class_name = "GitHubRateLimitDO"
 script_name = "koro"
 
+[[durable_objects.bindings]]
+name = "TRANSLATION_STATUS"
+class_name = "TranslationStatusDO"
+script_name = "koro"
+
 [[migrations]]
 tag = "v1"
-new_classes = ["OAuthStateDO", "JWKSCacheDO", "GitHubRateLimitDO"]
+new_sqlite_classes = ["OAuthStateDO", "JWKSCacheDO", "GitHubRateLimitDO"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["TranslationStatusDO"]
 
 # # Development Environment
 # [env.development]

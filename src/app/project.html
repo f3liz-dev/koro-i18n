@@ -44,7 +44,15 @@
       </div>
     </template>
     <template id="project-loading-template">
-      <div class="flex justify-center p-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
+      <div class="space-y-4">
+        <div class="skeleton" style="height: 2rem; width: 40%;"></div>
+        <div class="skeleton" style="height: 1rem; width: 60%;"></div>
+        <div class="skeleton" style="height: 1rem; width: 50%;"></div>
+        <div class="grid gap-4 mt-6">
+          <div class="card skeleton" style="height: 200px;"></div>
+          <div class="card skeleton" style="height: 200px;"></div>
+        </div>
+      </div>
     </template>
     <template id="project-info-template">
       <div class="message info">Project details loaded. Files and languages are sourced directly from the project repository on GitHub.</div>

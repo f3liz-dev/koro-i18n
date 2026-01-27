@@ -23,6 +23,7 @@ export interface Env {
   OAUTH_STATE: DurableObjectNamespace;
   JWKS_CACHE: DurableObjectNamespace;
   GITHUB_RATE_LIMIT: DurableObjectNamespace;
+  TRANSLATION_STATUS: DurableObjectNamespace;
   
   // Secrets
   GITHUB_CLIENT_ID: string;

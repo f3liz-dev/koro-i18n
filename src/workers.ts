@@ -12,6 +12,7 @@ import type { Env } from './lib/context';
 export { OAuthStateDO } from './durable-objects/OAuthStateDO';
 export { JWKSCacheDO } from './durable-objects/JWKSCacheDO';
 export { GitHubRateLimitDO } from './durable-objects/GitHubRateLimitDO';
+export { TranslationStatusDO } from './durable-objects/TranslationStatusDO';
 
 // Re-export the Env type for backwards compatibility
 export type { Env } from './lib/context';

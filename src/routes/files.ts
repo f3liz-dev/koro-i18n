@@ -579,6 +579,9 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
       for (const result of progressResults) {
         if (result.status === 'fulfilled' && result.value.progressData) {
           progressByLanguage.set(result.value.lang, result.value.progressData);
+          console.log(`[summary] Progress data for ${result.value.lang}:`, Object.keys(result.value.progressData));
+        } else if (result.status === 'fulfilled') {
+          console.log(`[summary] No progress data for ${result.value.lang}`);
         }
       }
 
@@ -591,6 +594,9 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
           const progressData = progressByLanguage.get(mf.language);
           if (progressData) {
             githubTranslatedCount = findTranslatedKeysCount(progressData, mf.filename);
+            console.log(`[summary] ${mf.language}/${mf.filename}: found ${githubTranslatedCount} git-translated keys`);
+          } else {
+            console.log(`[summary] ${mf.language}/${mf.filename}: no progress data found`);
           }
         } else {
           // Source language is always 100% translated
@@ -626,6 +632,8 @@ export function createFileRoutes(prisma: PrismaClient, _env: Env) {
           lang: mf.language,
           totalKeys,
           translatedKeys,
+          gitTranslatedKeys: githubTranslatedCount,
+          gitTranslationPercentage: totalKeys > 0 ? Math.round((githubTranslatedCount / totalKeys) * 100) : 0,
           translationPercentage: totalKeys > 0 ? Math.round((translatedKeys / totalKeys) * 100) : 0,
           lastUpdated,
           commitHash: mf.commitHash,

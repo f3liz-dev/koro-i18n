@@ -2,6 +2,7 @@
 
 require "json"
 require "fileutils"
+require "time"
 
 module KoroI18n
   module Manifest
