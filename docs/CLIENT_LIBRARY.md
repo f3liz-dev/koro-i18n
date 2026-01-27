@@ -140,7 +140,6 @@ UPLOAD_CHUNK_SIZE=50  # For paid plans with higher CPU limits
 - `client-library/src/index.ts` - Pre-packing logic
 - `src/lib/r2-storage.ts` - Zero-encoding storage
 - `src/routes/project-files.ts` - Deferred D1/invalidation
-- `.github/actions/upload-translations/action.yml` - Default chunk size
 
 ## See Also
 

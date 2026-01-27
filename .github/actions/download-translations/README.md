@@ -96,7 +96,7 @@ If you want to review changes before committing:
 
 ## Complete Workflow Example
 
-A complete workflow that uploads source files and downloads translations:
+A complete workflow that uploads source files using the CLI and downloads translations:
 
 ```yaml
 name: i18n Sync
@@ -106,9 +106,14 @@ on:
     branches: [main]
     paths:
       - 'locales/en/**'
+      - '.koro-i18n.repo.config.toml'
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: write
 
 jobs:
   upload-source:
@@ -117,10 +122,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
-          project-name: my-project
+          node-version: '20'
+      
+      - name: Install koro CLI
+        run: npm install -g @koro-i18n/client
+      
+      - name: Push source keys
+        run: koro push
+        env:
+          KORO_API_URL: ${{ vars.KORO_API_URL || 'https://koro.f3liz.workers.dev' }}
 
   download-translations:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -130,7 +143,6 @@ jobs:
       
       - uses: f3liz-dev/koro-i18n/.github/actions/download-translations@main
         with:
-          api-key: ${{ secrets.I18N_PLATFORM_API_KEY }}
           project-name: my-project
 ```
 

@@ -32,24 +32,17 @@ example-project/
    - **Repository**: `your-username/example-project`
 5. Click "Add"
 
-### 2. Get API Key
+### 2. Set Up GitHub Workflow (No Secrets Required!)
 
-1. Go to project settings
-2. Click "Generate API Key"
-3. Copy the key (shown only once!)
+No API keys needed - the workflow uses GitHub OIDC authentication:
 
-### 3. Configure GitHub Repository
+1. Copy the example workflow to `.github/workflows/i18n-push.yml`
+2. Update `PROJECT_NAME` in the workflow file
+3. Commit and push
 
-If using GitHub Actions, add these secrets to your repository:
+### 3. Test Upload
 
-1. Go to repository Settings → Secrets and variables → Actions
-2. Add secrets:
-   - `I18N_PLATFORM_URL`: Your platform URL (e.g., `https://i18n-platform.workers.dev`)
-   - `I18N_PLATFORM_API_KEY`: The API key from step 2
-
-### 4. Test Upload
-
-#### Option A: Using GitHub Actions
+#### Option A: Using GitHub Actions (Recommended)
 
 ```bash
 git init
@@ -59,36 +52,21 @@ git remote add origin https://github.com/your-username/example-project.git
 git push -u origin main
 ```
 
-The workflow will automatically run and upload translations.
+The workflow will automatically run and upload translations using the koro CLI.
 
-#### Option B: Manual Upload (for testing)
+#### Option B: Manual Local Upload (for testing)
 
-**Using the development script (recommended for local testing):**
+**Using the koro CLI:**
 
 ```bash
-# 1. Get your JWT token from browser
-# - Open browser DevTools (F12)
-# - Go to Application/Storage → Cookies
-# - Copy the value of 'auth_token'
+# Install the koro CLI
+npm install -g @koro-i18n/client
 
-# 2. Upload files
-node upload-dev.js YOUR_JWT_TOKEN
-
-# Or set as environment variable
-JWT_TOKEN=YOUR_JWT_TOKEN node upload-dev.js
+# Run koro push
+koro push
 ```
 
-**Using the client library (for production):**
-
-For production use, it's recommended to use the GitHub Actions integration instead of running the client library directly. The GitHub Action automatically builds and uses the client library from the repository:
-
-```yaml
-- uses: f3liz-dev/koro-i18n/.github/actions/upload-translations@main
-  with:
-    project-name: example-project
-```
-
-If you need to run the client locally for testing, you can build it from the koro-i18n repository:
+**Or using the client library directly:**
 
 ```bash
 # Clone the koro-i18n repository
@@ -104,13 +82,12 @@ cd -
 
 # Set environment variables
 export I18N_PLATFORM_URL=https://koro.f3liz.workers.dev
-export JWT_TOKEN=your-jwt-token
 
 # Upload
 node /tmp/koro-i18n/client-library/dist/cli.js
 ```
 
-**Note:** For most users, it's recommended to use the GitHub Actions integration instead of the client library directly. See the workflow example in `.github/workflows/i18n-upload.yml` for details.
+**Note:** For most users, it's recommended to use the GitHub Actions workflow with the koro CLI instead of running the client library directly.
 
 ## Testing Translation Workflow
 
@@ -197,12 +174,13 @@ node /tmp/koro-i18n/client-library/dist/cli.js
 
 ```bash
 # Check workflow logs
-gh run list --workflow=i18n-upload.yml
+gh run list --workflow=i18n-push.yml
 gh run view <run-id> --log
 
-# Test locally
-export I18N_PLATFORM_API_KEY=your-key
-i18n-upload
+# Test locally with koro CLI
+npm install -g @koro-i18n/client
+koro validate
+koro push
 ```
 
 ### Files Not Showing
