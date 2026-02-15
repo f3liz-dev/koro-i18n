@@ -8,12 +8,6 @@ let make = (
   ~localeCount: int,
   ~onClick: unit => unit,
 ) => {
-  let percent = if keyCount > 0 && localeCount > 0 {
-    100
-  } else {
-    0
-  }
-
   <div className="card card-interactive" onClick={_ => onClick()}>
     <div style={{display: "flex", justifyContent: "space-between", alignItems: "start"}}>
       <div>
@@ -35,15 +29,5 @@ let make = (
         <strong> {keyCount->Int.toString->string} </strong> {" keys"->string}
       </span>
     </div>
-    {if keyCount > 0 {
-      <div className="progress-bar">
-        <div
-          className="progress-fill"
-          style={{width: `${percent->Int.toString}%`}}
-        />
-      </div>
-    } else {
-      Preact.null
-    }}
   </div>
 }
