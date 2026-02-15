@@ -1,0 +1,17 @@
+{
+  "name": "koro-i18n-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "koro-i18n backend server — Node.js + Hono",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "build": "echo 'No build step needed for plain JS server'"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.1",
+    "better-sqlite3": "^11.8.2",
+    "hono": "^4.11.4"
+  }
+}
