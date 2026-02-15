@@ -18,20 +18,24 @@ let make = (~projectId: int, ~onBack: unit => unit) => {
     None
   })
 
-  <div>
-    <button className="btn" onClick={_ => onBack()} style={{marginBottom: "16px"}}>
-      {"← Back to Projects"->string}
+  <div className="fade-in">
+    <button className="nav-back" onClick={_ => onBack()}>
+      {`← Projects`->string}
     </button>
     {if loading {
-      <div className="loading"> {"Loading project..."->string} </div>
+      <div className="loading"> {"Loading…"->string} </div>
     } else {
       switch project {
-      | None => <div className="empty-state"> {"Project not found"->string} </div>
+      | None => <div className="empty-state"> {"Project not found."->string} </div>
       | Some(p) =>
         <div>
-          <div className="card">
+          <div className="card" style={{marginBottom: "16px"}}>
             <h2> {p.name->string} </h2>
-            <p> {p.description->string} </p>
+            {if p.description != "" {
+              <p> {p.description->string} </p>
+            } else {
+              Preact.null
+            }}
             <div className="stats">
               <span className="stat">
                 <strong> {p.key_count->Int.toString->string} </strong> {" keys"->string}
@@ -41,42 +45,75 @@ let make = (~projectId: int, ~onBack: unit => unit) => {
                 {" locales"->string}
               </span>
               <span className="stat">
-                {"Source: "->string} <strong> {p.source_locale->string} </strong>
+                {"source "->string} <strong> {p.source_locale->string} </strong>
               </span>
             </div>
           </div>
           {switch status {
           | None => Preact.null
           | Some(s) =>
-            if s.locales->Array.length == 0 {
-              <div className="card">
+            <div className="section">
+              <div className="section-title"> {"Locales"->string} </div>
+              {if s.locales->Array.length == 0 {
                 <div className="empty-state">
                   <h3> {"No translations yet"->string} </h3>
-                  <p> {"Push source keys and add translations via the API."->string} </p>
+                  <p> {"Import translations via the sync API to get started."->string} </p>
                 </div>
-              </div>
-            } else {
-              s.locales
-              ->Array.map(ls => {
-                <div className="card" key={ls.locale}>
-                  <h3> {ls.locale->string} </h3>
-                  <div className="stats">
-                    <span className="stat">
-                      <strong> {ls.translated->Int.toString->string} </strong>
-                      {" translated"->string}
-                    </span>
-                    <span className="stat">
-                      <strong> {ls.approved->Int.toString->string} </strong>
-                      {" approved"->string}
-                    </span>
-                    <span className="stat">
-                      <strong> {ls.draft->Int.toString->string} </strong> {" draft"->string}
-                    </span>
+              } else {
+                s.locales
+                ->Array.map(ls => {
+                  let percent = if s.total_keys > 0 {
+                    ls.translated * 100 / s.total_keys
+                  } else {
+                    0
+                  }
+                  <div className="locale-card" key={ls.locale}>
+                    <div>
+                      <span className="locale-name"> {ls.locale->string} </span>
+                      <div className="progress-bar" style={{width: "120px", marginTop: "4px"}}>
+                        <div
+                          className="progress-fill"
+                          style={{width: `${percent->Int.toString}%`}}
+                        />
+                      </div>
+                    </div>
+                    <div className="locale-stats">
+                      <span className="badge badge-success">
+                        {`${ls.approved->Int.toString} approved`->string}
+                      </span>
+                      {if ls.draft > 0 {
+                        <span className="badge badge-warning">
+                          {`${ls.draft->Int.toString} draft`->string}
+                        </span>
+                      } else {
+                        Preact.null
+                      }}
+                      <span className="stat">
+                        {`${percent->Int.toString}%`->string}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              })
-              ->array
-            }
+                })
+                ->array
+              }}
+            </div>
+          }}
+          {if p.contributors->Array.length > 0 {
+            <div className="section">
+              <div className="section-title"> {"Contributors"->string} </div>
+              <div className="contributor-list">
+                {p.contributors
+                ->Array.map(c => {
+                  <span className="contributor" key={c.author_email}>
+                    {c.author_name->string}
+                    <span className="contributor-source"> {`(${c.source})`->string} </span>
+                  </span>
+                })
+                ->array}
+              </div>
+            </div>
+          } else {
+            Preact.null
           }}
         </div>
       }

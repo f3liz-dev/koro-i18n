@@ -5,14 +5,22 @@ export const projectsRouter = new Hono();
 
 // List all projects
 projectsRouter.get("/", (c) => {
-  const projects = db.prepare("SELECT * FROM projects ORDER BY created_at DESC").all();
+  const projects = db
+    .prepare(
+      `SELECT p.*,
+              (SELECT COUNT(*) FROM source_keys WHERE project_id = p.id) as key_count,
+              (SELECT COUNT(DISTINCT locale) FROM translations WHERE project_id = p.id) as locale_count
+       FROM projects p
+       ORDER BY p.updated_at DESC`
+    )
+    .all();
   return c.json(projects);
 });
 
 // Create a project
 projectsRouter.post("/", async (c) => {
   const body = await c.req.json();
-  const { name, description, source_locale } = body;
+  const { name, description, source_locale, repo_url } = body;
 
   if (!name || typeof name !== "string" || name.trim() === "") {
     return c.json({ error: "Project name is required" }, 400);
@@ -20,9 +28,14 @@ projectsRouter.post("/", async (c) => {
 
   try {
     const stmt = db.prepare(
-      "INSERT INTO projects (name, description, source_locale) VALUES (?, ?, ?)"
+      "INSERT INTO projects (name, description, source_locale, repo_url) VALUES (?, ?, ?, ?)"
     );
-    const result = stmt.run(name.trim(), description || "", source_locale || "en");
+    const result = stmt.run(
+      name.trim(),
+      description || "",
+      source_locale || "en",
+      repo_url || ""
+    );
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(result.lastInsertRowid);
     return c.json(project, 201);
   } catch (err) {
@@ -50,7 +63,16 @@ projectsRouter.get("/:id", (c) => {
     .all(id)
     .map((r) => r.locale);
 
-  return c.json({ ...project, key_count: keyCount.count, locales });
+  const contributors = db
+    .prepare(
+      `SELECT DISTINCT author_name, author_email, source
+       FROM translations
+       WHERE project_id = ? AND author_name != ''
+       ORDER BY author_name`
+    )
+    .all(id);
+
+  return c.json({ ...project, key_count: keyCount.count, locales, contributors });
 });
 
 // Delete a project

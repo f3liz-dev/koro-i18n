@@ -3,8 +3,17 @@ type project = {
   name: string,
   description: string,
   source_locale: string,
+  repo_url: string,
+  key_count: int,
+  locale_count: int,
   created_at: string,
   updated_at: string,
+}
+
+type contributor = {
+  author_name: string,
+  author_email: string,
+  source: string,
 }
 
 type projectDetail = {
@@ -12,14 +21,17 @@ type projectDetail = {
   name: string,
   description: string,
   source_locale: string,
+  repo_url: string,
   key_count: int,
   locales: array<string>,
+  contributors: array<contributor>,
 }
 
 type sourceKey = {
   id: int,
   project_id: int,
   key: string,
+  file_path: string,
   default_value: string,
   context: string,
 }
@@ -29,6 +41,8 @@ type translation = {
   locale: string,
   value: string,
   status: string,
+  author_name: string,
+  source: string,
   key: string,
   default_value: string,
   context: string,

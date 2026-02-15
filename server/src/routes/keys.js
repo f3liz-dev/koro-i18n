@@ -35,9 +35,10 @@ keysRouter.post("/:id/keys", async (c) => {
   }
 
   const upsert = db.prepare(`
-    INSERT INTO source_keys (project_id, key, default_value, context, updated_at)
-    VALUES (?, ?, ?, ?, datetime('now'))
+    INSERT INTO source_keys (project_id, key, file_path, default_value, context, updated_at)
+    VALUES (?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(project_id, key) DO UPDATE SET
+      file_path = CASE WHEN excluded.file_path != '' THEN excluded.file_path ELSE source_keys.file_path END,
       default_value = excluded.default_value,
       context = excluded.context,
       updated_at = datetime('now')
@@ -50,7 +51,13 @@ keysRouter.post("/:id/keys", async (c) => {
       const existing = db
         .prepare("SELECT id FROM source_keys WHERE project_id = ? AND key = ?")
         .get(projectId, item.key);
-      upsert.run(projectId, item.key, item.default_value || "", item.context || "");
+      upsert.run(
+        projectId,
+        item.key,
+        item.file_path || "",
+        item.default_value || "",
+        item.context || ""
+      );
       if (existing) {
         updated++;
       } else {

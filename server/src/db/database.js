@@ -22,6 +22,7 @@ db.exec(`
     name TEXT NOT NULL UNIQUE,
     description TEXT DEFAULT '',
     source_locale TEXT NOT NULL DEFAULT 'en',
+    repo_url TEXT DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -30,6 +31,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
     key TEXT NOT NULL,
+    file_path TEXT DEFAULT '',
     default_value TEXT DEFAULT '',
     context TEXT DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -45,6 +47,9 @@ db.exec(`
     locale TEXT NOT NULL,
     value TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'draft',
+    author_name TEXT DEFAULT '',
+    author_email TEXT DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'platform',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
