@@ -1,62 +1,14 @@
 {
   "name": "koro-i18n",
-  "version": "1.0.0",
-  "description": "Production-ready i18n platform with Elm frontend and Cloudflare Workers backend",
-  "main": "dist/index.js",
-  "type": "module",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Lightweight i18n translation management platform",
   "scripts": {
-    "build": "pnpm run prisma:generate && vite build",
-    "dev": "vite",
-    "dev:workers": "wrangler dev",
-    "dev:all": "node scripts/dev-all.js",
-    "test": "vitest --run",
-    "type-check": "tsc --noEmit",
-    "clean": "rimraf .wrangler dist",
-    "deploy": "pnpm run build && wrangler deploy",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate:local": "wrangler d1 migrations apply koro-i18n-db --local",
-    "prisma:migrate:remote": "wrangler d1 migrations apply koro-i18n-db --remote",
-    "logs": "wrangler tail"
-  },
-  "dependencies": {
-    "@hono/valibot-validator": "^0.6.0",
-    "@octokit/auth-oauth-app": "^9.0.3",
-    "@octokit/rest": "^22.0.1",
-    "@prisma/adapter-d1": "^6.19.0",
-    "@prisma/client": "^6.19.0",
-    "@vue/reactivity": "3.6.0-beta.1",
-    "hono": "^4.6.3",
-    "jose": "^6.1.0",
-    "valibot": "^1.2.0",
-    "vue": "3.6.0-beta.1"
+    "setup": "cd server && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"cd server && npm run dev\" \"cd frontend && npm run dev\"",
+    "build": "cd server && npm run build && cd ../frontend && npm run build"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20251106.1",
-    "@types/node": "^24.10.0",
-    "@typescript-eslint/eslint-plugin": "^8.46.3",
-    "@typescript-eslint/parser": "^8.46.3",
-    "@vitejs/plugin-vue": "^6.0.3",
-    "elm": "0.19.1-6",
-    "eslint": "^9.39.1",
-    "prisma": "^6.19.0",
-    "typescript": "^5.2.2",
-    "vite": "8.0.0-beta.3",
-    "vite-plugin-elm": "^3.0.1",
-    "vitest": "^4.0.7",
-    "wrangler": "^4.45.4"
-  },
-  "packageManager": "pnpm@9.15.9",
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "keywords": [
-    "i18n",
-    "internationalization",
-    "translation",
-    "github",
-    "cloudflare-workers",
-    "elm"
-  ],
-  "author": "",
-  "license": "MIT"
+    "concurrently": "^9.1.2"
+  }
 }

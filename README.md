@@ -1,164 +1,81 @@
 # koro-i18n
 
-A lightweight, production-ready i18n platform powered by Elm and Cloudflare Workers.
+A lightweight internationalization (i18n) platform for managing translations. Built with a modern stack designed for simplicity and performance.
 
 ## Architecture
 
-- **Frontend**: Elm - Pure functional programming for a reliable, fast UI
-- **Backend**: Cloudflare Workers + Hono - Edge-first, zero cold starts
-- **Database**: D1 (SQLite) via Prisma - Serverless, no cost at rest
-- **Auth**: GitHub OAuth + OIDC for GitHub Actions
-
-**Important**: Your GitHub repository is the source of truth for translations. The koro-i18n server manages translation suggestions (diffs) only. See [docs/SERVER_ROLE_ARCHITECTURE.md](docs/SERVER_ROLE_ARCHITECTURE.md) for details.
-
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Your Repository                                    │
-│                            (Source of Truth)                                 │
-│  koro.config.json              locales/                                      │
-│  (configuration)               ├── en/common.json  (source)                 │
-│                                └── ja/common.json  (target)                 │
-└─────────────────────────────────┬───────────────────────────────────────────┘
-                                  │
-                    GitHub Action syncs translations
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Koro Platform (Cloudflare Workers)                     │
-│                         (Diff Management)                                    │
-│  Elm Frontend (Static)          Hono API (Edge)                              │
-│  • Pure functional UI           • GitHub OAuth                               │
-│  • Type-safe views              • Translation CRUD                           │
-│  • Fast, reliable               • Prisma + D1                                │
-│                                 • OIDC for Actions                           │
-└─────────────────────────────────────────────────────────────────────────────┘
+koro-i18n/
+├── frontend/    # ReScript + Preact — deployed to Cloudflare Workers
+└── server/      # Node.js + Hono — runs on VM server
 ```
 
-## Quick Start
+### Backend (VM Server)
 
-### 1. Add Configuration
+- **Runtime**: Node.js
+- **Framework**: [Hono](https://hono.dev) — lightweight, fast web framework
+- **Database**: SQLite via [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) — simple, zero-config, local data
+- **Auth**: GitHub OAuth
 
-Create `koro.config.json` in your repository:
+The server runs on a VM and keeps a local SQLite copy of translation data for fast reads and simplified operations.
 
-```json
-{
-  "version": 1,
-  "sourceLanguage": "en",
-  "targetLanguages": ["ja", "es", "fr", "de"],
-  "files": {
-    "include": ["locales/{lang}/**/*.json"]
-  }
-}
-```
+### Frontend (Cloudflare Workers)
 
-### 2. Create a Project
-
-1. Log in with GitHub at https://koro.f3liz.workers.dev
-2. Create a new project and link it to your repository
-
-### 3. Set Up GitHub Action
-
-Create `.github/workflows/i18n.yml`:
-
-```yaml
-name: i18n Sync
-
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'locales/en/**'
-  schedule:
-    - cron: '0 */6 * * *'
-  workflow_dispatch:
-
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: f3liz-dev/koro-i18n/.github/actions/sync@main
-        with:
-          project-name: your-project-name
-```
+- **Language**: [ReScript](https://rescript-lang.org) — type-safe, compiles to clean JavaScript
+- **UI Library**: [Preact](https://preactjs.com) — fast 3kB React alternative
+- **Build**: [Vite](https://vitejs.dev) — fast development and production builds
+- **Hosting**: Cloudflare Workers/Pages for edge delivery
 
 ## Development
 
+### Prerequisites
+
+- Node.js >= 20
+- npm
+
+### Setup
+
 ```bash
-# Install dependencies
-pnpm install
+# Install all dependencies
+npm run setup
 
-# Generate Prisma client
-pnpm run prisma:generate
-
-# Run locally (frontend + workers)
-pnpm run dev:all
-
-# Run tests
-pnpm run test
-
-# Type check
-pnpm run type-check
-
-# Build for production
-pnpm run build
-
-# Deploy to Cloudflare
-pnpm run deploy
+# Start development (both frontend and server)
+npm run dev
 ```
 
-## Tech Stack
+### Individual Commands
 
-| Component | Technology | Why |
-|-----------|------------|-----|
-| Frontend | Elm | Type-safe, no runtime exceptions, fast |
-| Backend | Cloudflare Workers | Edge computing, no cold starts, free tier |
-| HTTP | Hono | Lightweight, fast, built for Workers |
-| Database | D1 + Prisma | SQLite at the edge, type-safe queries |
-| Auth | GitHub OAuth | Developer-first, secure |
-| Styling | Vanilla CSS | Simple, no build step, performant |
+```bash
+# Frontend
+cd frontend
+npm run res:build   # Build ReScript
+npm run dev         # Start Vite dev server
 
-## API Reference
-
-### Translation Endpoints
-
-```
-GET /api/projects/:name/translations/file/:lang/:file
-  → Source + target translations in one call
-
-POST /api/projects/:name/translations
-  → Submit new translation
-
-PATCH /api/projects/:name/translations/:id
-  → Approve or reject translation
-
-DELETE /api/projects/:name/translations/:id
-  → Delete translation
+# Server
+cd server
+npm run dev         # Start server with auto-reload
+npm run build       # Build for production
 ```
 
-### Apply Endpoints (GitHub Actions)
+## Core Concepts
 
-```
-GET /api/projects/:name/apply/preview
-  → Preview pending translations
+- **Projects**: Each i18n project maps to a repository or app
+- **Source Keys**: The original strings to be translated (source of truth in code)
+- **Translations**: Translated strings in various locales, managed through the platform
+- **Workflow**: Push keys → Translate in UI → Pull approved translations
 
-GET /api/projects/:name/apply/export
-  → Export approved translations
+## API Endpoints
 
-POST /api/projects/:name/apply/committed
-  → Mark translations as committed
-```
-
-## Design Principles
-
-1. **Zero Cost at Rest**: D1 and Workers have generous free tiers
-2. **Edge-First**: All computation happens at the edge, near users
-3. **Type Safety**: Elm eliminates frontend runtime errors
-4. **Minimal Dependencies**: Only essential, well-maintained libraries
-5. **Developer Experience**: Easy setup, clear documentation
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/health` | Health check |
+| GET | `/api/projects` | List all projects |
+| POST | `/api/projects` | Create a project |
+| GET | `/api/projects/:id` | Get project details |
+| GET | `/api/projects/:id/keys` | List source keys |
+| POST | `/api/projects/:id/keys` | Push source keys |
+| GET | `/api/projects/:id/translations/:locale` | Get translations for locale |
+| PUT | `/api/projects/:id/translations/:locale` | Update translations |
 
 ## License
 
